@@ -4,9 +4,7 @@ import '../../data/models/app_bootstrap.dart';
 import '../../data/services/api_service.dart';
 import 'story_detail_screen.dart';
 
-/// Temporary working Library screen.
-/// For the full private-list detail UI (add/remove stories), copy
-/// artifacts/fixes/library_screen.dart over this file.
+/// Library: Ongoing Reading (in-progress) + Reading Lists + History (completed).
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({
     super.key,
@@ -31,19 +29,23 @@ class _LibraryScreenState extends State<LibraryScreen>
   bool _loading = false;
   bool _listsLoading = false;
 
+  /// Completed = user finished the book (all chapters read / marked complete).
   bool _isCompleted(LibraryEntryModel e) {
     final s = e.readingStatus.toLowerCase().trim();
     return s == 'completed' ||
         s == 'complete' ||
         s == 'finished' ||
-        s == 'done';
+        s == 'done' ||
+        s == 'history';
   }
+
+  /// Ongoing = started (opened chapters) but not completed.
+  bool _isOngoing(LibraryEntryModel e) => !_isCompleted(e);
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    // Load only from API — do not seed fake bootstrap lists/entries
     _entries = [];
     _readingLists = [];
     _loadEntries();
@@ -107,6 +109,9 @@ class _LibraryScreenState extends State<LibraryScreen>
         ],
       ),
     );
+    // Dispose after dialog fully closed
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    c.dispose();
     if (name == null || name.isEmpty) return;
     try {
       final created = await widget.apiService.createReadingList({
@@ -127,7 +132,6 @@ class _LibraryScreenState extends State<LibraryScreen>
           ),
         ),
       );
-      // If list still empty after create, force another fetch shortly after
       if (_readingLists.isEmpty ||
           !_readingLists.any((l) => l.name == name)) {
         await Future<void>.delayed(const Duration(milliseconds: 400));
@@ -203,8 +207,11 @@ class _LibraryScreenState extends State<LibraryScreen>
 
   @override
   Widget build(BuildContext context) {
-    final current = _entries.where((e) => !_isCompleted(e)).toList();
+    final ongoing = _entries.where(_isOngoing).toList();
     final history = _entries.where(_isCompleted).toList();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final muted = isDark ? const Color(0xFFA0A0A0) : AppTheme.muted;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -221,10 +228,10 @@ class _LibraryScreenState extends State<LibraryScreen>
         TabBar(
           controller: _tabController,
           labelColor: AppTheme.brand,
-          unselectedLabelColor: AppTheme.muted,
+          unselectedLabelColor: muted,
           indicatorColor: AppTheme.brand,
           tabs: const [
-            Tab(text: 'Current Reads'),
+            Tab(text: 'Ongoing Reading'),
             Tab(text: 'Reading Lists'),
             Tab(text: 'History'),
           ],
@@ -234,7 +241,7 @@ class _LibraryScreenState extends State<LibraryScreen>
             controller: _tabController,
             children: [
               _EntriesList(
-                entries: current,
+                entries: ongoing,
                 loading: _loading,
                 api: widget.apiService,
                 onToggle: _toggle,
@@ -299,6 +306,9 @@ class _EntriesList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final muted = isDark ? const Color(0xFFA0A0A0) : AppTheme.muted;
+
     return RefreshIndicator(
       onRefresh: onRefresh,
       child: ListView(
@@ -306,21 +316,19 @@ class _EntriesList extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(24, 14, 24, 30),
         children: [
           Text(
-            history ? 'Reading History' : 'My Books',
+            history ? 'Completed books' : 'Ongoing reading',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
               fontSize: 18,
               fontWeight: FontWeight.w500,
             ),
           ),
-          if (history) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Mark Completed from Current Reads to sync here.',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: AppTheme.muted),
-            ),
-          ],
+          const SizedBox(height: 8),
+          Text(
+            history
+                ? 'Books you finished (all chapters read or marked completed).'
+                : 'Books you started but have not finished yet.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted),
+          ),
           const SizedBox(height: 18),
           if (loading)
             const Center(
@@ -332,8 +340,8 @@ class _EntriesList extends StatelessWidget {
           else if (entries.isEmpty)
             Center(
               child: Text(
-                history ? 'No completed books yet' : 'No books yet',
-                style: const TextStyle(color: AppTheme.muted),
+                history ? 'No completed books yet' : 'No ongoing books yet',
+                style: TextStyle(color: muted),
               ),
             )
           else
@@ -368,10 +376,17 @@ class _EntriesList extends StatelessWidget {
                       ? Image.network(
                           api.resolveAssetUrl(e.book.coverPath),
                           fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) =>
-                              const ColoredBox(color: Color(0xFFE4E4E4)),
+                          errorBuilder: (_, _, _) => ColoredBox(
+                            color: isDark
+                                ? const Color(0xFF2C2C2C)
+                                : const Color(0xFFE4E4E4),
+                          ),
                         )
-                      : const ColoredBox(color: Color(0xFFE4E4E4)),
+                      : ColoredBox(
+                          color: isDark
+                              ? const Color(0xFF2C2C2C)
+                              : const Color(0xFFE4E4E4),
+                        ),
                 ),
                 title: Text(
                   e.book.title,
@@ -388,7 +403,7 @@ class _EntriesList extends StatelessWidget {
                     PopupMenuItem(
                       value: 'status',
                       child: Text(
-                        history ? 'Mark as Reading' : 'Mark as Completed',
+                        history ? 'Mark as Ongoing' : 'Mark as Completed',
                       ),
                     ),
                     const PopupMenuItem(value: 'delete', child: Text('Delete')),
@@ -427,6 +442,9 @@ class _ListsPane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final muted = isDark ? const Color(0xFFA0A0A0) : AppTheme.muted;
+
     return RefreshIndicator(
       onRefresh: onRefresh,
       child: ListView(
@@ -443,19 +461,14 @@ class _ListsPane extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             'Tap a list to open, add, or remove stories.',
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(color: AppTheme.muted),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted),
           ),
           const SizedBox(height: 18),
           if (loading)
             const Center(child: CircularProgressIndicator())
           else if (lists.isEmpty)
-            const Center(
-              child: Text(
-                'No lists yet',
-                style: TextStyle(color: AppTheme.muted),
-              ),
+            Center(
+              child: Text('No lists yet', style: TextStyle(color: muted)),
             )
           else
             ...lists.map(
