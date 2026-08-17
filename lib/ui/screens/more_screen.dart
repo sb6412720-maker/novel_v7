@@ -100,7 +100,6 @@ class MoreScreen extends StatelessWidget {
                 return;
               }
 
-              // Fallback: try achievements / stats by common labels
               if (label.contains('badge') || label.contains('trophy')) {
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
@@ -134,12 +133,13 @@ class _AccountCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.border),
+        border: Border.all(color: isDark ? const Color(0xFF2C2C2C) : AppTheme.border),
       ),
       child: Row(
         children: [
@@ -207,7 +207,13 @@ class _Section extends StatelessWidget {
           ...section.items.map((item) {
             return ListTile(
               dense: true,
-              leading: Icon(_iconFor(item.icon), size: 20, color: AppTheme.ink),
+              leading: Icon(
+                _iconFor(item.icon),
+                size: 20,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xFFE8E8E8)
+                    : AppTheme.ink,
+              ),
               title: Text(
                 item.label,
                 style: Theme.of(context).textTheme.bodyMedium,
@@ -259,7 +265,6 @@ class _Section extends StatelessWidget {
     }
   }
 }
-
 
 class _ThemeModeCard extends StatelessWidget {
   const _ThemeModeCard();
