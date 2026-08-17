@@ -35,13 +35,16 @@ class ApiService {
         const emulatorUrl = 'http://10.0.2.2:8000';
         debugPrint(
           'ApiService: Android debug default base URL is $emulatorUrl.\n'
-          'If you are running on a physical device, pass --dart-define=API_BASE_URL=http://<PC_IP>:8000',
+          'Physical device? pass --dart-define=API_BASE_URL=http://<PC_IP>:8000\n'
+          'Debug never falls back to production (avoids Google Not Found / empty Discover).',
         );
         return emulatorUrl;
       }
       return 'http://127.0.0.1:8000';
     }
 
+    // Release: HF Space is currently outdated (404 on /api/auth/google).
+    // Prefer --dart-define=API_BASE_URL=... until you redeploy the current backend.
     return _productionApiBaseUrl;
   }
 
@@ -52,6 +55,9 @@ class ApiService {
     return <String, String>{'Authorization': 'Bearer $_authToken'};
   }
 
+  /// Host fallback: only used in release when the primary host fails.
+  /// In debug we never fall back to production — that was causing Google
+  /// "Not Found" and empty Discover when local backend was down or misconfigured.
   Future<http.Response> _requestWithHostFallback(
     Future<http.Response> Function(String baseUrl) request,
     Duration timeout,
@@ -59,10 +65,10 @@ class ApiService {
     try {
       return await request(_baseUrl).timeout(timeout);
     } on http.ClientException {
-      if (_baseUrl == _productionApiBaseUrl) rethrow;
+      if (kDebugMode || _baseUrl == _productionApiBaseUrl) rethrow;
       return request(_productionApiBaseUrl).timeout(timeout);
     } on TimeoutException {
-      if (_baseUrl == _productionApiBaseUrl) rethrow;
+      if (kDebugMode || _baseUrl == _productionApiBaseUrl) rethrow;
       return request(_productionApiBaseUrl).timeout(timeout);
     }
   }
