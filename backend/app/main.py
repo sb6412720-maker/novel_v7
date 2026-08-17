@@ -4290,6 +4290,24 @@ except Exception as _story_reports_exc:
     LOGGER.warning("story_reports routes not registered: %s", _story_reports_exc)
 
 try:
+    from .activity_feed import register_activity_routes
+    register_activity_routes(
+        app,
+        fetch_all=fetch_all,
+        LOGGER=LOGGER,
+        helpers={
+            "row_get": _row_get,
+            "normalize_cover_path": _normalize_cover_path,
+            "ensure_book_likes_table": _ensure_book_likes_table,
+            "ensure_chapter_comments_table": _ensure_chapter_comments_table,
+            "ensure_author_follows_table": _ensure_author_follows_table,
+            "ensure_wall_posts_table": _ensure_wall_posts_table,
+        },
+    )
+except Exception as _activity_exc:
+    LOGGER.warning("activity_feed routes not registered: %s", _activity_exc)
+
+try:
     from .chapter_reactions import register_chapter_reaction_routes
     register_chapter_reaction_routes(
         app,
