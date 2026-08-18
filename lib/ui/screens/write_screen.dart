@@ -317,7 +317,7 @@ class _ManageStoriesTab extends StatelessWidget {
               prefixIcon: const Icon(Icons.search_rounded, size: 20),
               contentPadding: const EdgeInsets.symmetric(vertical: 10),
               filled: true,
-              fillColor: const Color(0xFFF5F5F5),
+              fillColor: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2C2C2C) : const Color(0xFFF5F5F5),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
                 borderSide: BorderSide.none,
@@ -472,7 +472,9 @@ class _StoryListCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFF1E1E1E)
+            : Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppTheme.border),
       ),

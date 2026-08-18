@@ -59,7 +59,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
       slivers: [
         SliverToBoxAdapter(
           child: Container(
-            color: Colors.white,
+            color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF121212) : Colors.white,
             padding: const EdgeInsets.fromLTRB(12, 8, 8, 0),
             child: Row(
               children: [
@@ -103,7 +103,9 @@ class _DiscoverScreenState extends State<DiscoverScreen>
           pinned: true,
           delegate: _TabBarDelegate(
             child: Container(
-              color: Colors.white,
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF121212)
+                  : Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: _CategoryTabs(
                 labels: _tabs,
@@ -123,8 +125,9 @@ class _DiscoverScreenState extends State<DiscoverScreen>
     final sections = _discoverSectionsForTab(tabLabel, allBooks);
     final showExploreLead = tabLabel == 'new' && sections.isNotEmpty;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      color: Colors.white,
+      color: isDark ? const Color(0xFF121212) : Colors.white,
       child: ListView(
         physics: const NeverScrollableScrollPhysics(),
         shrinkWrap: true,

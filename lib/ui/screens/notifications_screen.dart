@@ -149,7 +149,7 @@ class _NotificationTab extends StatelessWidget {
               curve: Curves.easeOut,
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E1E1E) : Colors.white,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Row(
@@ -160,7 +160,7 @@ class _NotificationTab extends StatelessWidget {
                     height: 42,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF4F4F4),
+                      color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2C2C2C) : const Color(0xFFF4F4F4),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(

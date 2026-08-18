@@ -362,19 +362,83 @@ SEED_CHAPTER_BODIES = [
 ]
 
 
-def _seed_long_chapters_for_books(cursor, use_sqlite: bool) -> int:
-    """Ensure each book has at least 3 chapters with non-trivial, book-specific content."""
-    inserted = 0
+
+def _cleanup_seed_chapters_on_user_books(cursor, use_sqlite: bool) -> int:
+    """Remove auto-seeded dummy chapters that were attached to user-created books."""
+    removed = 0
     try:
-        cursor.execute("SELECT id, title FROM books")
+        if use_sqlite:
+            cursor.execute(
+                """
+                SELECT c.id FROM chapters c
+                JOIN books b ON b.id = c.story_id
+                WHERE b.user_id IS NOT NULL AND b.user_id != 0
+                  AND (
+                    c.content LIKE '%the traveller%'
+                    OR c.content LIKE '%far edge of the map%'
+                    OR c.title LIKE 'Chapter 1: The Beginning'
+                    OR c.title LIKE 'Chapter 2: Crossroads'
+                    OR c.title LIKE 'Chapter 3: The Turn'
+                  )
+                """
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT c.id FROM chapters c
+                JOIN books b ON b.id = c.story_id
+                WHERE b.user_id IS NOT NULL AND b.user_id != 0
+                  AND (
+                    c.content LIKE '%the traveller%'
+                    OR c.content LIKE '%far edge of the map%'
+                    OR c.title LIKE 'Chapter 1: The Beginning'
+                    OR c.title LIKE 'Chapter 2: Crossroads'
+                    OR c.title LIKE 'Chapter 3: The Turn'
+                  )
+                """
+            )
+        rows = cursor.fetchall() or []
+        ids = []
+        for r in rows:
+            if isinstance(r, dict):
+                ids.append(r.get("id") or list(r.values())[0])
+            else:
+                ids.append(r[0])
+        for cid in ids:
+            if use_sqlite:
+                cursor.execute("DELETE FROM chapters WHERE id=?", (cid,))
+            else:
+                cursor.execute("DELETE FROM chapters WHERE id=%s", (cid,))
+            removed += 1
+    except Exception:
+        pass
+    return removed
+
+def _seed_long_chapters_for_books(cursor, use_sqlite: bool) -> int:
+    """Seed long chapters ONLY for built-in dummy/seed novels — never for user-created books."""
+    inserted = 0
+    seed_titles = {t[0] for t in SEED_BOOKS}  # first field is title
+    seed_titles |= set(SEED_BOOK_FLAVOUR.keys())
+    try:
+        # Prefer selecting only seed titles; also skip rows that have a real user owner.
+        cursor.execute("SELECT id, title, user_id FROM books")
         books = cursor.fetchall()
         for book in books:
             if isinstance(book, dict):
                 book_id = book["id"]
                 title = book.get("title") or "Untitled"
+                user_id = book.get("user_id")
             else:
                 book_id = book[0]
                 title = book[1] if len(book) > 1 else "Untitled"
+                user_id = book[2] if len(book) > 2 else None
+
+            # Only seed dummy content for known seed novels without a user owner.
+            if title not in seed_titles:
+                continue
+            if user_id not in (None, 0, "0", ""):
+                # Owned by a logged-in author — never auto-generate chapters
+                continue
 
             if use_sqlite:
                 cursor.execute("SELECT COUNT(*) FROM chapters WHERE story_id=?", (book_id,))
@@ -1306,6 +1370,7 @@ def _run_startup_migrations_sqlite(connection) -> dict[str, int]:
 
     try:
         result["chapters_seeded"] = _seed_long_chapters_for_books(cursor, use_sqlite=True)
+        result["chapters_cleaned"] = _cleanup_seed_chapters_on_user_books(cursor, use_sqlite=True)
     except Exception:
         result["chapters_seeded"] = 0
 
@@ -1777,6 +1842,7 @@ def run_startup_migrations() -> dict[str, int]:
 
     try:
         result["chapters_seeded"] = _seed_long_chapters_for_books(cursor, use_sqlite=False)
+        result["chapters_cleaned"] = _cleanup_seed_chapters_on_user_books(cursor, use_sqlite=False)
     except Exception:
         result["chapters_seeded"] = 0
 
@@ -1899,6 +1965,7 @@ def force_seed_if_empty() -> dict[str, int]:
 
         try:
             result["chapters_seeded"] = _seed_long_chapters_for_books(cursor, use_sqlite=use_sqlite)
+            result["chapters_cleaned"] = _cleanup_seed_chapters_on_user_books(cursor, use_sqlite=use_sqlite)
         except Exception:
             result["chapters_seeded"] = 0
 

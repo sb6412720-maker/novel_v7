@@ -1859,7 +1859,6 @@ def get_library_entries(user: dict[str, Any] = Depends(require_user)):
         """,
         (user["user_id"],),
     )
-    # One entry per book (keep newest row if old duplicates exist)
     seen_books: set[int] = set()
     items: list[dict[str, Any]] = []
     for row in rows or []:
@@ -1898,7 +1897,6 @@ def create_library_entry(
     """Upsert one library row per (user, book). Never create duplicates."""
     uid = int(user["user_id"])
     bid = int(payload.book_id)
-    # Never overwrite Completed with Reading (keep finished until user re-opens as new read)
     new_status = (payload.reading_status or "Reading").strip() or "Reading"
 
     existing = fetch_all(
@@ -1907,20 +1905,25 @@ def create_library_entry(
     )
     if existing:
         keep_id = int(_row_get(existing[0], "id") or 0)
-        # Delete accidental duplicates, keep oldest id
         for extra in existing[1:]:
             eid = int(_row_get(extra, "id") or 0)
             if eid and eid != keep_id:
                 try:
-                    execute_write("DELETE FROM library_entries WHERE id=%s AND user_id=%s", (eid, uid))
+                    execute_write(
+                        "DELETE FROM library_entries WHERE id=%s AND user_id=%s",
+                        (eid, uid),
+                    )
                 except Exception:
                     pass
         prev = str(_row_get(existing[0], "reading_status") or "").strip().lower()
         status_to_set = new_status
         if prev in ("completed", "complete", "finished", "done", "history") and new_status.lower() not in (
-            "completed", "complete", "finished", "done", "history",
+            "completed",
+            "complete",
+            "finished",
+            "done",
+            "history",
         ):
-            # Keep completed unless caller explicitly marks completed
             status_to_set = _row_get(existing[0], "reading_status") or "Completed"
         execute_write(
             """

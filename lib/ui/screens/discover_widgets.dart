@@ -481,7 +481,7 @@ class _GenreTag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
-        border: Border.all(color: const Color(0xFFE0E0E0)),
+        border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2C2C2C) : const Color(0xFFE0E0E0)),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
@@ -571,7 +571,9 @@ class _StoryCardState extends State<_StoryCard> {
         width: widget.width,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          color: Colors.white,
+          color: Theme.of(context).brightness == Brightness.dark
+              ? const Color(0xFF1E1E1E)
+              : Colors.white,
           boxShadow: [
             BoxShadow(
               color: color.withValues(alpha: 0.18),
@@ -760,7 +762,7 @@ class _AuthorsStripState extends State<_AuthorsStrip> {
                       children: [
                         CircleAvatar(
                           radius: 18,
-                          backgroundColor: const Color(0xFFE8EEF9),
+                          backgroundColor: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2A3344) : const Color(0xFFE8EEF9),
                           child: Text(
                             letter,
                             style: const TextStyle(color: AppTheme.brand),
@@ -975,7 +977,7 @@ class _GenreBooksScreen extends StatelessWidget {
                 return ListTile(
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
-                    side: const BorderSide(color: Color(0xFFE8E8E8)),
+                    side: BorderSide(color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2C2C2C) : const Color(0xFFE8E8E8)),
                   ),
                   onTap: () {
                     Navigator.of(context).push(
@@ -995,9 +997,9 @@ class _GenreBooksScreen extends StatelessWidget {
                             apiService.resolveAssetUrl(cover),
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) =>
-                                const ColoredBox(color: Color(0xFFE4E4E4)),
+                                ColoredBox(color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2C2C2C) : const Color(0xFFE4E4E4)),
                           )
-                        : const ColoredBox(color: Color(0xFFE4E4E4)),
+                        : ColoredBox(color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2C2C2C) : const Color(0xFFE4E4E4)),
                   ),
                   title: Text(item['title']?.toString() ?? ''),
                   subtitle: Text(item['author']?.toString() ?? ''),
