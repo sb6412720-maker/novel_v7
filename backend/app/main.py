@@ -2414,6 +2414,53 @@ def _row_get(row: Any, key: str, default: Any = None) -> Any:
         return default
 
 
+
+def _ensure_book_view_count_column() -> None:
+    """Add books.view_count if missing (MySQL / SQLite)."""
+    try:
+        rows = fetch_all("SELECT view_count FROM books LIMIT 1")
+        _ = rows
+    except Exception:
+        try:
+            execute_write("ALTER TABLE books ADD COLUMN view_count INT NOT NULL DEFAULT 0")
+        except Exception:
+            try:
+                execute_write("ALTER TABLE books ADD COLUMN view_count INTEGER NOT NULL DEFAULT 0")
+            except Exception as exc:
+                LOGGER.warning("ensure view_count column: %s", exc)
+
+
+def _live_book_reviews_count(book_id: int | None) -> int:
+    if not book_id:
+        return 0
+    try:
+        rows = fetch_all(
+            "SELECT COUNT(*) AS c FROM book_reviews WHERE book_id=%s",
+            (int(book_id),),
+        )
+        if rows:
+            return int(_row_get(rows[0], "c") or 0)
+    except Exception as exc:
+        LOGGER.warning("live reviews_count failed for book %s: %s", book_id, exc)
+    return 0
+
+
+def _increment_book_views(book_id: int) -> int:
+    """Bump view_count and return new value."""
+    _ensure_book_view_count_column()
+    try:
+        execute_write(
+            "UPDATE books SET view_count = COALESCE(view_count, 0) + 1 WHERE id=%s",
+            (int(book_id),),
+        )
+        rows = fetch_all("SELECT view_count FROM books WHERE id=%s", (int(book_id),))
+        if rows:
+            return int(_row_get(rows[0], "view_count") or 0)
+    except Exception as exc:
+        LOGGER.warning("increment views failed for book %s: %s", book_id, exc)
+    return 0
+
+
 def _live_book_likes_count(book_id: int | None) -> int:
     """Count likes from book_likes table (source of truth)."""
     if book_id is None:
@@ -2434,6 +2481,11 @@ def _serialize_book(row: Any) -> dict[str, Any]:
     data = dict(row) if not isinstance(row, dict) else dict(row)
     book_id = _row_get(row, "id")
     live_likes = _live_book_likes_count(book_id)
+    live_reviews = _live_book_reviews_count(book_id)
+    try:
+        view_count = int(_row_get(row, "view_count") or data.get("view_count") or 0)
+    except Exception:
+        view_count = 0
     return {
         **data,
         "cover_path": _normalize_cover_path(_row_get(row, "cover_path")),
@@ -2441,6 +2493,10 @@ def _serialize_book(row: Any) -> dict[str, Any]:
         "tags": _story_tags_for_book(book_id),
         "likes_count": live_likes,
         "likes": live_likes,  # alias used by some clients
+        "view_count": view_count,
+        "views": view_count,
+        "reviews_count": live_reviews,
+        "review_count": live_reviews,
     }
 
 
@@ -2575,10 +2631,11 @@ def get_writer_story(story_id: int):
 
 @app.get("/api/books/{book_id}")
 def get_public_book(book_id: int):
+    _ensure_book_view_count_column()
     rows = fetch_all(
         """
         SELECT id, user_id, title, author, description, genre, cover_path, accent_hex,
-               status_text, rating, content_warnings
+               status_text, rating, content_warnings, view_count
         FROM books WHERE id=%s
         """,
         (book_id,),
@@ -2588,7 +2645,12 @@ def get_public_book(book_id: int):
     status = str(_row_get(rows[0], "status_text") or "").strip().lower()
     if status in ("draft", "unpublished", "private"):
         raise HTTPException(status_code=404, detail="Book not found")
-    return _serialize_book(rows[0])
+    # Count a view each time the public book page is opened
+    new_views = _increment_book_views(book_id)
+    data = _serialize_book(rows[0])
+    data["view_count"] = new_views
+    data["views"] = new_views
+    return data
 
 
 @app.get("/api/tags")

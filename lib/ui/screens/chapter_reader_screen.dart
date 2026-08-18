@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
@@ -80,6 +81,8 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
   @override
   void initState() {
     super.initState();
+    // Track as ongoing when reader opens
+    unawaited(_markLibraryProgress(completed: false));
     _chapters = List<Map<String, dynamic>>.from(widget.chapters);
     _loadLikeState();
     _chapterIndex = widget.initialChapterIndex.clamp(
@@ -97,6 +100,22 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     }
     _loadChaptersIfNeeded();
     _loadReactions();
+  }
+
+  Future<void> _markLibraryProgress({bool completed = false}) async {
+    final bookId = widget.bookId;
+    if (bookId == null || bookId <= 0) return;
+    try {
+      await widget.apiService.addLibraryEntry({
+        'book_id': bookId,
+        'reading_status': completed ? 'Completed' : 'Reading',
+        'updated_text': completed ? 'Finished' : 'Reading',
+        'chapters': _chapters.length,
+        'primary_genre': '',
+        'secondary_genre': '',
+        'sort_order': 0,
+      });
+    } catch (_) {}
   }
 
   @override
@@ -129,6 +148,12 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     _selectedReactions.clear();
     _reactionCounts.clear();
     _loadReactions();
+    // Last chapter open => mark book Completed in library
+    if (_chapters.isNotEmpty && _chapterIndex >= _chapters.length - 1) {
+      unawaited(_markLibraryProgress(completed: true));
+    } else {
+      unawaited(_markLibraryProgress(completed: false));
+    }
   }
 
   Color get _bg {

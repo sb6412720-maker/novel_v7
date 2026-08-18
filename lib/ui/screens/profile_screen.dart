@@ -459,8 +459,10 @@ class _ProfileScreenState extends State<ProfileScreen>
           : NestedScrollView(
               headerSliverBuilder: (context, innerBoxIsScrolled) {
                 return [
+                  // Facebook-style: taller cover + avatar drawn ON TOP of cover (higher z-index)
+                  // and still visible below the cover edge.
                   SliverAppBar(
-                    expandedHeight: 168,
+                    expandedHeight: 200,
                     pinned: true,
                     backgroundColor: const Color(0xFF1A2030),
                     leading: IconButton(
@@ -473,9 +475,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                         onPressed: _showMoreMenu,
                       ),
                     ],
-                    flexibleSpace: FlexibleSpaceBar(
-                      background: Stack(
+                    // Stack directly (not FlexibleSpaceBar) so clipBehavior: Clip.none
+                    // keeps the avatar painted above the cover and slightly below the bar.
+                    flexibleSpace: Stack(
                         fit: StackFit.expand,
+                        clipBehavior: Clip.none,
                         children: [
                           if (_coverUrl.isNotEmpty)
                             Image.network(
@@ -497,10 +501,50 @@ class _ProfileScreenState extends State<ProfileScreen>
                               ),
                             ),
                           ),
+                          // Avatar sits on the bottom edge of the cover (above cover in z-order)
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: -44,
+                            child: Center(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.white, width: 3),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.25),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ],
+                                ),
+                                child: CircleAvatar(
+                                  radius: 48,
+                                  backgroundColor: const Color(0xFFE2E8F0),
+                                  backgroundImage: _avatarUrl.isNotEmpty
+                                      ? NetworkImage(_avatarUrl)
+                                      : null,
+                                  child: _avatarUrl.isEmpty
+                                      ? Text(
+                                          _displayName.isNotEmpty
+                                              ? _displayName[0].toUpperCase()
+                                              : '?',
+                                          style: const TextStyle(
+                                            fontSize: 34,
+                                            fontWeight: FontWeight.w700,
+                                            color: muted,
+                                          ),
+                                        )
+                                      : null,
+                                ),
+                              ),
+                            ),
+                          ),
                         ],
                       ),
-                    ),
                   ),
+                  // Space so content starts below the overlapping avatar
                   SliverToBoxAdapter(child: _buildIdentityBlock()),
                   // Sticky tabs
                   SliverPersistentHeader(
@@ -557,36 +601,12 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   /// Avatar overlaps cover; name / bio / stats / Follow sit on white below.
   Widget _buildIdentityBlock() {
-    return Transform.translate(
-      offset: const Offset(0, -36),
+    // Avatar is drawn inside SliverAppBar (higher z-index than cover).
+    // Only leave top padding so name/bio sit below the overlapping avatar.
+    return Padding(
+      padding: const EdgeInsets.only(top: 56),
       child: Column(
         children: [
-          // Avatar centered, overlapping cover
-          Container(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 3),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.12),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: CircleAvatar(
-              radius: 44,
-              backgroundColor: const Color(0xFFE2E8F0),
-              backgroundImage: _avatarUrl.isNotEmpty ? NetworkImage(_avatarUrl) : null,
-              child: _avatarUrl.isEmpty
-                  ? Text(
-                      _displayName.isNotEmpty ? _displayName[0].toUpperCase() : '?',
-                      style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w700, color: muted),
-                    )
-                  : null,
-            ),
-          ),
-          const SizedBox(height: 10),
           // Name + verified
           Row(
             mainAxisAlignment: MainAxisAlignment.center,

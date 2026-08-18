@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../data/models/app_bootstrap.dart';
@@ -301,6 +302,22 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
     }
   }
 
+  Future<void> _trackReadingInLibrary({bool completed = false}) async {
+    try {
+      await widget.apiService.addLibraryEntry({
+        'book_id': _book.id,
+        'reading_status': completed ? 'Completed' : 'Reading',
+        'updated_text': completed ? 'Finished' : 'Reading',
+        'chapters': _chapters.length,
+        'primary_genre': _book.genre,
+        'secondary_genre': '',
+        'sort_order': 0,
+      });
+    } catch (_) {
+      // ignore if not signed in
+    }
+  }
+
   void _openChapter(Map<String, dynamic> chapter, {int? index}) {
     final chapterTitle = chapter['title'] as String? ?? 'Untitled chapter';
     final chapterNumber = (chapter['chapter_number'] as num?)?.toInt() ?? 1;
@@ -312,6 +329,8 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
               ((c['chapter_number'] as num?)?.toInt() == chapterNumber &&
                   (c['title'] as String?) == chapterTitle),
         );
+    // Always track as Ongoing when a chapter is opened
+    unawaited(_trackReadingInLibrary(completed: false));
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => ChapterReaderScreen(
@@ -340,20 +359,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
       );
       return;
     }
-    // Track as currently reading in library (Current Reads tab)
-    try {
-      await widget.apiService.addLibraryEntry({
-        'book_id': _book.id,
-        'reading_status': 'Reading',
-        'updated_text': 'Just started',
-        'chapters': _chapters.length,
-        'primary_genre': _book.genre,
-        'secondary_genre': '',
-        'sort_order': 0,
-      });
-    } catch (_) {
-      // ignore if already in library or not signed in
-    }
+    await _trackReadingInLibrary(completed: false);
     if (!mounted) return;
     _openChapter(_chapters.first);
   }
@@ -1155,7 +1161,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
             ),
             SliverToBoxAdapter(
               child: SizedBox(
-                height: 160,
+                height: 172,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1244,7 +1250,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
             ),
             SliverToBoxAdapter(
               child: SizedBox(
-                height: 160,
+                height: 172,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16),

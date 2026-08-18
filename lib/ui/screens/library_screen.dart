@@ -231,9 +231,9 @@ class _LibraryScreenState extends State<LibraryScreen>
           unselectedLabelColor: muted,
           indicatorColor: AppTheme.brand,
           tabs: const [
-            Tab(text: 'Ongoing Reading'),
+            Tab(text: 'Ongoing'),
             Tab(text: 'Reading Lists'),
-            Tab(text: 'History'),
+            Tab(text: 'Completed'),
           ],
         ),
         Expanded(
@@ -316,7 +316,7 @@ class _EntriesList extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(24, 14, 24, 30),
         children: [
           Text(
-            history ? 'Completed books' : 'Ongoing reading',
+            history ? 'Completed books' : 'Ongoing',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
               fontSize: 18,
               fontWeight: FontWeight.w500,

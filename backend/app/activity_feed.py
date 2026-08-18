@@ -1,4 +1,4 @@
-"""Facebook-style profile activity feed (likes, comments, follows, reviews, wall)."""
+"""Facebook-style profile activity feed — only OTHER users' actions on this profile."""
 from typing import Any, Callable
 
 
@@ -18,7 +18,7 @@ def register_activity_routes(
 
     @app.get("/api/users/{user_id}/activity")
     def list_user_activity(user_id: int):
-        """Facebook-style activity: likes, comments, follows, reviews, wall, story updates."""
+        """Activity directed AT this user: likes/comments/reviews on their books, follows, wall."""
         items: list[dict[str, Any]] = []
 
         def _actor(uid: Any) -> tuple[str, str]:
@@ -37,6 +37,7 @@ def register_activity_routes(
                 pass
             return name, photo
 
+        # Likes on this user's books (by others)
         try:
             _ensure_book_likes_table()
             likes = fetch_all(
@@ -58,7 +59,7 @@ def register_activity_routes(
                     "id": f"like-{_row_get(row, 'id')}",
                     "type": "like",
                     "title": f"{aname} liked {title}",
-                    "message": f"{aname} liked your book \"{title}\"",
+                    "message": f'{aname} liked your book "{title}"',
                     "actor_name": aname,
                     "actor_photo": aphoto,
                     "actor_user_id": _row_get(row, "user_id"),
@@ -69,6 +70,7 @@ def register_activity_routes(
         except Exception as exc:
             LOGGER.warning("activity likes: %s", exc)
 
+        # Comments on this user's chapters (by others)
         try:
             _ensure_chapter_comments_table()
             comments = fetch_all(
@@ -103,12 +105,13 @@ def register_activity_routes(
         except Exception as exc:
             LOGGER.warning("activity comments: %s", exc)
 
+        # Reviews on this user's books (by others)
         try:
             reviews = fetch_all(
                 """
-                SELECT r.id, r.user_id, r.book_id, r.rating, r.body, r.created_at,
+                SELECT r.id, r.user_id, r.book_id, r.rating, r.comment AS body, r.created_at,
                        b.title, b.cover_path
-                FROM reviews r
+                FROM book_reviews r
                 JOIN books b ON b.id = r.book_id
                 WHERE b.user_id=%s AND r.user_id != %s
                 ORDER BY r.id DESC
@@ -119,13 +122,17 @@ def register_activity_routes(
             for row in reviews or []:
                 aname, aphoto = _actor(_row_get(row, "user_id"))
                 title = _row_get(row, "title") or "your story"
-                rating = _row_get(row, "rating") or ""
+                try:
+                    rating = int(_row_get(row, "rating") or 0)
+                except Exception:
+                    rating = 0
                 body = (_row_get(row, "body") or "")[:120]
+                stars = ("★" * rating) if rating > 0 else ""
                 items.append({
                     "id": f"review-{_row_get(row, 'id')}",
                     "type": "review",
                     "title": f"{aname} reviewed {title}",
-                    "message": f"{'★' * int(rating or 0)} {body}".strip(),
+                    "message": f"{stars} {body}".strip(),
                     "actor_name": aname,
                     "actor_photo": aphoto,
                     "actor_user_id": _row_get(row, "user_id"),
@@ -136,6 +143,7 @@ def register_activity_routes(
         except Exception as exc:
             LOGGER.warning("activity reviews: %s", exc)
 
+        # Follows
         try:
             _ensure_author_follows_table()
             follows = fetch_all(
@@ -165,6 +173,7 @@ def register_activity_routes(
         except Exception as exc:
             LOGGER.warning("activity follows: %s", exc)
 
+        # Wall posts on this profile
         try:
             _ensure_wall_posts_table()
             wall = fetch_all(
@@ -194,32 +203,6 @@ def register_activity_routes(
                 })
         except Exception as exc:
             LOGGER.warning("activity wall: %s", exc)
-
-        try:
-            books = fetch_all(
-                """
-                SELECT id, title, cover_path, status_text, updated_at, created_at
-                FROM books WHERE user_id=%s
-                ORDER BY id DESC
-                LIMIT 20
-                """,
-                (user_id,),
-            )
-            for b in books:
-                when = str(_row_get(b, "updated_at") or _row_get(b, "created_at") or "")
-                items.append({
-                    "id": f"book-{_row_get(b, 'id')}",
-                    "type": "story_update",
-                    "title": f"You updated {_row_get(b, 'title') or 'a story'}",
-                    "message": _row_get(b, "status_text") or "",
-                    "actor_name": "You",
-                    "actor_photo": "",
-                    "cover_path": _normalize_cover_path(_row_get(b, "cover_path") or ""),
-                    "book_id": _row_get(b, "id"),
-                    "created_at": when,
-                })
-        except Exception:
-            pass
 
         items.sort(key=lambda x: str(x.get("created_at") or ""), reverse=True)
         return {"items": items[:60]}

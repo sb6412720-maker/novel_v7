@@ -311,8 +311,12 @@ class _RootShellState extends State<RootShell> {
       ),
       bottomNavigationBar: NavigationBar(
         height: 76,
-        backgroundColor: Colors.white,
-        indicatorColor: Colors.transparent,
+        backgroundColor: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFF1E1E1E)
+            : Colors.white,
+        indicatorColor: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFF2C2C2C)
+            : Colors.transparent,
         selectedIndex: _selectedIndex,
         onDestinationSelected: (value) {
           // Allow Discover always; other tabs prompt sign-in when logged out
