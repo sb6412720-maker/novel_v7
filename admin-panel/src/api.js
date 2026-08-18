@@ -312,3 +312,15 @@ export function listStoryReports() {
 export function republishStory(bookId) {
   return request(`/api/admin/books/${bookId}/republish`, { method: "POST", body: "{}" });
 }
+
+
+export function createAdminChapter(bookId, payload) {
+  return request(`/api/admin/books/${bookId}/chapters`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function listAdminChapters(bookId) {
+  return request(`/api/admin/books/${bookId}/chapters`);
+}

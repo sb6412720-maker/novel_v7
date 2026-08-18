@@ -158,11 +158,12 @@ class AdminBookCreateRequest(BaseModel):
     cover_path: str = ""
     accent_hex: str = "#808080"
     section_name: str = "recently_updated"
-    status_text: str = "Draft"
+    status_text: str = "Published"
     rating: float = 0.0
     genre: str = ""
     cta_label: str = "Read now"
     sort_order: int = 999
+    chapters: list[dict] | None = None
 
 
 class AdminBookUpdateRequest(BaseModel):
@@ -3496,6 +3497,8 @@ def admin_create_book(
     payload: AdminBookCreateRequest,
     _: dict[str, Any] = Depends(require_admin),
 ):
+    # Admin-created novels are published by default
+    status_text = (payload.status_text or "Published").strip() or "Published"
     book_id, _ = execute_write(
         """
         INSERT INTO books (
@@ -3511,15 +3514,81 @@ def admin_create_book(
             payload.cover_path,
             payload.accent_hex,
             payload.section_name,
-            payload.status_text,
+            status_text,
             payload.rating,
             payload.genre,
             payload.cta_label,
             payload.sort_order,
         ),
     )
+    # Optional chapters in the same request
+    chapters = payload.chapters or []
+    for i, ch in enumerate(chapters):
+        if not isinstance(ch, dict):
+            continue
+        title = (ch.get("title") or f"Chapter {i + 1}").strip()
+        content = (ch.get("content") or "").strip()
+        if not title and not content:
+            continue
+        num = int(ch.get("chapter_number") or (i + 1))
+        try:
+            execute_write(
+                """
+                INSERT INTO chapters (
+                    story_id, chapter_number, title, content, notes, submission_status, sort_order
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """,
+                (book_id, num, title or f"Chapter {num}", content, "", "published", num),
+            )
+        except Exception as exc:
+            LOGGER.warning("admin create chapter failed: %s", exc)
     bump_content_version()
     return {"ok": True, "id": book_id}
+
+
+@app.get("/api/admin/books/{book_id}/chapters")
+def admin_list_book_chapters(book_id: int, _: dict[str, Any] = Depends(require_admin)):
+    rows = fetch_all(
+        """
+        SELECT id, story_id, chapter_number, title, content, notes, submission_status, sort_order
+        FROM chapters WHERE story_id=%s ORDER BY chapter_number, sort_order, id
+        """,
+        (book_id,),
+    )
+    return {"items": rows or []}
+
+
+@app.post("/api/admin/books/{book_id}/chapters")
+def admin_create_book_chapter(
+    book_id: int,
+    payload: dict[str, Any],
+    _: dict[str, Any] = Depends(require_admin),
+):
+    story = fetch_all("SELECT id FROM books WHERE id=%s", (book_id,))
+    if not story:
+        raise HTTPException(status_code=404, detail="Book not found")
+    num = payload.get("chapter_number")
+    if num is None:
+        next_rows = fetch_all(
+            "SELECT COALESCE(MAX(chapter_number), 0) + 1 AS n FROM chapters WHERE story_id=%s",
+            (book_id,),
+        )
+        num = int(next_rows[0]["n"]) if next_rows else 1
+    title = (payload.get("title") or f"Chapter {num}").strip()
+    content = payload.get("content") or ""
+    status = (payload.get("submission_status") or "published").strip() or "published"
+    row_id, _ = execute_write(
+        """
+        INSERT INTO chapters (
+            story_id, chapter_number, title, content, notes, submission_status, sort_order
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """,
+        (book_id, int(num), title, content, payload.get("notes") or "", status, int(num)),
+    )
+    bump_content_version()
+    return {"ok": True, "id": row_id}
 
 
 @app.put("/api/admin/books/{book_id}")

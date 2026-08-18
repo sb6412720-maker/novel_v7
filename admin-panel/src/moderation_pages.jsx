@@ -215,23 +215,24 @@ export function AccountViewModal({ user, roleLabel, onClose, onAction, busy }) {
 
         <div className="pro-view-actions" style={{ flexWrap: "wrap", gap: 8, padding: 16 }}>
           {!deleted && (
-            <>
-              {banned ? (
-                <button type="button" className="btn btn-success" disabled={busy} onClick={() => onAction?.(user, "unban")}>Unban</button>
-              ) : (
-                <button type="button" className="btn btn-danger" disabled={busy} onClick={() => onAction?.(user, "ban")}>Ban</button>
-              )}
-              {suspended ? (
-                <button type="button" className="btn btn-success" disabled={busy || banned} onClick={() => onAction?.(user, "unsuspend")}>Unsuspend</button>
-              ) : (
-                <button type="button" className="btn btn-warn" disabled={busy || banned} onClick={() => onAction?.(user, "suspend")}>Suspend</button>
-              )}
-              <button type="button" className="btn btn-danger" disabled={busy} onClick={() => onAction?.(user, "delete")}>Soft delete</button>
-            </>
+            banned ? (
+              <button type="button" className="btn btn-success" disabled={busy} onClick={() => onAction?.(user, "unban")}>{busy ? "…" : "Unban"}</button>
+            ) : (
+              <button type="button" className="btn btn-danger" disabled={busy} onClick={() => onAction?.(user, "ban")}>{busy ? "…" : "Ban"}</button>
+            )
           )}
-          <button type="button" className="btn btn-success" disabled={busy || !deleted} onClick={() => onAction?.(user, "restore")}>Recover account</button>
-          <button type="button" className="btn btn-success" disabled={busy || !banned} onClick={() => onAction?.(user, "unban")}>Unban</button>
-          <button type="button" className="btn btn-success" disabled={busy || !suspended} onClick={() => onAction?.(user, "unsuspend")}>Unsuspend</button>
+          {!deleted && !banned && (
+            suspended ? (
+              <button type="button" className="btn btn-success" disabled={busy} onClick={() => onAction?.(user, "unsuspend")}>{busy ? "…" : "Unsuspend"}</button>
+            ) : (
+              <button type="button" className="btn btn-warn" disabled={busy} onClick={() => onAction?.(user, "suspend")}>{busy ? "…" : "Suspend"}</button>
+            )
+          )}
+          {deleted ? (
+            <button type="button" className="btn btn-success" disabled={busy} onClick={() => onAction?.(user, "restore")}>{busy ? "…" : "Recover"}</button>
+          ) : (
+            <button type="button" className="btn btn-danger" disabled={busy} onClick={() => onAction?.(user, "delete")}>{busy ? "…" : "Delete"}</button>
+          )}
           <button type="button" className="btn btn-ghost" onClick={onClose}>Close</button>
         </div>
       </div>
@@ -240,71 +241,49 @@ export function AccountViewModal({ user, roleLabel, onClose, onAction, busy }) {
 }
 
 /* ───────── Shared action buttons for a row ───────── */
-function RowActions({ row, busyId, onView, onAct, showAuthorToggle }) {
+function RowActions({ row, busyId, onView, onAct }) {
   const status = userStatus(row);
   const deleted = status === "Deleted";
   const banned = status === "Banned";
   const suspended = status === "Suspended";
-  const inactive = status === "Inactive";
   const busy = busyId === row.id;
 
+  // Default: View, Ban, Suspend, Delete — each swaps to its inverse after action
   return (
     <div className="btn-row" style={{ flexWrap: "wrap", gap: 6 }}>
       <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={() => onView(row)}>
-        View
+        {busy ? "…" : "View"}
       </button>
       {!deleted && (
-        <button type="button" className="btn btn-sm btn-danger" disabled={busy || banned} onClick={() => onAct(row, "ban")}>
-          Ban
-        </button>
-      )}
-      <button
-        type="button"
-        className="btn btn-sm btn-success"
-        disabled={busy || !banned}
-        title={banned ? "Unban this account" : "Only enabled when Banned"}
-        onClick={() => onAct(row, "unban")}
-      >
-        Unban
-      </button>
-      {!deleted && (
-        <button type="button" className="btn btn-sm btn-warn" disabled={busy || banned || suspended} onClick={() => onAct(row, "suspend")}>
-          Suspend
-        </button>
-      )}
-      <button
-        type="button"
-        className="btn btn-sm btn-success"
-        disabled={busy || !suspended}
-        title={suspended ? "Unsuspend" : "Only enabled when Suspended"}
-        onClick={() => onAct(row, "unsuspend")}
-      >
-        Unsuspend
-      </button>
-      <button
-        type="button"
-        className="btn btn-sm btn-success"
-        disabled={busy || !deleted}
-        title={deleted ? "Recover soft-deleted account" : "Only enabled when Deleted"}
-        onClick={() => onAct(row, "restore")}
-      >
-        Recover
-      </button>
-      {!deleted && (
-        <button type="button" className="btn btn-sm btn-danger" disabled={busy} onClick={() => onAct(row, "delete")}>
-          Delete
-        </button>
-      )}
-      {showAuthorToggle && !deleted && (
-        inactive ? (
-          <button type="button" className="btn btn-sm btn-primary" disabled={busy || banned} onClick={() => onAct(row, "active")}>
-            Activate
+        banned ? (
+          <button type="button" className="btn btn-sm btn-success" disabled={busy} onClick={() => onAct(row, "unban")}>
+            {busy ? "…" : "Unban"}
           </button>
         ) : (
-          <button type="button" className="btn btn-sm btn-ghost" disabled={busy || banned || suspended} onClick={() => onAct(row, "inactive")}>
-            Inactive
+          <button type="button" className="btn btn-sm btn-danger" disabled={busy} onClick={() => onAct(row, "ban")}>
+            {busy ? "…" : "Ban"}
           </button>
         )
+      )}
+      {!deleted && !banned && (
+        suspended ? (
+          <button type="button" className="btn btn-sm btn-success" disabled={busy} onClick={() => onAct(row, "unsuspend")}>
+            {busy ? "…" : "Unsuspend"}
+          </button>
+        ) : (
+          <button type="button" className="btn btn-sm btn-warn" disabled={busy} onClick={() => onAct(row, "suspend")}>
+            {busy ? "…" : "Suspend"}
+          </button>
+        )
+      )}
+      {deleted ? (
+        <button type="button" className="btn btn-sm btn-success" disabled={busy} onClick={() => onAct(row, "restore")}>
+          {busy ? "…" : "Recover"}
+        </button>
+      ) : (
+        <button type="button" className="btn btn-sm btn-danger" disabled={busy} onClick={() => onAct(row, "delete")}>
+          {busy ? "…" : "Delete"}
+        </button>
       )}
     </div>
   );
@@ -357,7 +336,10 @@ export function AuthorsPage({ authors: _authorsProp, search }) {
     setSuccess("");
     try {
       const res = await runUserAction(id, action);
-      if (res === null) return;
+      if (res === null) {
+        // cancelled (e.g. suspend days prompt) — still clear busy in finally
+        return;
+      }
       // Prefer live flags from API response (DB truth), fall back to local patch
       const fromApi = {};
       if (res && typeof res === "object") {
@@ -514,7 +496,7 @@ export function AuthorsPage({ authors: _authorsProp, search }) {
                       <StatusPill status={status} />
                     </td>
                     <td>
-                      <RowActions row={a} busyId={busyId} onView={setViewUser} onAct={act} showAuthorToggle />
+                      <RowActions row={a} busyId={busyId} onView={setViewUser} onAct={act} />
                     </td>
                   </tr>
                 );

@@ -37,8 +37,9 @@ import {
   updateAdminTag,
   deleteAdminTag,
   listStoryReports,
-  republishStory,
-} from "./api";
+  republishStory,,
+  createAdminChapter,
+  listAdminChapters} from "./api";
 import { AuthorsPage, UsersPage } from "./moderation_pages";
 
 const NAV = [
@@ -61,11 +62,12 @@ const EMPTY_BOOK = {
   cover_path: "",
   accent_hex: "#3b82f6",
   section_name: "recently_updated",
-  status_text: "Draft",
+  status_text: "Published",
   rating: 0,
   genre: "",
   cta_label: "Read now",
   sort_order: 999,
+  chapters: [],
 };
 
 const EMPTY_CATEGORY = { name: "", topic_count: 0, tab_group: "explore", sort_order: 999 };
@@ -296,10 +298,37 @@ export default function App() {
 
   async function saveBook(payload, id) {
     try {
-      if (id) await updateBook(id, payload);
-      else await createBook(payload);
+      // Admin novels are always published (no separate Publish step)
+      const body = { ...payload, status_text: "Published" };
+      const chapters = Array.isArray(payload.chapters) ? payload.chapters : [];
+      let bookId = id;
+      if (id) {
+        await updateBook(id, body);
+      } else {
+        const created = await createBook(body);
+        bookId = created?.id || created?.book_id;
+      }
+      // Create chapters if provided (new or existing book)
+      if (bookId && chapters.length) {
+        for (let i = 0; i < chapters.length; i++) {
+          const ch = chapters[i];
+          const title = (ch.title || `Chapter ${i + 1}`).trim();
+          const content = (ch.content || "").trim();
+          if (!title && !content) continue;
+          try {
+            await createAdminChapter(bookId, {
+              title: title || `Chapter ${i + 1}`,
+              content: content || "",
+              chapter_number: i + 1,
+              submission_status: "published",
+            });
+          } catch (chErr) {
+            console.warn("chapter create failed", chErr);
+          }
+        }
+      }
       setBookModal(null);
-      toast(id ? "Novel updated" : "Novel created");
+      toast(id ? "Novel updated" : "Novel created (published)");
       await loadAll();
     } catch (e) {
       toast(String(e.message || e), false);
@@ -610,20 +639,20 @@ function Dashboard({ stats, books, authors, supportRequests, onReview, onGoto })
   return (
     <>
       <div className="stats-row">
-        <div className="stat-card">
+        <div className="stat-card" role="button" tabIndex={0} style={{ cursor: "pointer" }} onClick={() => onGoto?.("novels")} onKeyDown={(e) => e.key === "Enter" && onGoto?.("novels")}>
           <div className="label"><span className="stat-icon">▣</span> Total Novels</div>
           <p className="value">{stats.novels}</p>
-          <div className="trend">{stats.published} published</div>
+          <div className="trend">{stats.published} published · open Novels</div>
         </div>
-        <div className="stat-card">
+        <div className="stat-card" role="button" tabIndex={0} style={{ cursor: "pointer" }} onClick={() => onGoto?.("authors")} onKeyDown={(e) => e.key === "Enter" && onGoto?.("authors")}>
           <div className="label"><span className="stat-icon">✎</span> Active Authors</div>
           <p className="value">{stats.authors}</p>
-          <div className="trend">From story authors</div>
+          <div className="trend">Open Authors</div>
         </div>
-        <div className="stat-card">
+        <div className="stat-card" role="button" tabIndex={0} style={{ cursor: "pointer" }} onClick={() => onGoto?.("moderation")} onKeyDown={(e) => e.key === "Enter" && onGoto?.("moderation")}>
           <div className="label"><span className="stat-icon">＋</span> Pending Review</div>
           <p className="value">{stats.pending}</p>
-          <div className="trend" style={{ color: "var(--orange)" }}>Needs attention</div>
+          <div className="trend" style={{ color: "var(--orange)" }}>Open Moderation</div>
         </div>
         <div className="stat-card">
           <div className="label"><span className="stat-icon">✉</span> Support</div>
@@ -774,11 +803,6 @@ function NovelsPage({
                     <td>
                       <div className="btn-row">
                         <button type="button" className="btn btn-sm" onClick={() => onEdit(b)}>Edit</button>
-                        {!/publish/i.test(b.status_text || "") && (
-                          <button type="button" className="btn btn-sm btn-primary" onClick={() => onStatus(b, "Published")}>
-                            Publish
-                          </button>
-                        )}
                         <button type="button" className="btn btn-sm btn-danger" onClick={() => onDelete(b.id)}>
                           Delete
                         </button>
@@ -1251,11 +1275,8 @@ function BookModal({ book, storyImages, onClose, onSave, onUpload }) {
           <div className="field"><label>Genre</label>
             <input value={form.genre || ""} onChange={(e) => set("genre", e.target.value)} /></div>
           <div className="field"><label>Status</label>
-            <select value={form.status_text || "Draft"} onChange={(e) => set("status_text", e.target.value)}>
-              {["Draft", "Pending Review", "Published", "Rejected"].map((s) => (
-                <option key={s}>{s}</option>
-              ))}
-            </select>
+            <input value="Published" disabled readOnly title="All admin novels publish by default" />
+            <input type="hidden" value="Published" />
           </div>
           <div className="field"><label>Section</label>
             <select value={form.section_name || "recently_updated"} onChange={(e) => set("section_name", e.target.value)}>
@@ -1289,10 +1310,65 @@ function BookModal({ book, storyImages, onClose, onSave, onUpload }) {
             {uploading && <span style={{ fontSize: ".8rem" }}>Uploading…</span>}
           </div>
         </div>
+        <div className="field full" style={{ marginTop: 12 }}>
+          <label>Chapters (optional — added on save)</label>
+          <p className="meta" style={{ marginBottom: 8 }}>
+            Novels publish automatically. Add one or more chapters below.
+          </p>
+          {(form.chapters || []).map((ch, idx) => (
+            <div key={idx} style={{ border: "1px solid var(--border, #333)", borderRadius: 8, padding: 10, marginBottom: 8 }}>
+              <div className="field" style={{ marginBottom: 6 }}>
+                <label>Chapter {idx + 1} title</label>
+                <input
+                  value={ch.title || ""}
+                  onChange={(e) => {
+                    const next = [...(form.chapters || [])];
+                    next[idx] = { ...next[idx], title: e.target.value };
+                    set("chapters", next);
+                  }}
+                />
+              </div>
+              <div className="field">
+                <label>Content</label>
+                <textarea
+                  rows={4}
+                  value={ch.content || ""}
+                  onChange={(e) => {
+                    const next = [...(form.chapters || [])];
+                    next[idx] = { ...next[idx], content: e.target.value };
+                    set("chapters", next);
+                  }}
+                />
+              </div>
+              <button
+                type="button"
+                className="btn btn-sm btn-danger"
+                style={{ marginTop: 6 }}
+                onClick={() => {
+                  const next = (form.chapters || []).filter((_, i) => i !== idx);
+                  set("chapters", next);
+                }}
+              >
+                Remove chapter
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={() => set("chapters", [...(form.chapters || []), { title: "", content: "" }])}
+          >
+            + Add chapter
+          </button>
+        </div>
         <div className="modal-actions">
           <button type="button" className="btn" onClick={onClose}>Cancel</button>
-          <button type="button" className="btn btn-primary" onClick={() => onSave(form, book.id)}>
-            Save
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => onSave({ ...form, status_text: "Published" }, book.id)}
+          >
+            Save &amp; publish
           </button>
         </div>
       </div>
