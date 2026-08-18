@@ -24,13 +24,41 @@ function coverUrl(path) {
   return `${base}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
+/** Coerce API/DB flag values (bool, 0/1, "0"/"1") to real boolean */
+function flagOn(v) {
+  if (v === true || v === 1) return true;
+  if (v === false || v === 0 || v == null || v === "") return false;
+  if (typeof v === "string") {
+    const s = v.trim().toLowerCase();
+    if (s === "1" || s === "true" || s === "yes") return true;
+    if (s === "0" || s === "false" || s === "no") return false;
+  }
+  return Boolean(v);
+}
+
+/** Normalize moderation flags on every user object from the API */
+function normalizeUser(u) {
+  if (!u || typeof u !== "object") return u;
+  return {
+    ...u,
+    is_banned: flagOn(u.is_banned),
+    is_suspended: flagOn(u.is_suspended),
+    is_deleted: flagOn(u.is_deleted),
+    is_author: flagOn(u.is_author),
+    is_author_active: u.is_author_active === undefined || u.is_author_active === null
+      ? true
+      : flagOn(u.is_author_active),
+  };
+}
+
 /** Derive one canonical status from DB flags (priority: deleted > banned > suspended > inactive > active) */
 function userStatus(u) {
   if (!u) return "Active";
-  if (u.is_deleted) return "Deleted";
-  if (u.is_banned) return "Banned";
-  if (u.is_suspended) return "Suspended";
-  if (u.is_author_active === false) return "Inactive";
+  const x = normalizeUser(u);
+  if (x.is_deleted) return "Deleted";
+  if (x.is_banned) return "Banned";
+  if (x.is_suspended) return "Suspended";
+  if (x.is_author_active === false) return "Inactive";
   return "Active";
 }
 
@@ -305,7 +333,7 @@ export function AuthorsPage({ authors: _authorsProp, search }) {
     try {
       setError("");
       const data = await listAdminUsers();
-      const all = asArray(data?.items ?? data);
+      const all = asArray(data?.items ?? data).map(normalizeUser);
       setUsers(all.filter((u) => u.is_author || (u.story_count || 0) > 0));
       setSelected(new Set());
     } catch (e) {
@@ -322,8 +350,10 @@ export function AuthorsPage({ authors: _authorsProp, search }) {
   }, [search]);
 
   const patchLocal = (id, patch) => {
-    setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, ...patch } : u)));
-    setViewUser((v) => (v && v.id === id ? { ...v, ...patch } : v));
+    setUsers((prev) =>
+      prev.map((u) => (u.id === id ? normalizeUser({ ...u, ...patch }) : u))
+    );
+    setViewUser((v) => (v && v.id === id ? normalizeUser({ ...v, ...patch }) : v));
   };
 
   const act = async (row, action) => {
@@ -349,13 +379,14 @@ export function AuthorsPage({ authors: _authorsProp, search }) {
         if ("suspended_until" in res) fromApi.suspended_until = res.suspended_until;
         if ("is_author_active" in res) fromApi.is_author_active = !!res.is_author_active;
       }
-      patchLocal(id, { ...localPatchForAction(action), ...fromApi });
-      setSuccess(`Author #${id}: ${ACTION_LABELS[action] || action}`);
-      // Confirm from DB
+      const merged = normalizeUser({ ...row, ...localPatchForAction(action), ...fromApi });
+      patchLocal(id, merged);
+      setSuccess(`Author #${id}: ${ACTION_LABELS[action] || action} · status ${userStatus(merged)}`);
+      // Reload list from DB; normalize flags so Status + buttons stay correct
       await load();
     } catch (e) {
       setError(String(e.message || e));
-      await load();
+      try { await load(); } catch (_) {}
     } finally {
       setBusyId(null);
     }
@@ -543,7 +574,7 @@ export function UsersPage({ profile, supportRequests, onUpdateSupport }) {
     setError("");
     try {
       const data = await listAdminUsers();
-      setUsers(asArray(data?.items ?? data));
+      setUsers(asArray(data?.items ?? data).map(normalizeUser));
       setSelected(new Set());
     } catch (e) {
       setError(String(e.message || e));
@@ -558,8 +589,10 @@ export function UsersPage({ profile, supportRequests, onUpdateSupport }) {
   }, [load]);
 
   const patchLocal = (id, patch) => {
-    setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, ...patch } : u)));
-    setViewUser((v) => (v && v.id === id ? { ...v, ...patch } : v));
+    setUsers((prev) =>
+      prev.map((u) => (u.id === id ? normalizeUser({ ...u, ...patch }) : u))
+    );
+    setViewUser((v) => (v && v.id === id ? normalizeUser({ ...v, ...patch }) : v));
   };
 
   const runAction = async (row, action) => {
@@ -581,12 +614,13 @@ export function UsersPage({ profile, supportRequests, onUpdateSupport }) {
         if ("suspended_until" in res) fromApi.suspended_until = res.suspended_until;
         if ("is_author_active" in res) fromApi.is_author_active = !!res.is_author_active;
       }
-      patchLocal(id, { ...localPatchForAction(action), ...fromApi });
-      setSuccess(`User #${id}: ${ACTION_LABELS[action] || action}`);
+      const merged = normalizeUser({ ...row, ...localPatchForAction(action), ...fromApi });
+      patchLocal(id, merged);
+      setSuccess(`User #${id}: ${ACTION_LABELS[action] || action} · status ${userStatus(merged)}`);
       await load();
     } catch (e) {
       setError(String(e.message || e));
-      await load();
+      try { await load(); } catch (_) {}
     } finally {
       setBusyId(null);
     }
@@ -738,7 +772,7 @@ export function UsersPage({ profile, supportRequests, onUpdateSupport }) {
                         ) : null}
                       </td>
                       <td>
-                        <RowActions row={u} busyId={busyId} onView={setViewUser} onAct={runAction} showAuthorToggle={false} />
+                        <RowActions row={u} busyId={busyId} onView={setViewUser} onAct={runAction} />
                       </td>
                     </tr>
                   );

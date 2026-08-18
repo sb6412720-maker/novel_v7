@@ -582,6 +582,18 @@ def _ensure_wall_posts_table() -> None:
         except Exception:
             pass
 
+
+def _as_bool_flag(v) -> bool:
+    if v is True or v is False:
+        return bool(v)
+    if v is None:
+        return False
+    try:
+        return int(v) == 1
+    except Exception:
+        s = str(v).strip().lower()
+        return s in ("1", "true", "yes")
+
 def _ensure_user_moderation_columns() -> None:
     """Soft-moderation flags: never hard-delete user rows."""
     for col_sql in (
@@ -4368,9 +4380,9 @@ def _user_moderation_status(user_id: int) -> dict[str, Any]:
     return {
         "ok": True,
         "id": user_id,
-        "is_banned": bool(int(_row_get(r, "is_banned") or 0)),
-        "is_suspended": bool(int(_row_get(r, "is_suspended") or 0)),
-        "is_deleted": bool(int(_row_get(r, "is_deleted") or 0)),
+        "is_banned": _as_bool_flag(_row_get(r, "is_banned")),
+        "is_suspended": _as_bool_flag(_row_get(r, "is_suspended")),
+        "is_deleted": _as_bool_flag(_row_get(r, "is_deleted")),
         "suspended_until": str(_row_get(r, "suspended_until") or "") or None,
         "is_author_active": bool(int(_row_get(r, "is_author_active") if _row_get(r, "is_author_active") is not None else 1)),
     }
@@ -4396,7 +4408,8 @@ def admin_list_users(_: dict[str, Any] = Depends(require_admin)):
             LIMIT 500
             """
         )
-    except Exception:
+    except Exception as list_exc:
+        LOGGER.warning("admin_list_users full select failed, basic fallback: %s", list_exc)
         rows = fetch_all(
             "SELECT id, email, display_name, photo_url, provider, bio FROM app_users ORDER BY id DESC LIMIT 500"
         )
@@ -4405,6 +4418,15 @@ def admin_list_users(_: dict[str, Any] = Depends(require_admin)):
         uid = _row_get(row, "id")
         story_c = fetch_all("SELECT COUNT(*) AS c FROM books WHERE user_id=%s", (uid,))
         fol_c = fetch_all("SELECT COUNT(*) AS c FROM author_follows WHERE author_id=%s", (uid,))
+        # Always resolve moderation flags from DB (never leave list stuck on Active)
+        flags = _user_moderation_status(int(uid)) if uid is not None else {}
+        is_banned = _as_bool_flag(_row_get(row, "is_banned"))
+        is_suspended = _as_bool_flag(_row_get(row, "is_suspended"))
+        is_deleted = _as_bool_flag(_row_get(row, "is_deleted"))
+        if "is_banned" in flags:
+            is_banned = _as_bool_flag(flags.get("is_banned"))
+            is_suspended = _as_bool_flag(flags.get("is_suspended"))
+            is_deleted = _as_bool_flag(flags.get("is_deleted"))
         items.append({
             "id": uid,
             "email": _row_get(row, "email") or "",
@@ -4412,12 +4434,12 @@ def admin_list_users(_: dict[str, Any] = Depends(require_admin)):
             "photo_url": _row_get(row, "photo_url") or "",
             "provider": _row_get(row, "provider") or "",
             "bio": _row_get(row, "bio") or "",
-            "is_banned": bool(int(_row_get(row, "is_banned") or 0)),
-            "is_suspended": bool(int(_row_get(row, "is_suspended") or 0)),
-            "is_deleted": bool(int(_row_get(row, "is_deleted") or 0)),
-            "suspended_until": str(_row_get(row, "suspended_until") or "") or None,
-            "is_author": bool(int(_row_get(row, "is_author") or 0)) or int(story_c[0]["c"] if story_c else 0) > 0,
-            "is_author_active": bool(int(_row_get(row, "is_author_active") if _row_get(row, "is_author_active") is not None else 1)),
+            "is_banned": is_banned,
+            "is_suspended": is_suspended,
+            "is_deleted": is_deleted,
+            "suspended_until": (flags.get("suspended_until") if flags else None) or (str(_row_get(row, "suspended_until") or "") or None),
+            "is_author": _as_bool_flag(_row_get(row, "is_author")) or int(story_c[0]["c"] if story_c else 0) > 0,
+            "is_author_active": _as_bool_flag(flags.get("is_author_active") if flags and flags.get("is_author_active") is not None else (_row_get(row, "is_author_active") if _row_get(row, "is_author_active") is not None else 1)),
             "story_count": int(story_c[0]["c"]) if story_c else 0,
             "followers": int(fol_c[0]["c"]) if fol_c else 0,
         })
