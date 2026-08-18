@@ -261,6 +261,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                   await _loadEntries();
                   await _loadLists();
                 },
+                api: widget.apiService,
               ),
               _EntriesList(
                 entries: history,
@@ -432,6 +433,7 @@ class _ListsPane extends StatelessWidget {
     required this.onCreate,
     required this.onOpen,
     required this.onRefresh,
+    required this.api,
   });
 
   final List<ReadingListModel> lists;
@@ -439,6 +441,7 @@ class _ListsPane extends StatelessWidget {
   final Future<void> Function() onCreate;
   final ValueChanged<ReadingListModel> onOpen;
   final Future<void> Function() onRefresh;
+  final ApiService api;
 
   @override
   Widget build(BuildContext context) {
@@ -471,17 +474,42 @@ class _ListsPane extends StatelessWidget {
               child: Text('No lists yet', style: TextStyle(color: muted)),
             )
           else
-            ...lists.map(
-              (l) => Card(
+            ...lists.map((l) {
+              final cover = l.coverPath.trim();
+              final coverUrl = cover.isEmpty ? '' : api.resolveAssetUrl(cover);
+              return Card(
                 child: ListTile(
                   onTap: () => onOpen(l),
-                  leading: const Icon(Icons.library_books_outlined),
+                  leading: ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: SizedBox(
+                      width: 48,
+                      height: 64,
+                      child: coverUrl.isNotEmpty
+                          ? Image.network(
+                              coverUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => ColoredBox(
+                                color: isDark
+                                    ? const Color(0xFF2C2C2C)
+                                    : const Color(0xFFE4E4E4),
+                                child: const Icon(Icons.library_books_outlined, size: 20),
+                              ),
+                            )
+                          : ColoredBox(
+                              color: isDark
+                                  ? const Color(0xFF2C2C2C)
+                                  : const Color(0xFFE4E4E4),
+                              child: const Icon(Icons.library_books_outlined, size: 20),
+                            ),
+                    ),
+                  ),
                   title: Text(l.name),
                   subtitle: Text('${l.storyCount} stories'),
                   trailing: const Icon(Icons.chevron_right),
                 ),
-              ),
-            ),
+              );
+            }),
           const SizedBox(height: 20),
           OutlinedButton.icon(
             onPressed: () => onCreate(),
@@ -590,9 +618,57 @@ class _ListDetailState extends State<_ListDetail> {
               itemCount: _items.length,
               itemBuilder: (ctx, i) {
                 final it = _items[i];
+                final title = '${it['title'] ?? ''}';
+                final author = '${it['author'] ?? ''}';
+                final cover = '${it['cover_path'] ?? it['cover_url'] ?? ''}';
+                final bookId = (it['book_id'] as num?)?.toInt() ??
+                    (it['id'] as num?)?.toInt() ??
+                    0;
+                final coverUrl = cover.isNotEmpty
+                    ? widget.api.resolveAssetUrl(cover)
+                    : '';
                 return ListTile(
-                  title: Text('${it['title']}'),
-                  subtitle: Text('by ${it['author']}'),
+                  onTap: bookId > 0
+                      ? () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => StoryDetailScreen(
+                                apiService: widget.api,
+                                book: BookDetailModel(
+                                  id: bookId,
+                                  title: title,
+                                  author: author,
+                                  description: '${it['description'] ?? ''}',
+                                  statusText: '${it['status_text'] ?? ''}',
+                                  rating: (it['rating'] as num?)?.toDouble() ?? 0,
+                                  genre: '${it['genre'] ?? it['primary_genre'] ?? ''}',
+                                  cta: 'Read',
+                                  coverPath: cover,
+                                  authorUserId:
+                                      (it['author_user_id'] as num?)?.toInt(),
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+                      : null,
+                  leading: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: SizedBox(
+                      width: 40,
+                      height: 56,
+                      child: coverUrl.isNotEmpty
+                          ? Image.network(
+                              coverUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) =>
+                                  const ColoredBox(color: Color(0xFFE4E4E4)),
+                            )
+                          : const ColoredBox(color: Color(0xFFE4E4E4)),
+                    ),
+                  ),
+                  title: Text(title),
+                  subtitle: Text(author.isEmpty ? '' : 'by $author'),
                   trailing: IconButton(
                     icon: const Icon(Icons.remove_circle_outline),
                     onPressed: () async {

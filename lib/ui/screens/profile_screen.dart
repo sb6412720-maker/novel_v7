@@ -1223,7 +1223,6 @@ class _ProfileScreenState extends State<ProfileScreen>
 
 
   Future<void> _composeWallPost() async {
-    // Wall target = profile being viewed (other user or self)
     int resolvedId = widget.viewingUserId ?? 0;
     if (resolvedId == 0) {
       resolvedId = _asInt(_userProfile?['id']);
@@ -1238,62 +1237,28 @@ class _ProfileScreenState extends State<ProfileScreen>
       );
       return;
     }
-    final ctrl = TextEditingController();
-    final ok = await showModalBottomSheet<bool>(
+
+    final text = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).brightness == Brightness.dark
+          ? const Color(0xFF1E1E1E)
+          : Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          top: 16,
-          bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Write something to $_username',
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: ctrl,
-              maxLines: 4,
-              autofocus: true,
-              decoration: const InputDecoration(
-                hintText: 'Say something…',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: brand,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Post'),
-            ),
-          ],
-        ),
-      ),
+      builder: (ctx) {
+        return _WallComposeSheet(username: _username);
+      },
     );
-    final text = ctrl.text.trim();
-    // Delay dispose until modal is fully unmounted (prevents disposed TextEditingController crash)
-    Future<void>.delayed(const Duration(milliseconds: 100), () {
-      ctrl.dispose();
-    });
-    if (ok != true || text.isEmpty) return;
+
+    if (!mounted) return;
+    final body = (text ?? '').trim();
+    if (body.isEmpty) return;
+
     try {
-      await widget.apiService.postUserWall(resolvedId, text);
+      await widget.apiService.postUserWall(resolvedId, body);
       if (!mounted) return;
-      // Reload wall posts only (keep other tabs)
       final wall = await widget.apiService.fetchUserWall(resolvedId);
       if (!mounted) return;
       setState(() {
@@ -1719,6 +1684,74 @@ class _ProfileScreenState extends State<ProfileScreen>
         borderRadius: BorderRadius.circular(14),
       ),
       child: Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500)),
+    );
+  }
+}
+
+
+/// Owns its own TextEditingController so dispose is safe (no parent crash).
+class _WallComposeSheet extends StatefulWidget {
+  const _WallComposeSheet({required this.username});
+  final String username;
+
+  @override
+  State<_WallComposeSheet> createState() => _WallComposeSheetState();
+}
+
+class _WallComposeSheetState extends State<_WallComposeSheet> {
+  late final TextEditingController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final brand = const Color(0xFF00A88E);
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 16,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Write something to ${widget.username}',
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _ctrl,
+            maxLines: 4,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: 'Say something…',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: brand,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(context, _ctrl.text),
+            child: const Text('Post'),
+          ),
+        ],
+      ),
     );
   }
 }

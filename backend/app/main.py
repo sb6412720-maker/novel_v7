@@ -1855,35 +1855,39 @@ def get_library_entries(user: dict[str, Any] = Depends(require_user)):
         FROM library_entries le
         JOIN books b ON b.id = le.book_id
         WHERE le.user_id = %s
-        ORDER BY le.sort_order, le.id
+        ORDER BY le.id DESC
         """,
         (user["user_id"],),
     )
-    return {
-        "items": [
-            {
-                "id": row["id"],
-                "book": {
-                    "id": row["book_id"],
-                    "title": row["title"],
-                    "author": row["author"],
-                    "cover_path": _normalize_cover_path(row["cover_path"]),
-                    "accent_hex": row["accent_hex"],
-                    "description": row.get("description") or "",
-                    "status_text": row.get("status_text") or "",
-                    "rating": float(row["rating"] or 0) if row.get("rating") is not None else 0.0,
-                    "author_user_id": row.get("author_user_id"),
-                    "primary_genre": row.get("book_genre") or row.get("primary_genre") or "",
-                },
-                "reading_status": row["reading_status"],
-                "updated_text": row["updated_text"],
-                "chapters": row["chapters"],
-                "primary_genre": row["primary_genre"],
-                "secondary_genre": row["secondary_genre"],
-            }
-            for row in rows
-        ]
-    }
+    # One entry per book (keep newest row if old duplicates exist)
+    seen_books: set[int] = set()
+    items: list[dict[str, Any]] = []
+    for row in rows or []:
+        book_id = int(_row_get(row, "book_id") or 0)
+        if book_id in seen_books:
+            continue
+        seen_books.add(book_id)
+        items.append({
+            "id": _row_get(row, "id"),
+            "book": {
+                "id": book_id,
+                "title": _row_get(row, "title"),
+                "author": _row_get(row, "author"),
+                "cover_path": _normalize_cover_path(_row_get(row, "cover_path") or ""),
+                "accent_hex": _row_get(row, "accent_hex"),
+                "description": _row_get(row, "description") or "",
+                "status_text": _row_get(row, "status_text") or "",
+                "rating": float(_row_get(row, "rating") or 0),
+                "author_user_id": _row_get(row, "author_user_id"),
+                "primary_genre": _row_get(row, "book_genre") or _row_get(row, "primary_genre") or "",
+            },
+            "reading_status": _row_get(row, "reading_status"),
+            "updated_text": _row_get(row, "updated_text"),
+            "chapters": _row_get(row, "chapters"),
+            "primary_genre": _row_get(row, "primary_genre"),
+            "secondary_genre": _row_get(row, "secondary_genre"),
+        })
+    return {"items": items}
 
 
 @app.post("/api/library")
@@ -1891,12 +1895,33 @@ def create_library_entry(
     payload: LibraryCreateRequest,
     user: dict[str, Any] = Depends(require_user),
 ):
-    # Upsert: if already tracking this book, refresh status (e.g. Reading again)
+    """Upsert one library row per (user, book). Never create duplicates."""
+    uid = int(user["user_id"])
+    bid = int(payload.book_id)
+    # Never overwrite Completed with Reading (keep finished until user re-opens as new read)
+    new_status = (payload.reading_status or "Reading").strip() or "Reading"
+
     existing = fetch_all(
-        "SELECT id FROM library_entries WHERE user_id=%s AND book_id=%s LIMIT 1",
-        (user["user_id"], payload.book_id),
+        "SELECT id, reading_status FROM library_entries WHERE user_id=%s AND book_id=%s ORDER BY id ASC",
+        (uid, bid),
     )
     if existing:
+        keep_id = int(_row_get(existing[0], "id") or 0)
+        # Delete accidental duplicates, keep oldest id
+        for extra in existing[1:]:
+            eid = int(_row_get(extra, "id") or 0)
+            if eid and eid != keep_id:
+                try:
+                    execute_write("DELETE FROM library_entries WHERE id=%s AND user_id=%s", (eid, uid))
+                except Exception:
+                    pass
+        prev = str(_row_get(existing[0], "reading_status") or "").strip().lower()
+        status_to_set = new_status
+        if prev in ("completed", "complete", "finished", "done", "history") and new_status.lower() not in (
+            "completed", "complete", "finished", "done", "history",
+        ):
+            # Keep completed unless caller explicitly marks completed
+            status_to_set = _row_get(existing[0], "reading_status") or "Completed"
         execute_write(
             """
             UPDATE library_entries
@@ -1904,16 +1929,16 @@ def create_library_entry(
             WHERE id=%s
             """,
             (
-                payload.reading_status,
+                status_to_set,
                 payload.updated_text,
                 payload.chapters,
                 payload.primary_genre,
                 payload.secondary_genre,
-                existing[0]["id"],
+                keep_id,
             ),
         )
         bump_content_version()
-        return {"ok": True, "id": existing[0]["id"], "updated": True}
+        return {"ok": True, "id": keep_id, "updated": True}
 
     entry_id, affected = execute_write(
         """
@@ -1921,9 +1946,9 @@ def create_library_entry(
         VALUES (%s, %s, %s, %s, %s, %s, %s, 999)
         """,
         (
-            user["user_id"],
-            payload.book_id,
-            payload.reading_status,
+            uid,
+            bid,
+            new_status,
             payload.updated_text,
             payload.chapters,
             payload.primary_genre,
