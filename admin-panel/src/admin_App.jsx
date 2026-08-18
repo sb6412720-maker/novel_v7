@@ -37,9 +37,10 @@ import {
   updateAdminTag,
   deleteAdminTag,
   listStoryReports,
-  republishStory,,
+  republishStory,
   createAdminChapter,
-  listAdminChapters} from "./api";
+  listAdminChapters,
+} from "./api";
 import { AuthorsPage, UsersPage } from "./moderation_pages";
 
 const NAV = [
@@ -69,6 +70,59 @@ const EMPTY_BOOK = {
   sort_order: 999,
   chapters: [],
 };
+
+
+/** Sample novels seeded from the admin UI (no backend seed script required). */
+const DUMMY_NOVELS = [
+  {
+    title: "The Midnight Archive",
+    author: "A. Rivers",
+    description: "A librarian discovers books that rewrite the memories of anyone who reads them.",
+    genre: "Fantasy",
+    section_name: "recently_updated",
+    status_text: "Published",
+    rating: 4.6,
+    accent_hex: "#5B6CFF",
+    cta_label: "Read now",
+    sort_order: 10,
+    chapters: [
+      { title: "Chapter 1: Locked Stacks", content: "The archive only opened after midnight. Mira held the brass key until it warmed in her palm.\n\nShelves rearranged themselves when she blinked." },
+      { title: "Chapter 2: The First Page", content: "The first page of the forbidden ledger showed her own name written in a hand she did not recognize." },
+    ],
+  },
+  {
+    title: "Neon Harbor",
+    author: "K. Sol",
+    description: "In a coastal city powered by storms, a courier delivers messages that can change the weather.",
+    genre: "Sci-Fi",
+    section_name: "recently_updated",
+    status_text: "Published",
+    rating: 4.4,
+    accent_hex: "#14B8A6",
+    cta_label: "Read now",
+    sort_order: 11,
+    chapters: [
+      { title: "Chapter 1: Tide Code", content: "Rain wrote equations on the glass. Jun read them the way other people read street signs." },
+      { title: "Chapter 2: Harbor Lights", content: "Every neon sign was a battery. The city charged itself on lightning and gossip." },
+    ],
+  },
+  {
+    title: "Letters From the Quiet Year",
+    author: "M. Wren",
+    description: "A year of unsent letters becomes the only map back to a lost hometown.",
+    genre: "Drama",
+    section_name: "recently_completed",
+    status_text: "Published",
+    rating: 4.8,
+    accent_hex: "#F59E0B",
+    cta_label: "Read now",
+    sort_order: 12,
+    chapters: [
+      { title: "Chapter 1: January", content: "I wrote to you on the coldest morning, then left the envelope under a stone by the river." },
+      { title: "Chapter 2: June", content: "Summer returned the letter unopened, water-stained, with a new sentence in the margin." },
+    ],
+  },
+];
 
 const EMPTY_CATEGORY = { name: "", topic_count: 0, tab_group: "explore", sort_order: 999 };
 const EMPTY_NOTIFICATION = { tab: "Story", title: "", message: "", created_at: "Now" };
@@ -296,6 +350,37 @@ export default function App() {
     setSession(null);
   }
 
+  async function seedDummyData() {
+    if (!window.confirm("Create 3 sample published novels with chapters? Existing titles may duplicate.")) return;
+    try {
+      setLoading(true);
+      let ok = 0;
+      for (const novel of DUMMY_NOVELS) {
+        const { chapters = [], ...bookPayload } = novel;
+        const created = await createBook({ ...bookPayload, status_text: "Published" });
+        const bookId = created?.id || created?.book_id;
+        if (bookId && chapters.length) {
+          for (let i = 0; i < chapters.length; i++) {
+            const ch = chapters[i];
+            await createAdminChapter(bookId, {
+              title: ch.title || `Chapter ${i + 1}`,
+              content: ch.content || "",
+              chapter_number: i + 1,
+              submission_status: "published",
+            });
+          }
+        }
+        ok += 1;
+      }
+      toast(`Seeded ${ok} dummy novel(s)`);
+      await loadAll();
+    } catch (e) {
+      toast(String(e.message || e), false);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function saveBook(payload, id) {
     try {
       // Admin novels are always published (no separate Publish step)
@@ -480,9 +565,10 @@ export default function App() {
               filterStatus={filterStatus}
               setFilterStatus={setFilterStatus}
               onCreate={() => setBookModal({ ...EMPTY_BOOK })}
-              onEdit={(b) => setBookModal({ ...b })}
+              onEdit={(b) => setBookModal({ ...b, chapters: b.chapters || [] })}
               onDelete={removeBook}
               onStatus={quickBookStatus}
+              onSeedDummy={seedDummyData}
               storyImages={storyImages}
             />
           )}
@@ -752,6 +838,7 @@ function NovelsPage({
   onEdit,
   onDelete,
   onStatus,
+  onSeedDummy,
 }) {
   return (
     <div className="layout-with-aside">
@@ -767,7 +854,10 @@ function NovelsPage({
               <option key={s} value={s}>{s === "All" ? "All Status" : s}</option>
             ))}
           </select>
-          <button type="button" className="btn btn-primary" onClick={onCreate} style={{ marginLeft: "auto" }}>
+          <button type="button" className="btn" onClick={onSeedDummy} style={{ marginLeft: "auto" }} title="Insert sample novels via admin API">
+            Seed dummy data
+          </button>
+          <button type="button" className="btn btn-primary" onClick={onCreate}>
             Create New Novel
           </button>
         </div>
