@@ -712,7 +712,7 @@ class _AuthorsStripState extends State<_AuthorsStrip> {
         ),
         const SizedBox(height: 10),
         SizedBox(
-          height: 70,
+          height: 108,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: authors.length,
@@ -722,6 +722,10 @@ class _AuthorsStripState extends State<_AuthorsStrip> {
               final book = authors[index].value;
               final letter = author.isNotEmpty ? author[0].toUpperCase() : 'A';
               final authorId = book.authorUserId;
+              final rawPhoto = (book.authorPhotoUrl ?? '').trim();
+              final photoUrl = rawPhoto.isNotEmpty
+                  ? widget.apiService.resolveAssetUrl(rawPhoto)
+                  : '';
               final isFollowing = authorId != null
                   ? (_following[authorId] ?? false)
                   : false;
@@ -740,7 +744,7 @@ class _AuthorsStripState extends State<_AuthorsStrip> {
                                     id: authorId,
                                     displayName: author,
                                     username: author.toLowerCase().replaceAll(' ', ''),
-                                    photoUrl: '',
+                                    photoUrl: rawPhoto,
                                     coverUrl: '',
                                     following: 0,
                                     followers: 0,
@@ -759,18 +763,33 @@ class _AuthorsStripState extends State<_AuthorsStrip> {
                         ? () => _toggleFollowFor(authorId)
                         : null,
                     child: Stack(
+                      clipBehavior: Clip.none,
                       children: [
                         CircleAvatar(
-                          radius: 18,
-                          backgroundColor: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2A3344) : const Color(0xFFE8EEF9),
-                          child: Text(
-                            letter,
-                            style: const TextStyle(color: AppTheme.brand),
-                          ),
+                          radius: 28,
+                          backgroundColor: Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF2A3344)
+                              : const Color(0xFFE8EEF9),
+                          backgroundImage: photoUrl.isNotEmpty
+                              ? NetworkImage(photoUrl)
+                              : null,
+                          onBackgroundImageError: photoUrl.isNotEmpty
+                              ? (_, __) {}
+                              : null,
+                          child: photoUrl.isEmpty
+                              ? Text(
+                                  letter,
+                                  style: const TextStyle(
+                                    color: AppTheme.brand,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 18,
+                                  ),
+                                )
+                              : null,
                         ),
                         if (authorId != null)
                           Positioned(
-                            right: -2,
+                            right: -4,
                             bottom: -2,
                             child: Container(
                               padding: const EdgeInsets.symmetric(
@@ -782,6 +801,10 @@ class _AuthorsStripState extends State<_AuthorsStrip> {
                                     ? Colors.white
                                     : Colors.black.withValues(alpha: 0.6),
                                 borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Theme.of(context).scaffoldBackgroundColor,
+                                  width: 1.5,
+                                ),
                               ),
                               child: Text(
                                 isFollowing ? 'Following' : 'Follow',
@@ -789,7 +812,7 @@ class _AuthorsStripState extends State<_AuthorsStrip> {
                                   color: isFollowing
                                       ? AppTheme.brand
                                       : Colors.white,
-                                  fontSize: 10,
+                                  fontSize: 9,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -798,9 +821,9 @@ class _AuthorsStripState extends State<_AuthorsStrip> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 8),
                   SizedBox(
-                    width: 48,
+                    width: 64,
                     child: Text(
                       author,
                       maxLines: 1,
@@ -808,7 +831,7 @@ class _AuthorsStripState extends State<_AuthorsStrip> {
                       textAlign: TextAlign.center,
                       style: Theme.of(
                         context,
-                      ).textTheme.bodySmall?.copyWith(fontSize: 10),
+                      ).textTheme.bodySmall?.copyWith(fontSize: 11),
                     ),
                   ),
                 ],

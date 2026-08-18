@@ -1150,7 +1150,15 @@ class _ProfileScreenState extends State<ProfileScreen>
                       child: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
                     ),
-                    const Icon(Icons.bookmark_border, size: 20, color: muted),
+                    IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      icon: const Icon(Icons.bookmark_border, size: 20, color: muted),
+                      onPressed: () {
+                        final id = _asInt(s['id']);
+                        _saveBookToReadingList(id);
+                      },
+                    ),
                   ],
                 ),
                 const SizedBox(height: 4),
@@ -1376,11 +1384,88 @@ class _ProfileScreenState extends State<ProfileScreen>
                     ),
                   ],
                   const SizedBox(height: 8),
-                  const Row(
+                  Row(
                     children: [
-                      Icon(Icons.favorite_border, size: 18, color: muted),
-                      SizedBox(width: 16),
-                      Icon(Icons.chat_bubble_outline, size: 18, color: muted),
+                      InkWell(
+                        onTap: () async {
+                          final postId = (m['id'] as num?)?.toInt();
+                          if (postId == null) return;
+                          try {
+                            final likes = await widget.apiService.likeWallPost(postId);
+                            if (!mounted) return;
+                            setState(() {
+                              m['likes'] = likes;
+                            });
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Liked · $likes')),
+                            );
+                          } catch (e) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('$e')),
+                            );
+                          }
+                        },
+                        child: Row(
+                          children: [
+                            const Icon(Icons.favorite_border, size: 18, color: muted),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${m['likes'] ?? 0}',
+                              style: const TextStyle(fontSize: 12, color: muted),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      InkWell(
+                        onTap: () async {
+                          final postId = (m['id'] as num?)?.toInt();
+                          if (postId == null) return;
+                          final ctrl = TextEditingController();
+                          final ok = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('Comment'),
+                              content: TextField(
+                                controller: ctrl,
+                                maxLines: 3,
+                                decoration: const InputDecoration(
+                                  hintText: 'Write a comment…',
+                                ),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: const Text('Cancel'),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  child: const Text('Post'),
+                                ),
+                              ],
+                            ),
+                          );
+                          final text = (ctrl.text).trim();
+                          Future.delayed(const Duration(milliseconds: 300), ctrl.dispose);
+                          if (ok != true || text.isEmpty || !mounted) return;
+                          try {
+                            await widget.apiService.commentWallPost(postId, text);
+                            if (!mounted) return;
+                            await _loadAll();
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Comment posted')),
+                            );
+                          } catch (e) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('$e')),
+                            );
+                          }
+                        },
+                        child: const Icon(Icons.chat_bubble_outline, size: 18, color: muted),
+                      ),
                     ],
                   ),
                 ],
@@ -1389,6 +1474,65 @@ class _ProfileScreenState extends State<ProfileScreen>
           }),
       ],
     );
+  }
+
+
+  Future<void> _saveBookToReadingList(int bookId) async {
+    if (bookId <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Story not available')),
+      );
+      return;
+    }
+    try {
+      final lists = await widget.apiService.fetchReadingLists();
+      if (!mounted) return;
+      if (lists.isEmpty) {
+        // Create a default list then add
+        final created = await widget.apiService.createReadingList({'name': 'My List'});
+        final listId = (created['id'] as num?)?.toInt() ?? 0;
+        if (listId > 0) {
+          await widget.apiService.addReadingListItem(listId, bookId);
+        }
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Saved to My List')),
+        );
+        return;
+      }
+      final chosen = await showModalBottomSheet<Map<String, dynamic>>(
+        context: context,
+        builder: (ctx) {
+          return SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const ListTile(title: Text('Save to reading list')),
+                ...lists.map((l) {
+                  return ListTile(
+                    leading: const Icon(Icons.collections_bookmark_outlined),
+                    title: Text('${l['name'] ?? 'List'}'),
+                    subtitle: Text('${l['story_count'] ?? l['storyCount'] ?? 0} stories'),
+                    onTap: () => Navigator.pop(ctx, l),
+                  );
+                }),
+              ],
+            ),
+          );
+        },
+      );
+      if (chosen == null || !mounted) return;
+      final listId = (chosen['id'] as num?)?.toInt() ?? 0;
+      if (listId <= 0) return;
+      await widget.apiService.addReadingListItem(listId, bookId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Saved to ${chosen['name'] ?? 'list'}')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
   }
 
   // ─── Activity (Facebook-style: likes, comments, follows, reviews, wall) ───
@@ -1640,7 +1784,12 @@ class _ProfileScreenState extends State<ProfileScreen>
                   child: const Text('Read', style: TextStyle(fontSize: 12)),
                 ),
                 const SizedBox(width: 4),
-                const Icon(Icons.bookmark_border, size: 20, color: muted),
+                IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  icon: const Icon(Icons.bookmark_border, size: 20, color: muted),
+                  onPressed: () => _saveBookToReadingList(bid),
+                ),
               ],
             ),
             const SizedBox(height: 8),

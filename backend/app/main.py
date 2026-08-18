@@ -1495,14 +1495,16 @@ def bootstrap():
 
     books = fetch_all(
         """
-        SELECT id, user_id, title, author, description, cover_path, accent_hex, section_name,
-               status_text, rating, genre, cta_label,
-               COALESCE(primary_genre, genre) AS primary_genre,
-               COALESCE(secondary_genre, '') AS secondary_genre,
-               COALESCE(is_completed, 0) AS is_completed
-        FROM books
-        WHERE LOWER(COALESCE(status_text, 'draft')) NOT IN ('draft', 'unpublished', 'private')
-        ORDER BY sort_order ASC, id DESC
+        SELECT b.id, b.user_id, b.title, b.author, b.description, b.cover_path, b.accent_hex, b.section_name,
+               b.status_text, b.rating, b.genre, b.cta_label,
+               COALESCE(b.primary_genre, b.genre) AS primary_genre,
+               COALESCE(b.secondary_genre, '') AS secondary_genre,
+               COALESCE(b.is_completed, 0) AS is_completed,
+               u.photo_url AS author_photo_url
+        FROM books b
+        LEFT JOIN app_users u ON u.id = b.user_id
+        WHERE LOWER(COALESCE(b.status_text, 'draft')) NOT IN ('draft', 'unpublished', 'private')
+        ORDER BY b.sort_order ASC, b.id DESC
         """
     )
 
@@ -1528,6 +1530,7 @@ def bootstrap():
             "id": bid,
             "user_id": book.get("user_id"),
             "author_user_id": book.get("user_id"),
+            "author_photo_url": _normalize_cover_path(book.get("author_photo_url") or "") if book.get("author_photo_url") else "",
             "title": book["title"],
             "author": book["author"],
             "description": book.get("description") or "",
@@ -4109,6 +4112,53 @@ def post_user_wall(
     )
     return {"ok": True, "id": row_id}
 
+
+@app.post("/api/wall/{post_id}/like")
+def like_wall_post(
+    post_id: int,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Increment likes on a wall post (simple counter)."""
+    _ensure_wall_posts_table()
+    rows = fetch_all("SELECT id, likes_count FROM wall_posts WHERE id=%s LIMIT 1", (post_id,))
+    if not rows:
+        raise HTTPException(status_code=404, detail="Post not found")
+    current = int(_row_get(rows[0], "likes_count") or 0)
+    execute_write(
+        "UPDATE wall_posts SET likes_count=%s WHERE id=%s",
+        (current + 1, post_id),
+    )
+    return {"ok": True, "likes": current + 1}
+
+
+@app.post("/api/wall/{post_id}/comment")
+def comment_wall_post(
+    post_id: int,
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Add a short reply as a wall post on the same target wall."""
+    _ensure_wall_posts_table()
+    rows = fetch_all(
+        "SELECT id, target_user_id, user_id, body FROM wall_posts WHERE id=%s LIMIT 1",
+        (post_id,),
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail="Post not found")
+    body = (payload.get("body") or payload.get("message") or "").strip()
+    if not body:
+        raise HTTPException(status_code=400, detail="Empty comment")
+    target = int(_row_get(rows[0], "target_user_id") or _row_get(rows[0], "user_id") or 0)
+    parent_body = (_row_get(rows[0], "body") or "")[:80]
+    reply = f"Re: {parent_body}\n{body}" if parent_body else body
+    row_id, _ = execute_write(
+        """
+        INSERT INTO wall_posts (user_id, target_user_id, body, image_path, likes_count, created_at)
+        VALUES (%s, %s, %s, %s, 0, CURRENT_TIMESTAMP)
+        """,
+        (user["user_id"], target, reply, ""),
+    )
+    return {"ok": True, "id": row_id}
 
 
 def _user_moderation_status(user_id: int) -> dict[str, Any]:

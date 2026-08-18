@@ -80,6 +80,7 @@ class BookCardModel {
     required this.title,
     required this.author,
     this.authorUserId,
+    this.authorPhotoUrl,
     required this.coverPath,
     required this.accentHex,
     required this.description,
@@ -96,6 +97,7 @@ class BookCardModel {
   final String title;
   final String author;
   final int? authorUserId;
+  final String? authorPhotoUrl;
   final String coverPath;
   final String accentHex;
   final String description;
@@ -113,6 +115,9 @@ class BookCardModel {
       title: map['title'] as String,
       author: map['author'] as String? ?? '',
       authorUserId: (map['author_user_id'] as num?)?.toInt(),
+      authorPhotoUrl: (map['author_photo_url'] as String?) ??
+          (map['author_photo'] as String?) ??
+          (map['photo_url'] as String?),
       coverPath: map['cover_path'] as String? ?? '',
       accentHex: map['accent_hex'] as String? ?? '#A1A1A1',
       description: map['description'] as String? ?? '',

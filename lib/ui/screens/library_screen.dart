@@ -588,24 +588,116 @@ class _ListDetailState extends State<_ListDetail> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : ListView.builder(
+          : ListView.separated(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
               itemCount: _items.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
               itemBuilder: (ctx, i) {
                 final it = _items[i];
-                return ListTile(
-                  title: Text('${it['title']}'),
-                  subtitle: Text('by ${it['author']}'),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.remove_circle_outline),
-                    onPressed: () async {
-                      final itemId = (it['id'] as num?)?.toInt();
-                      if (itemId == null) return;
-                      await widget.api.removeReadingListItem(
-                        widget.listId,
-                        itemId,
+                final title = '${it['title'] ?? ''}';
+                final author = '${it['author'] ?? ''}';
+                final cover = '${it['cover_path'] ?? it['coverPath'] ?? ''}';
+                final bookId = (it['book_id'] as num?)?.toInt() ??
+                    (it['id'] as num?)?.toInt() ??
+                    0;
+                // Prefer explicit book_id; item id is list-item id
+                final resolvedBookId = (it['book_id'] as num?)?.toInt() ?? 0;
+                final coverUrl = cover.isNotEmpty
+                    ? widget.api.resolveAssetUrl(cover)
+                    : '';
+                return Material(
+                  color: Theme.of(ctx).cardColor,
+                  borderRadius: BorderRadius.circular(12),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () {
+                      final bid = resolvedBookId > 0 ? resolvedBookId : bookId;
+                      if (bid <= 0) return;
+                      Navigator.of(ctx).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => StoryDetailScreen(
+                            apiService: widget.api,
+                            book: BookDetailModel(
+                              id: bid,
+                              title: title,
+                              author: author,
+                              description: '',
+                              coverPath: cover,
+                              statusText: '',
+                              rating: 0,
+                              genre: '${it['genre'] ?? ''}',
+                              cta: 'Read now',
+                            ),
+                          ),
+                        ),
                       );
-                      await _load();
                     },
+                    child: Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: Row(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: SizedBox(
+                              width: 52,
+                              height: 72,
+                              child: coverUrl.isNotEmpty
+                                  ? Image.network(
+                                      coverUrl,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => ColoredBox(
+                                        color: Theme.of(ctx).dividerColor,
+                                        child: const Icon(Icons.menu_book, size: 22),
+                                      ),
+                                    )
+                                  : ColoredBox(
+                                      color: Theme.of(ctx).dividerColor,
+                                      child: const Icon(Icons.menu_book, size: 22),
+                                    ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  title.isEmpty ? 'Untitled' : title,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  author.isEmpty ? 'Unknown author' : 'by $author',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Theme.of(ctx).hintColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.remove_circle_outline),
+                            onPressed: () async {
+                              final itemId = (it['id'] as num?)?.toInt();
+                              if (itemId == null) return;
+                              await widget.api.removeReadingListItem(
+                                widget.listId,
+                                itemId,
+                              );
+                              await _load();
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 );
               },
