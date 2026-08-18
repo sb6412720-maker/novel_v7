@@ -1717,6 +1717,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         final bookTitle = _s(r['book_title'] ?? r['title'] ?? 'Story');
         final author = _s(r['book_author'] ?? r['author'] ?? '');
         final cover = _s(r['cover_path'] ?? r['book_cover'] ?? '');
+        final bid = _asInt(r['book_id'] ?? r['story_id'] ?? r['id']);
         final stars = _asInt(r['rating'] ?? r['stars'] ?? 0);
         final plot = _asInt(r['plot_score'] ?? r['plot'] ?? stars);
         final writing = _asInt(r['writing_score'] ?? r['writing_style'] ?? stars);
