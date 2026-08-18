@@ -774,7 +774,7 @@ class _AuthorsStripState extends State<_AuthorsStrip> {
                               ? NetworkImage(photoUrl)
                               : null,
                           onBackgroundImageError: photoUrl.isNotEmpty
-                              ? (_, __) {}
+                              ? (_, _) {}
                               : null,
                           child: photoUrl.isEmpty
                               ? Text(

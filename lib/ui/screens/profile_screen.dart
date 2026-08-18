@@ -1391,14 +1391,14 @@ class _ProfileScreenState extends State<ProfileScreen>
                           final postId = (m['id'] as num?)?.toInt();
                           if (postId == null) return;
                           try {
-                            final likes = await widget.apiService.likeWallPost(postId);
+                            final res = await widget.apiService.likeWallPost(postId);
                             if (!mounted) return;
+                            final likes = (res['likes'] as num?)?.toInt() ?? 0;
+                            final liked = res['liked'] == true;
                             setState(() {
                               m['likes'] = likes;
+                              m['liked'] = liked;
                             });
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Liked · $likes')),
-                            );
                           } catch (e) {
                             if (!mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -1408,11 +1408,18 @@ class _ProfileScreenState extends State<ProfileScreen>
                         },
                         child: Row(
                           children: [
-                            const Icon(Icons.favorite_border, size: 18, color: muted),
+                            Icon(
+                              m['liked'] == true ? Icons.favorite : Icons.favorite_border,
+                              size: 18,
+                              color: m['liked'] == true ? Colors.redAccent : muted,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               '${m['likes'] ?? 0}',
-                              style: const TextStyle(fontSize: 12, color: muted),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: m['liked'] == true ? Colors.redAccent : muted,
+                              ),
                             ),
                           ],
                         ),

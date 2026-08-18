@@ -603,17 +603,36 @@ class ApiService {
     required int bookId,
     required int chapterNumber,
   }) async {
+    final payload = await fetchChapterCommentsPayload(
+      bookId: bookId,
+      chapterNumber: chapterNumber,
+    );
+    return List<Map<String, dynamic>>.from(
+      (payload['items'] as List<dynamic>? ?? const <dynamic>[]),
+    );
+  }
+
+  Future<Map<String, dynamic>> fetchChapterCommentsPayload({
+    required int bookId,
+    required int chapterNumber,
+  }) async {
     try {
       final response = await _get(
         '/api/books/$bookId/chapters/$chapterNumber/comments',
       );
-      if (response.statusCode != 200) return const <Map<String, dynamic>>[];
+      if (response.statusCode != 200) {
+        return const <String, dynamic>{
+          'items': <Map<String, dynamic>>[],
+          'paragraph_counts': <String, int>{},
+        };
+      }
       final payload = jsonDecode(response.body) as Map<String, dynamic>;
-      return List<Map<String, dynamic>>.from(
-        (payload['items'] as List<dynamic>? ?? const <dynamic>[]),
-      );
+      return payload;
     } catch (_) {
-      return const <Map<String, dynamic>>[];
+      return const <String, dynamic>{
+        'items': <Map<String, dynamic>>[],
+        'paragraph_counts': <String, int>{},
+      };
     }
   }
 
@@ -621,10 +640,14 @@ class ApiService {
     required int bookId,
     required int chapterNumber,
     required String body,
+    int? paragraphIndex,
   }) async {
     final response = await _post(
       '/api/books/$bookId/chapters/$chapterNumber/comments',
-      {'body': body},
+      {
+        'body': body,
+        'paragraph_index': ?paragraphIndex,
+      },
       timeout: const Duration(seconds: 8),
     );
     _ensureSuccessResponse(response);
@@ -731,10 +754,13 @@ class ApiService {
     });
     _ensureSuccessResponse(response);
   }
-  Future<int> likeWallPost(int postId) async {
+  Future<Map<String, dynamic>> likeWallPost(int postId) async {
     final response = await _post('/api/wall/$postId/like', {});
     final data = jsonDecode(response.body) as Map<String, dynamic>;
-    return (data['likes'] as num?)?.toInt() ?? 0;
+    return {
+      'likes': (data['likes'] as num?)?.toInt() ?? 0,
+      'liked': data['liked'] == true,
+    };
   }
 
   Future<void> commentWallPost(int postId, String body) async {

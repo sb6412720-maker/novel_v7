@@ -62,6 +62,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
   bool _liked = false;
   int _likeCount = 0;
   final ScrollController _scrollController = ScrollController();
+  Map<int, int> _paragraphCommentCounts = {};
 
   static const _reactionOptions = <List<String>>[
     ['❤️', 'Love this'],
@@ -147,7 +148,9 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
         (chapter['chapter_number'] as num?)?.toInt() ?? (_chapterIndex + 1);
     _selectedReactions.clear();
     _reactionCounts.clear();
+    _paragraphCommentCounts = {};
     _loadReactions();
+    unawaited(_loadParagraphCommentCounts());
     // Last chapter open => mark book Completed in library
     if (_chapters.isNotEmpty && _chapterIndex >= _chapters.length - 1) {
       unawaited(_markLibraryProgress(completed: true));
@@ -466,6 +469,350 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     );
   }
 
+
+  List<String> _paragraphs() {
+    final text = _chapterContent.trim();
+    if (text.isEmpty) return const [];
+    // Split on blank lines first; fall back to single newlines for denser text
+    var parts = text.split(RegExp(r'\n\s*\n'));
+    if (parts.length <= 1) {
+      parts = text.split('\n');
+    }
+    return parts.map((p) => p.trim()).where((p) => p.isNotEmpty).toList();
+  }
+
+  Future<void> _loadParagraphCommentCounts() async {
+    final bookId = widget.bookId;
+    if (bookId == null) return;
+    try {
+      final payload = await widget.apiService.fetchChapterCommentsPayload(
+        bookId: bookId,
+        chapterNumber: _chapterNumber,
+      );
+      final raw = payload['paragraph_counts'];
+      final map = <int, int>{};
+      if (raw is Map) {
+        raw.forEach((k, v) {
+          final idx = int.tryParse('$k');
+          final n = (v as num?)?.toInt() ?? 0;
+          if (idx != null && n > 0) map[idx] = n;
+        });
+      }
+      // Also count from items if counts missing
+      final items = payload['items'];
+      if (map.isEmpty && items is List) {
+        for (final it in items) {
+          if (it is! Map) continue;
+          final pi = (it['paragraph_index'] as num?)?.toInt() ?? -1;
+          if (pi >= 0) map[pi] = (map[pi] ?? 0) + 1;
+        }
+      }
+      if (!mounted) return;
+      setState(() => _paragraphCommentCounts = map);
+    } catch (_) {
+      // ignore
+    }
+  }
+
+  Future<void> _openParagraphComments(int paragraphIndex, String preview) async {
+    final bookId = widget.bookId;
+    if (bookId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Open a published story to view comments')),
+      );
+      return;
+    }
+    var comments = <Map<String, dynamic>>[];
+    var loading = true;
+    String? error;
+    final controller = TextEditingController();
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _bg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModal) {
+            if (loading) {
+              widget.apiService
+                  .fetchChapterComments(
+                    bookId: bookId,
+                    chapterNumber: _chapterNumber,
+                  )
+                  .then((items) {
+                final filtered = items
+                    .where((c) =>
+                        ((c['paragraph_index'] as num?)?.toInt() ?? -1) ==
+                        paragraphIndex)
+                    .toList();
+                if (ctx.mounted) {
+                  setModal(() {
+                    comments = filtered;
+                    loading = false;
+                  });
+                }
+              }).catchError((_) {
+                if (ctx.mounted) {
+                  setModal(() {
+                    loading = false;
+                    error = 'Could not load comments';
+                  });
+                }
+              });
+            }
+            final bottom = MediaQuery.of(ctx).viewInsets.bottom;
+            return Padding(
+              padding: EdgeInsets.only(bottom: bottom),
+              child: SizedBox(
+                height: MediaQuery.of(ctx).size.height * 0.65,
+                child: Column(
+                  children: [
+                    const SizedBox(height: 10),
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade400,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Paragraph comments (${comments.length})',
+                              style: TextStyle(
+                                color: _fg,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: Icon(Icons.close, color: _muted),
+                            onPressed: () => Navigator.pop(ctx),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (preview.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          preview.length > 120
+                              ? '${preview.substring(0, 120)}…'
+                              : preview,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: _muted, fontSize: 12, height: 1.3),
+                        ),
+                      ),
+                    const Divider(),
+                    Expanded(
+                      child: loading
+                          ? const Center(child: CircularProgressIndicator())
+                          : error != null
+                              ? Center(child: Text(error!, style: TextStyle(color: _muted)))
+                              : comments.isEmpty
+                                  ? Center(
+                                      child: Text(
+                                        'No comments yet — be the first!',
+                                        style: TextStyle(color: _muted),
+                                      ),
+                                    )
+                                  : ListView.separated(
+                                      padding: const EdgeInsets.all(16),
+                                      itemCount: comments.length,
+                                      separatorBuilder: (_, _) =>
+                                          const SizedBox(height: 12),
+                                      itemBuilder: (_, i) {
+                                        final c = comments[i];
+                                        final name =
+                                            '${c['display_name'] ?? c['username'] ?? 'Reader'}';
+                                        final body = '${c['body'] ?? ''}';
+                                        return Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            CircleAvatar(
+                                              radius: 16,
+                                              child: Text(
+                                                name.isNotEmpty
+                                                    ? name[0].toUpperCase()
+                                                    : '?',
+                                              ),
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    name,
+                                                    style: TextStyle(
+                                                      color: _fg,
+                                                      fontWeight: FontWeight.w600,
+                                                      fontSize: 13,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    body,
+                                                    style: TextStyle(
+                                                      color: _fg,
+                                                      fontSize: 14,
+                                                      height: 1.35,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        );
+                                      },
+                                    ),
+                    ),
+                    SafeArea(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: controller,
+                                style: TextStyle(color: _fg),
+                                decoration: InputDecoration(
+                                  hintText: 'Add a comment…',
+                                  hintStyle: TextStyle(color: _muted),
+                                  filled: true,
+                                  fillColor: _theme == _ReaderTheme.nightowl
+                                      ? const Color(0xFF2A2A2A)
+                                      : const Color(0xFFF2F2F2),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(24),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 10,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: const Icon(Icons.send, color: Color(0xFF1A73E8)),
+                              onPressed: () async {
+                                final text = controller.text.trim();
+                                if (text.isEmpty) return;
+                                try {
+                                  final item =
+                                      await widget.apiService.postChapterComment(
+                                    bookId: bookId,
+                                    chapterNumber: _chapterNumber,
+                                    body: text,
+                                    paragraphIndex: paragraphIndex,
+                                  );
+                                  controller.clear();
+                                  setModal(() {
+                                    comments = [item, ...comments];
+                                  });
+                                  if (mounted) {
+                                    setState(() {
+                                      _paragraphCommentCounts[paragraphIndex] =
+                                          (_paragraphCommentCounts[
+                                                      paragraphIndex] ??
+                                                  0) +
+                                              1;
+                                    });
+                                  }
+                                } catch (e) {
+                                  if (ctx.mounted) {
+                                    ScaffoldMessenger.of(ctx).showSnackBar(
+                                      SnackBar(content: Text('$e')),
+                                    );
+                                  }
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+    Future.delayed(const Duration(milliseconds: 300), controller.dispose);
+  }
+
+  Widget _buildParagraphBlock(String text, int index) {
+    final count = _paragraphCommentCounts[index] ?? 0;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                color: _fg,
+                fontSize: _fontSize,
+                height: 1.75,
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          GestureDetector(
+            onTap: () => _openParagraphComments(index, text),
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 28),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              decoration: BoxDecoration(
+                color: count > 0
+                    ? const Color(0xFFE8F0FE)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.chat_bubble_outline,
+                    size: 16,
+                    color: count > 0
+                        ? const Color(0xFF1A73E8)
+                        : _muted.withValues(alpha: 0.7),
+                  ),
+                  if (count > 0)
+                    Text(
+                      '$count',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1A73E8),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Split chapter content roughly in half for mid-chapter ad placement.
   List<String> _contentParts() {
     final text = _chapterContent.trim();
@@ -492,7 +839,6 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     final pageLabel = '${_chapterIndex + 1}/$total';
     final hasNext =
         _chapters.isNotEmpty && _chapterIndex < _chapters.length - 1;
-    final parts = _contentParts();
     final coverUrl = widget.coverPath.isEmpty
         ? null
         : widget.apiService.resolveAssetUrl(widget.coverPath);
@@ -634,32 +980,27 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                // First half of content
-                Text(
-                  parts[0].isEmpty && parts[1].isEmpty
-                      ? 'This chapter has not been written yet.'
-                      : parts[0],
-                  style: TextStyle(
-                    color: _fg,
-                    fontSize: _fontSize,
-                    height: 1.75,
-                  ),
-                ),
-                // Mid-chapter advertisement
-                if (parts[0].isNotEmpty && parts[1].isNotEmpty)
-                  _buildAdBanner(
-                    label: 'Discover more stories you\'ll love',
-                  ),
-                // Second half of content
-                if (parts[1].isNotEmpty)
+                // Paragraphs with inline comment bubbles (Inkitt-style)
+                if (_paragraphs().isEmpty)
                   Text(
-                    parts[1],
+                    'This chapter has not been written yet.',
                     style: TextStyle(
                       color: _fg,
                       fontSize: _fontSize,
                       height: 1.75,
                     ),
-                  ),
+                  )
+                else
+                  ...[
+                    for (var i = 0; i < _paragraphs().length; i++) ...[
+                      _buildParagraphBlock(_paragraphs()[i], i),
+                      if (i == _paragraphs().length ~/ 2 &&
+                          _paragraphs().length > 2)
+                        _buildAdBanner(
+                          label: 'Discover more stories you\'ll love',
+                        ),
+                    ],
+                  ],
                 const SizedBox(height: 24),
                 // Ad near Next Chapter button
                 if (hasNext)

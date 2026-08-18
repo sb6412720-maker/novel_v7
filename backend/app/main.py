@@ -109,6 +109,7 @@ class ReviewCreateRequest(BaseModel):
 
 class ChapterCommentCreateRequest(BaseModel):
     body: str
+    paragraph_index: int | None = None
 
 
 class ChapterCreateRequest(BaseModel):
@@ -2130,6 +2131,18 @@ def add_reading_list_item(
     if not book_rows:
         raise HTTPException(status_code=404, detail="Book not found")
 
+    # Idempotent: if already on this list, return success (no duplicate)
+    existing = fetch_all(
+        "SELECT id FROM reading_list_items WHERE reading_list_id=%s AND book_id=%s LIMIT 1",
+        (reading_list_id, book_id),
+    )
+    if existing:
+        return {
+            "ok": True,
+            "id": int(_row_get(existing[0], "id") or 0),
+            "already_exists": True,
+        }
+
     item_id, _ = execute_write(
         "INSERT INTO reading_list_items (reading_list_id, book_id) VALUES (%s, %s)",
         (reading_list_id, book_id),
@@ -2139,7 +2152,7 @@ def add_reading_list_item(
         (reading_list_id,),
     )
     bump_content_version()
-    return {"ok": True, "id": item_id}
+    return {"ok": True, "id": item_id, "already_exists": False}
 
 
 @app.delete("/api/reading-lists/{reading_list_id}/items/{item_id}")
@@ -2800,7 +2813,7 @@ def create_book_review(
 
 
 def _ensure_chapter_comments_table() -> None:
-    """Create chapter_comments on SQLite/MySQL if missing."""
+    """Create chapter_comments on SQLite/MySQL if missing; add paragraph_index."""
     try:
         if USE_SQLITE:
             execute_write(
@@ -2811,11 +2824,19 @@ def _ensure_chapter_comments_table() -> None:
                     book_id INTEGER NOT NULL,
                     user_id INTEGER NOT NULL,
                     body TEXT NOT NULL,
+                    paragraph_index INTEGER DEFAULT -1,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP
                 )
                 """,
                 (),
             )
+            try:
+                execute_write(
+                    "ALTER TABLE chapter_comments ADD COLUMN paragraph_index INTEGER DEFAULT -1",
+                    (),
+                )
+            except Exception:
+                pass
         else:
             execute_write(
                 """
@@ -2825,14 +2846,23 @@ def _ensure_chapter_comments_table() -> None:
                     book_id INT NOT NULL,
                     user_id INT NOT NULL,
                     body TEXT NOT NULL,
+                    paragraph_index INT DEFAULT -1,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     INDEX (chapter_id),
                     INDEX (book_id),
-                    INDEX (user_id)
+                    INDEX (user_id),
+                    INDEX (paragraph_index)
                 )
                 """,
                 (),
             )
+            try:
+                execute_write(
+                    "ALTER TABLE chapter_comments ADD COLUMN paragraph_index INT DEFAULT -1",
+                    (),
+                )
+            except Exception:
+                pass
     except Exception as exc:
         LOGGER.warning("chapter_comments ensure failed: %s", exc)
 
@@ -2865,6 +2895,7 @@ def _serialize_comment_row(row: dict[str, Any]) -> dict[str, Any]:
             "book_id": row.get("book_id") if isinstance(row, dict) else None,
             "user_id": row.get("user_id") if isinstance(row, dict) else None,
             "body": (row.get("body") or "") if isinstance(row, dict) else "",
+            "paragraph_index": int(row.get("paragraph_index") if row.get("paragraph_index") is not None else -1) if isinstance(row, dict) else -1,
             "display_name": name,
             "username": "",
             "photo_url": avatar,
@@ -2894,8 +2925,9 @@ def list_chapter_comments(book_id: int, chapter_number: int):
             return {"items": []}
         rows = fetch_all(
             """
-            SELECT c.id, c.chapter_id, c.book_id, c.user_id, c.body, c.created_at,
-                   u.display_name, u.photo_url
+            SELECT c.id, c.chapter_id, c.book_id, c.user_id, c.body,
+                   COALESCE(c.paragraph_index, -1) AS paragraph_index,
+                   c.created_at, u.display_name, u.photo_url
             FROM chapter_comments c
             LEFT JOIN app_users u ON u.id = c.user_id
             WHERE c.chapter_id = %s
@@ -2903,7 +2935,14 @@ def list_chapter_comments(book_id: int, chapter_number: int):
             """,
             (chapter_id,),
         )
-        return {"items": [_serialize_comment_row(r) for r in (rows or [])]}
+        items = [_serialize_comment_row(r) for r in (rows or [])]
+        counts: dict[str, int] = {}
+        for it in items:
+            pi = int(it.get("paragraph_index") if it.get("paragraph_index") is not None else -1)
+            if pi >= 0:
+                key = str(pi)
+                counts[key] = counts.get(key, 0) + 1
+        return {"items": items, "paragraph_counts": counts}
     except Exception as exc:
         LOGGER.exception("list_chapter_comments failed: %s", exc)
         return {"items": [], "error": "Failed to load comments"}
@@ -2938,12 +2977,19 @@ def create_chapter_comment(
         if chapter_id is None:
             raise HTTPException(status_code=404, detail="Chapter not found")
     try:
+        pidx = payload.paragraph_index
+        if pidx is None:
+            pidx = -1
+        try:
+            pidx = int(pidx)
+        except Exception:
+            pidx = -1
         execute_write(
             """
-            INSERT INTO chapter_comments (chapter_id, book_id, user_id, body)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO chapter_comments (chapter_id, book_id, user_id, body, paragraph_index)
+            VALUES (%s, %s, %s, %s, %s)
             """,
-            (chapter_id, book_id, user["user_id"], body),
+            (chapter_id, book_id, user["user_id"], body, pidx),
         )
         bump_content_version()
         rows = fetch_all(
@@ -2971,8 +3017,9 @@ def list_comments_by_chapter_id(chapter_id: int):
         _ensure_chapter_comments_table()
         rows = fetch_all(
             """
-            SELECT c.id, c.chapter_id, c.book_id, c.user_id, c.body, c.created_at,
-                   u.display_name, u.photo_url
+            SELECT c.id, c.chapter_id, c.book_id, c.user_id, c.body,
+                   COALESCE(c.paragraph_index, -1) AS paragraph_index,
+                   c.created_at, u.display_name, u.photo_url
             FROM chapter_comments c
             LEFT JOIN app_users u ON u.id = c.user_id
             WHERE c.chapter_id = %s
@@ -2980,7 +3027,14 @@ def list_comments_by_chapter_id(chapter_id: int):
             """,
             (chapter_id,),
         )
-        return {"items": [_serialize_comment_row(r) for r in (rows or [])]}
+        items = [_serialize_comment_row(r) for r in (rows or [])]
+        counts: dict[str, int] = {}
+        for it in items:
+            pi = int(it.get("paragraph_index") if it.get("paragraph_index") is not None else -1)
+            if pi >= 0:
+                key = str(pi)
+                counts[key] = counts.get(key, 0) + 1
+        return {"items": items, "paragraph_counts": counts}
     except Exception as exc:
         LOGGER.exception("list_comments_by_chapter_id failed: %s", exc)
         return {"items": []}
@@ -4113,22 +4167,86 @@ def post_user_wall(
     return {"ok": True, "id": row_id}
 
 
+def _ensure_wall_post_likes_table() -> None:
+    """Per-user likes on wall posts (one like per account)."""
+    try:
+        if USE_SQLITE:
+            execute_write(
+                """
+                CREATE TABLE IF NOT EXISTS wall_post_likes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    post_id INTEGER NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(post_id, user_id)
+                )
+                """,
+                (),
+            )
+        else:
+            execute_write(
+                """
+                CREATE TABLE IF NOT EXISTS wall_post_likes (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    post_id INT NOT NULL,
+                    user_id INT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_wall_like (post_id, user_id),
+                    INDEX (post_id),
+                    INDEX (user_id)
+                )
+                """,
+                (),
+            )
+    except Exception as exc:
+        LOGGER.warning("wall_post_likes ensure failed: %s", exc)
+
+
 @app.post("/api/wall/{post_id}/like")
 def like_wall_post(
     post_id: int,
     user: dict[str, Any] = Depends(require_user),
 ):
-    """Increment likes on a wall post (simple counter)."""
+    """Toggle like on a wall post. One like per account; second tap unlikes."""
     _ensure_wall_posts_table()
+    _ensure_wall_post_likes_table()
     rows = fetch_all("SELECT id, likes_count FROM wall_posts WHERE id=%s LIMIT 1", (post_id,))
     if not rows:
         raise HTTPException(status_code=404, detail="Post not found")
-    current = int(_row_get(rows[0], "likes_count") or 0)
-    execute_write(
-        "UPDATE wall_posts SET likes_count=%s WHERE id=%s",
-        (current + 1, post_id),
+    uid = int(user["user_id"])
+    existing = fetch_all(
+        "SELECT id FROM wall_post_likes WHERE post_id=%s AND user_id=%s LIMIT 1",
+        (post_id, uid),
     )
-    return {"ok": True, "likes": current + 1}
+    if existing:
+        execute_write(
+            "DELETE FROM wall_post_likes WHERE post_id=%s AND user_id=%s",
+            (post_id, uid),
+        )
+        liked = False
+    else:
+        try:
+            execute_write(
+                "INSERT INTO wall_post_likes (post_id, user_id) VALUES (%s, %s)",
+                (post_id, uid),
+            )
+        except Exception:
+            # race: already liked
+            pass
+        liked = True
+    count_rows = fetch_all(
+        "SELECT COUNT(*) AS c FROM wall_post_likes WHERE post_id=%s",
+        (post_id,),
+    )
+    likes = int(_row_get(count_rows[0], "c") or 0) if count_rows else 0
+    try:
+        execute_write(
+            "UPDATE wall_posts SET likes_count=%s WHERE id=%s",
+            (likes, post_id),
+        )
+    except Exception:
+        pass
+    return {"ok": True, "likes": likes, "liked": liked}
 
 
 @app.post("/api/wall/{post_id}/comment")
