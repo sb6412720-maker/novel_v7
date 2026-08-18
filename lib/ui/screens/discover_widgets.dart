@@ -240,7 +240,7 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
         ),
         const SizedBox(height: 12),
         if (widget.section.books.isEmpty)
-          const SizedBox(
+          SizedBox(
             height: 80,
             child: Center(
               child: Text(
