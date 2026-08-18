@@ -67,7 +67,7 @@ Color _hexToColor(String hex) {
   return Color(int.parse('FF$normalized', radix: 16));
 }
 
-class _ExploreStoriesSection extends StatelessWidget {
+class _ExploreStoriesSection extends StatefulWidget {
   const _ExploreStoriesSection({
     required this.books,
     required this.topics,
@@ -81,61 +81,126 @@ class _ExploreStoriesSection extends StatelessWidget {
   final VoidCallback onOpenExplore;
 
   @override
+  State<_ExploreStoriesSection> createState() => _ExploreStoriesSectionState();
+}
+
+class _ExploreStoriesSectionState extends State<_ExploreStoriesSection> {
+  late final PageController _pageController;
+  int _activeIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(viewportFraction: 0.32, initialPage: 0);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  BookCardModel get _activeBook {
+    final books = widget.books;
+    return books[_activeIndex.clamp(0, books.length - 1)];
+  }
+
+  void _openBook(BookCardModel item) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => StoryDetailScreen(
+          apiService: widget.apiService,
+          book: BookDetailModel(
+            id: item.id,
+            title: item.title,
+            author: item.author,
+            description: item.description,
+            statusText: item.statusText,
+            rating: item.rating,
+            genre: item.primaryGenre,
+            cta: item.cta,
+            coverPath: item.coverPath,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openSeeAll() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _SectionBooksScreen(
+          title: _activeBook.primaryGenre.isEmpty
+              ? 'Stories'
+              : _activeBook.primaryGenre,
+          books: widget.books,
+          apiService: widget.apiService,
+        ),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (books.isEmpty) return const SizedBox.shrink();
-    final lead = books.first;
-    final covers = books; // all stories — horizontal slide like other rails
+    if (widget.books.isEmpty) return const SizedBox.shrink();
+    final lead = _activeBook;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          lead.primaryGenre.isEmpty ? 'Portal Fantasy' : lead.primaryGenre,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).brightness == Brightness.dark
-                ? Colors.white70
-                : null,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                lead.primaryGenre.isEmpty ? 'Portal Fantasy' : lead.primaryGenre,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: isDark ? Colors.white70 : null,
+                    ),
+              ),
+            ),
+            TextButton(
+              onPressed: _openSeeAll,
+              style: TextButton.styleFrom(
+                foregroundColor: AppTheme.brand,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: const Size(0, 32),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text(
+                'See all',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 8),
         SizedBox(
-          height: 140,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            itemCount: covers.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 10),
+          height: 168,
+          child: PageView.builder(
+            controller: _pageController,
+            padEnds: false,
+            itemCount: widget.books.length,
+            onPageChanged: (index) => setState(() => _activeIndex = index),
             itemBuilder: (context, index) {
-              final item = covers[index];
-              return Padding(
-                padding: const EdgeInsets.only(right: 6),
-                child: SizedBox(
-                  height: 120,
-                  child: GestureDetector(
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => StoryDetailScreen(
-                            apiService: apiService,
-                            book: BookDetailModel(
-                              id: item.id,
-                              title: item.title,
-                              author: item.author,
-                              description: item.description,
-                              statusText: item.statusText,
-                              rating: item.rating,
-                              genre: item.primaryGenre,
-                              cta: item.cta,
-                              coverPath: item.coverPath,
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                    child: _StoryCard(
-                      book: item,
-                      width: 86,
-                      apiService: apiService,
+              final item = widget.books[index];
+              final isActive = index == _activeIndex;
+              return AnimatedScale(
+                scale: isActive ? 1.08 : 0.9,
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutCubic,
+                child: AnimatedOpacity(
+                  opacity: isActive ? 1.0 : 0.55,
+                  duration: const Duration(milliseconds: 200),
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 6, left: 4),
+                    child: GestureDetector(
+                      onTap: () => _openBook(item),
+                      child: _StoryCard(
+                        book: item,
+                        width: 88,
+                        apiService: widget.apiService,
+                      ),
                     ),
                   ),
                 ),
@@ -144,13 +209,18 @@ class _ExploreStoriesSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        _ActiveStoryDetail(book: lead, apiService: apiService),
+        // Description / details follow the currently centered cover
+        _ActiveStoryDetail(
+          book: lead,
+          apiService: widget.apiService,
+          onRead: () => _openBook(lead),
+        ),
         const SizedBox(height: 16),
         _GenrePillRow(
-          topics: topics,
-          books: books,
-          apiService: apiService,
-          onOpenExplore: onOpenExplore,
+          topics: widget.topics,
+          books: widget.books,
+          apiService: widget.apiService,
+          onOpenExplore: widget.onOpenExplore,
         ),
       ],
     );
@@ -219,7 +289,9 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
               onPressed: () {
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) => ExploreScreen(
+                    builder: (_) => _SectionBooksScreen(
+                      title: widget.section.title,
+                      books: widget.section.books,
                       apiService: widget.apiService,
                     ),
                   ),
@@ -1024,6 +1096,108 @@ class _TabBarDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   bool shouldRebuild(_TabBarDelegate oldDelegate) => false;
+}
+
+
+class _SectionBooksScreen extends StatelessWidget {
+  const _SectionBooksScreen({
+    required this.title,
+    required this.books,
+    required this.apiService,
+  });
+
+  final String title;
+  final List<BookCardModel> books;
+  final ApiService apiService;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF121212) : null,
+      appBar: AppBar(
+        title: Text(
+          title,
+          style: TextStyle(color: isDark ? Colors.white : null),
+        ),
+        backgroundColor: isDark ? const Color(0xFF121212) : null,
+        iconTheme: IconThemeData(color: isDark ? Colors.white : null),
+      ),
+      body: books.isEmpty
+          ? Center(
+              child: Text(
+                'No stories in this section yet',
+                style: TextStyle(color: isDark ? Colors.white70 : null),
+              ),
+            )
+          : ListView.separated(
+              padding: const EdgeInsets.all(12),
+              itemCount: books.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final item = books[index];
+                final cover = item.coverPath;
+                return ListTile(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    side: BorderSide(
+                      color: isDark
+                          ? const Color(0xFF2C2C2C)
+                          : const Color(0xFFE8E8E8),
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => StoryDetailScreen(
+                          apiService: apiService,
+                          book: BookDetailModel(
+                            id: item.id,
+                            title: item.title,
+                            author: item.author,
+                            description: item.description,
+                            statusText: item.statusText,
+                            rating: item.rating,
+                            genre: item.primaryGenre,
+                            cta: item.cta,
+                            coverPath: item.coverPath,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                  leading: SizedBox(
+                    width: 40,
+                    height: 56,
+                    child: cover.isNotEmpty
+                        ? Image.network(
+                            apiService.resolveAssetUrl(cover),
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => ColoredBox(
+                              color: isDark
+                                  ? const Color(0xFF2C2C2C)
+                                  : const Color(0xFFE4E4E4),
+                            ),
+                          )
+                        : ColoredBox(
+                            color: isDark
+                                ? const Color(0xFF2C2C2C)
+                                : const Color(0xFFE4E4E4),
+                          ),
+                  ),
+                  title: Text(
+                    item.title,
+                    style: TextStyle(color: isDark ? Colors.white : null),
+                  ),
+                  subtitle: Text(
+                    item.author,
+                    style: TextStyle(color: isDark ? Colors.white70 : null),
+                  ),
+                );
+              },
+            ),
+    );
+  }
 }
 
 class _GenreBooksScreen extends StatelessWidget {
