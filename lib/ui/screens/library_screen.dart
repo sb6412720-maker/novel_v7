@@ -591,7 +591,7 @@ class _ListDetailState extends State<_ListDetail> {
           : ListView.separated(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
               itemCount: _items.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 8),
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
               itemBuilder: (ctx, i) {
                 final it = _items[i];
                 final title = '${it['title'] ?? ''}';
@@ -645,7 +645,7 @@ class _ListDetailState extends State<_ListDetail> {
                                   ? Image.network(
                                       coverUrl,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (_, _, _) => ColoredBox(
+                                      errorBuilder: (_, __, ___) => ColoredBox(
                                         color: Theme.of(ctx).dividerColor,
                                         child: const Icon(Icons.menu_book, size: 22),
                                       ),

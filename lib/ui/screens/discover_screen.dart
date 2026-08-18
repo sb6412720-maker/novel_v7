@@ -57,47 +57,53 @@ class _DiscoverScreenState extends State<DiscoverScreen>
   Widget build(BuildContext context) {
     return CustomScrollView(
       slivers: [
-        SliverToBoxAdapter(
-          child: Container(
-            color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF121212) : Colors.white,
-            padding: const EdgeInsets.fromLTRB(12, 8, 8, 0),
-            child: Row(
-              children: [
-                const Text(
-                  'Inkitt',
-                  style: TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
-                    color: Color(0xFF1A1A1A),
-                  ),
-                ),
-                const Spacer(),
-                IconButton(
-                  tooltip: 'Search',
-                  icon: const Icon(Icons.search, size: 26),
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => SearchScreen(
-                          apiService: widget.apiService,
-                        ),
+        Builder(
+          builder: (context) {
+            final isDark = Theme.of(context).brightness == Brightness.dark;
+            final fg = isDark ? Colors.white : const Color(0xFF1A1A1A);
+            return SliverToBoxAdapter(
+              child: Container(
+                color: isDark ? const Color(0xFF121212) : Colors.white,
+                padding: const EdgeInsets.fromLTRB(12, 8, 8, 0),
+                child: Row(
+                  children: [
+                    Text(
+                      'Inkitt',
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
+                        color: fg,
                       ),
-                    );
-                  },
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      tooltip: 'Search',
+                      icon: Icon(Icons.search, size: 26, color: fg),
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => SearchScreen(
+                              apiService: widget.apiService,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    IconButton(
+                      tooltip: 'More',
+                      icon: Icon(Icons.more_vert, size: 24, color: fg),
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Discover options')),
+                        );
+                      },
+                    ),
+                  ],
                 ),
-                IconButton(
-                  tooltip: 'More',
-                  icon: const Icon(Icons.more_vert, size: 24),
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Discover options')),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
         SliverPersistentHeader(
           pinned: true,

@@ -90,8 +90,9 @@ class AppTheme {
   }
 
   static ThemeData get darkTheme {
-    const darkInk = Color(0xFFE8E8E8);
-    const darkMuted = Color(0xFFA0A0A0);
+    // High-contrast text so labels stay readable on near-black surfaces
+    const darkInk = Color(0xFFFFFFFF);
+    const darkMuted = Color(0xFFBDBDBD);
     const darkSurface = Color(0xFF121212);
     const darkCard = Color(0xFF1E1E1E);
     const darkBorder = Color(0xFF2C2C2C);

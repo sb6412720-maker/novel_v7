@@ -84,20 +84,25 @@ class _ExploreStoriesSection extends StatelessWidget {
   Widget build(BuildContext context) {
     if (books.isEmpty) return const SizedBox.shrink();
     final lead = books.first;
-    final covers = books.take(3).toList();
+    final covers = books; // all stories — horizontal slide like other rails
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           lead.primaryGenre.isEmpty ? 'Portal Fantasy' : lead.primaryGenre,
-          style: Theme.of(context).textTheme.bodySmall,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? Colors.white70
+                : null,
+          ),
         ),
         const SizedBox(height: 8),
         SizedBox(
-          height: 120,
+          height: 140,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
             itemCount: covers.length,
             separatorBuilder: (_, _) => const SizedBox(width: 10),
             itemBuilder: (context, index) {
@@ -177,7 +182,7 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
   void initState() {
     super.initState();
     // Slightly denser carousel (Inkitt-like card density)
-    _pageController = PageController(viewportFraction: 0.28);
+    _pageController = PageController(viewportFraction: 0.32, initialPage: 0);
   }
 
   @override
@@ -240,7 +245,11 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
             child: Center(
               child: Text(
                 'No stories yet',
-                style: TextStyle(color: Colors.grey),
+                style: TextStyle(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white54
+                      : Colors.grey,
+                ),
               ),
             ),
           )
@@ -249,7 +258,7 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
             height: 168,
             child: PageView.builder(
               controller: _pageController,
-              padEnds: true,
+              padEnds: false,
               itemCount: widget.section.books.length,
               onPageChanged: (index) => setState(() => _activeIndex = index),
               itemBuilder: (context, index) {
@@ -706,9 +715,12 @@ class _AuthorsStripState extends State<_AuthorsStrip> {
       children: [
         Text(
           'New Authors on Inkitt',
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: Theme.of(context).brightness == Brightness.dark
+                ? Colors.white
+                : null,
+          ),
         ),
         const SizedBox(height: 10),
         SizedBox(
@@ -866,29 +878,67 @@ class _GenrePillRow extends StatelessWidget {
     }
     final items = genres.toList();
     if (items.isEmpty) return const SizedBox.shrink();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return SizedBox(
       height: 40,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        itemCount: items.length,
+        itemCount: items.length + (onOpenExplore != null ? 1 : 0),
         separatorBuilder: (context, index) => const SizedBox(width: 12),
         itemBuilder: (context, index) {
+          if (onOpenExplore != null && index == items.length) {
+            return ActionChip(
+              label: Text(
+                'Explore more',
+                style: TextStyle(
+                  color: isDark ? Colors.white : AppTheme.brand,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              backgroundColor: isDark ? const Color(0xFF2A3344) : const Color(0xFFE8EEF9),
+              onPressed: onOpenExplore,
+            );
+          }
           final label = items[index];
           return ActionChip(
-            label: Text(label),
+            label: Text(
+              label,
+              style: TextStyle(color: isDark ? Colors.white : null),
+            ),
             onPressed: () async {
-              final books = await apiService.fetchBooksByTag(label);
-              if (!context.mounted) return;
-              if (books.isEmpty && onOpenExplore != null) {
-                onOpenExplore!();
-                return;
+              // Only related hashtag/genre books — never jump to Explore
+              var tagged = await apiService.fetchBooksByTag(label);
+              if (tagged.isEmpty) {
+                // Client-side filter from current discover books
+                tagged = books
+                    .where((b) {
+                      final g = label.toLowerCase();
+                      return b.primaryGenre.toLowerCase().contains(g) ||
+                          b.secondaryGenre.toLowerCase().contains(g);
+                    })
+                    .map((b) => {
+                          'id': b.id,
+                          'title': b.title,
+                          'author': b.author,
+                          'description': b.description,
+                          'status_text': b.statusText,
+                          'rating': b.rating,
+                          'genre': b.primaryGenre,
+                          'primary_genre': b.primaryGenre,
+                          'cover_path': b.coverPath,
+                          'cta_label': b.cta,
+                          'author_user_id': b.authorUserId,
+                        })
+                    .toList();
               }
+              if (!context.mounted) return;
               await Navigator.of(context).push(
                 MaterialPageRoute<void>(
                   builder: (_) => _GenreBooksScreen(
                     genre: label,
-                    books: books,
+                    books: tagged,
                     apiService: apiService,
+                    onExploreMore: onOpenExplore,
                   ),
                 ),
               );
@@ -926,7 +976,11 @@ class _CategoryTabs extends StatelessWidget {
                 Text(
                   labels[index],
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: isSelected ? AppTheme.brand : AppTheme.muted,
+                    color: isSelected
+                        ? AppTheme.brand
+                        : (Theme.of(context).brightness == Brightness.dark
+                            ? Colors.white70
+                            : AppTheme.muted),
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -977,19 +1031,51 @@ class _GenreBooksScreen extends StatelessWidget {
     required this.genre,
     required this.books,
     required this.apiService,
+    this.onExploreMore,
   });
 
   final String genre;
   final List<Map<String, dynamic>> books;
   final ApiService apiService;
+  final VoidCallback? onExploreMore;
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final label = genre.startsWith('#') ? genre : '#$genre';
     return Scaffold(
-      appBar: AppBar(title: Text(label)),
+      backgroundColor: isDark ? const Color(0xFF121212) : null,
+      appBar: AppBar(
+        title: Text(label, style: TextStyle(color: isDark ? Colors.white : null)),
+        backgroundColor: isDark ? const Color(0xFF121212) : null,
+        iconTheme: IconThemeData(color: isDark ? Colors.white : null),
+        actions: [
+          if (onExploreMore != null)
+            TextButton(
+              onPressed: onExploreMore,
+              child: const Text('Explore more'),
+            ),
+        ],
+      ),
       body: books.isEmpty
-          ? const Center(child: Text('No stories for this tag yet'))
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'No stories for this tag yet',
+                    style: TextStyle(color: isDark ? Colors.white70 : null),
+                  ),
+                  if (onExploreMore != null) ...[
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: onExploreMore,
+                      child: const Text('Explore more stories'),
+                    ),
+                  ],
+                ],
+              ),
+            )
           : ListView.separated(
               padding: const EdgeInsets.all(12),
               itemCount: books.length,
