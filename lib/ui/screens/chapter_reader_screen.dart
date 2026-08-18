@@ -629,7 +629,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                                   : ListView.separated(
                                       padding: const EdgeInsets.all(16),
                                       itemCount: comments.length,
-                                      separatorBuilder: (_, __) =>
+                                      separatorBuilder: (_, _) =>
                                           const SizedBox(height: 12),
                                       itemBuilder: (_, i) {
                                         final c = comments[i];
