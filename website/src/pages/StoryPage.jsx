@@ -4,14 +4,18 @@ import {
   addToReadingList,
   getBook,
   getBookChapters,
+  getBookLike,
   likeBook,
+  unlikeBook,
   resolveAssetUrl,
+  getToken,
 } from "../api";
 
-export default function StoryPage({ user }) {
+export default function StoryPage() {
   const { id } = useParams();
   const [book, setBook] = useState(null);
   const [chapters, setChapters] = useState([]);
+  const [liked, setLiked] = useState(false);
   const [error, setError] = useState("");
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(true);
@@ -24,11 +28,19 @@ export default function StoryPage({ user }) {
       try {
         const [b, ch] = await Promise.all([
           getBook(id),
-          getBookChapters(id).then((r) => r?.items || r || []).catch(() => []),
+          getBookChapters(id).then((r) => r?.items || []).catch(() => []),
         ]);
         if (!cancelled) {
           setBook(b);
-          setChapters(Array.isArray(ch) ? ch : ch?.items || []);
+          setChapters(Array.isArray(ch) ? ch : []);
+        }
+        if (getToken()) {
+          try {
+            const like = await getBookLike(id);
+            if (!cancelled) setLiked(!!(like?.liked || like?.is_liked));
+          } catch {
+            /* ignore */
+          }
         }
       } catch (e) {
         if (!cancelled) setError(String(e.message || e));
@@ -42,20 +54,35 @@ export default function StoryPage({ user }) {
   }, [id]);
 
   async function onLike() {
+    if (!getToken()) {
+      setMsg("Sign in to like stories");
+      return;
+    }
     try {
-      await likeBook(id);
-      setMsg("Liked");
+      if (liked) {
+        await unlikeBook(id);
+        setLiked(false);
+        setMsg("Removed like");
+      } else {
+        await likeBook(id);
+        setLiked(true);
+        setMsg("Liked");
+      }
     } catch (e) {
-      setMsg(String(e.message || e));
+      setMsg(e.status === 401 ? "Sign in to like stories" : String(e.message || e));
     }
   }
 
   async function onSave() {
+    if (!getToken()) {
+      setMsg("Sign in to save to reading list");
+      return;
+    }
     try {
       await addToReadingList(Number(id));
       setMsg("Saved to reading list");
     } catch (e) {
-      setMsg(String(e.message || e));
+      setMsg(e.status === 401 ? "Sign in to save" : String(e.message || e));
     }
   }
 
@@ -85,17 +112,14 @@ export default function StoryPage({ user }) {
               <div className="book-cover--fallback tall">{(book.title || "?")[0]}</div>
             )}
           </div>
-          <button type="button" className="btn btn-block" onClick={onLike}>
-            ♡ Like
+          <button type="button" className={`btn btn-block ${liked ? "btn-liked" : ""}`} onClick={onLike}>
+            {liked ? "♥ Liked" : "♡ Like"}
           </button>
           <button type="button" className="btn btn-block" onClick={onSave}>
             🔖 Add to Reading List
           </button>
           {firstChapter ? (
-            <Link
-              className="btn btn-primary btn-block"
-              to={`/stories/${id}/chapters/${firstChapter.id}`}
-            >
+            <Link className="btn btn-primary btn-block" to={`/stories/${id}/chapters/${firstChapter.id}`}>
               Start reading
             </Link>
           ) : (
@@ -111,10 +135,7 @@ export default function StoryPage({ user }) {
           <p className="story-author">
             by <strong>{book.author || "Unknown"}</strong>
             {book.rating ? (
-              <span className="rating-inline">
-                {" "}
-                · ★ {Number(book.rating).toFixed(1)}
-              </span>
+              <span className="rating-inline"> · ★ {Number(book.rating).toFixed(1)}</span>
             ) : null}
           </p>
           {(book.genre || book.status_text) && (

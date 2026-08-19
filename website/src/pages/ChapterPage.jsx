@@ -13,15 +13,15 @@ export default function ChapterPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [b, ch, list] = await Promise.all([
+        const [b, ch, listRes] = await Promise.all([
           getBook(id),
-          getChapter(chapterId),
-          getBookChapters(id).then((r) => r?.items || r || []).catch(() => []),
+          getChapter(id, chapterId),
+          getBookChapters(id),
         ]);
         if (!cancelled) {
           setBook(b);
           setChapter(ch);
-          setChapters(Array.isArray(list) ? list : []);
+          setChapters(listRes?.items || []);
         }
       } catch (e) {
         if (!cancelled) setError(String(e.message || e));
@@ -52,9 +52,11 @@ export default function ChapterPage() {
         <h1>{chapter.title || "Chapter"}</h1>
       </div>
       <article className="reader-body">
-        {paragraphs.length
-          ? paragraphs.map((p, i) => <p key={i}>{p}</p>)
-          : <p className="meta">Empty chapter.</p>}
+        {paragraphs.length ? (
+          paragraphs.map((p, i) => <p key={i}>{p}</p>)
+        ) : (
+          <p className="meta">Empty chapter.</p>
+        )}
       </article>
       <div className="reader-nav">
         {prev ? (

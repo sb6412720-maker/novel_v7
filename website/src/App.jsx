@@ -35,12 +35,12 @@ export default function App() {
     (async () => {
       try {
         if (!getToken()) {
-          // silent guest session so library/bootstrap endpoints that need auth still work
           try {
             const g = await guestLogin();
-            if (g?.access_token) setToken(g.access_token);
+            const token = g?.access_token || g?.token;
+            if (token) setToken(token);
           } catch {
-            /* guest optional */
+            /* guest optional — public bootstrap still works */
           }
         }
         await refreshUser();
@@ -65,13 +65,13 @@ export default function App() {
       <Header user={user} onLogout={handleLogout} />
       <main className="main">
         {bootLoading ? (
-          <div className="page-loading">Loading NovelHub…</div>
+          <div className="page-loading">Loading…</div>
         ) : (
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/discover" element={<DiscoverPage />} />
-            <Route path="/stories/:id" element={<StoryPage user={user} />} />
-            <Route path="/stories/:id/chapters/:chapterId" element={<ChapterPage user={user} />} />
+            <Route path="/stories/:id" element={<StoryPage />} />
+            <Route path="/stories/:id/chapters/:chapterId" element={<ChapterPage />} />
             <Route path="/library" element={<LibraryPage user={user} />} />
             <Route path="/write" element={<WritePage user={user} />} />
             <Route path="/login" element={<LoginPage onSuccess={handleLoginSuccess} />} />

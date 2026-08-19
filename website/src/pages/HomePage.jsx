@@ -100,11 +100,10 @@ export default function HomePage() {
           <h1>Discover Millions of Free Books</h1>
           <p className="hero-tagline">Our readers are trendsetters.</p>
           <p className="lead">
-            Every day, readers come to NovelHub to discover the next bestseller. Stories here are
-            powered by the same backend as our mobile app.
+            Every day, millions of readers come to NovelHub to discover the next bestseller.
           </p>
           <p className="hero-stat">
-            <strong>1 in 2 novels</strong> readers love become community favorites.
+            <strong>1 in 2 novels</strong> discovered by them become community favorites.
           </p>
           <p className="hero-explore">Explore stories in your favorite genre:</p>
           <div className="genre-pills">

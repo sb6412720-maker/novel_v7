@@ -53,7 +53,9 @@ async function request(path, options = {}) {
         /* ignore */
       }
     }
-    throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+    const err = new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+    err.status = res.status;
+    throw err;
   }
   if (res.status === 204) return null;
   const text = await res.text();
@@ -76,48 +78,32 @@ export function getMe() {
 export function guestLogin() {
   return request("/api/auth/guest", {
     method: "POST",
-    body: JSON.stringify({ device_id: `web-${Date.now()}` }),
+    body: JSON.stringify({ device_id: `web-${crypto.randomUUID?.() || Date.now()}` }),
   });
 }
 
 export function emailLogin(email, password) {
-  return request("/api/auth/login", {
+  return request("/api/auth/email", {
     method: "POST",
     body: JSON.stringify({ email, password }),
-  }).catch(() =>
-    request("/api/login", {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-    })
-  );
+  });
 }
 
 export function getBook(id) {
-  return request(`/api/books/${id}`).catch(() =>
-    getBootstrap().then((b) => {
-      const books = [
-        ...(b?.books || []),
-        ...(b?.recently_updated || []),
-        ...(b?.recently_completed || []),
-        ...(b?.featured || []),
-      ];
-      const found = books.find((x) => String(x.id) === String(id));
-      if (!found) throw new Error("Story not found");
-      return found;
-    })
-  );
+  return request(`/api/books/${id}`);
 }
 
+/** Chapters include full content from this list endpoint */
 export function getBookChapters(storyId) {
-  return request(`/api/write/stories/${storyId}/chapters`).catch(() =>
-    request(`/api/stories/${storyId}/chapters`).catch(() => ({ items: [] }))
-  );
+  return request(`/api/write/stories/${storyId}/chapters`);
 }
 
-export function getChapter(chapterId) {
-  return request(`/api/write/chapters/${chapterId}`).catch(() =>
-    request(`/api/chapters/${chapterId}`)
-  );
+export async function getChapter(storyId, chapterId) {
+  const res = await getBookChapters(storyId);
+  const items = res?.items || [];
+  const found = items.find((c) => String(c.id) === String(chapterId));
+  if (!found) throw new Error("Chapter not found");
+  return found;
 }
 
 export function getBookReviews(bookId) {
@@ -125,26 +111,51 @@ export function getBookReviews(bookId) {
 }
 
 export function getLibrary() {
-  return request("/api/library").catch(() =>
-    request("/api/library/ongoing").catch(() => ({ items: [], ongoing: [], completed: [], reading_list: [] }))
-  );
+  return request("/api/library");
 }
 
-export function addToReadingList(bookId) {
-  return request("/api/library/reading-list", {
+export function getReadingLists() {
+  return request("/api/reading-lists");
+}
+
+/** Ensure a default list exists, then add the book */
+export async function addToReadingList(bookId) {
+  const lists = await getReadingLists();
+  const items = lists?.items || lists || [];
+  let listId = items[0]?.id;
+  if (!listId) {
+    const created = await request("/api/reading-lists", {
+      method: "POST",
+      body: JSON.stringify({ name: "Reading List", story_count: 0, sort_order: 0 }),
+    });
+    listId = created?.id;
+  }
+  if (!listId) throw new Error("Could not create reading list");
+  return request(`/api/reading-lists/${listId}/items`, {
     method: "POST",
-    body: JSON.stringify({ book_id: bookId }),
-  }).catch(() =>
-    request(`/api/library/reading-list/${bookId}`, { method: "POST", body: "{}" })
-  );
+    body: JSON.stringify({ book_id: Number(bookId) }),
+  });
 }
 
 export function likeBook(bookId) {
-  return request(`/api/books/${bookId}/like`, { method: "POST", body: "{}" }).catch(() =>
-    request(`/api/stories/${bookId}/like`, { method: "POST", body: "{}" })
-  );
+  return request(`/api/books/${bookId}/like`, { method: "POST", body: "{}" });
+}
+
+export function unlikeBook(bookId) {
+  return request(`/api/books/${bookId}/like`, { method: "DELETE" });
+}
+
+export function getBookLike(bookId) {
+  return request(`/api/books/${bookId}/like`);
 }
 
 export function getMyStories() {
   return request("/api/write/stories").catch(() => ({ items: [] }));
+}
+
+export function searchStories(q, genre) {
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (genre) params.set("genre", genre);
+  return request(`/api/search?${params.toString()}`);
 }
