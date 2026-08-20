@@ -8,7 +8,7 @@ export default function Shelf({ title, books = [], seeAllTo }) {
   function scroll(dir) {
     const el = scroller.current;
     if (!el) return;
-    el.scrollBy({ left: dir * Math.min(el.clientWidth * 0.8, 480), behavior: "smooth" });
+    el.scrollBy({ left: dir * Math.min(el.clientWidth * 0.75, 520), behavior: "smooth" });
   }
 
   if (!books.length) return null;
@@ -34,7 +34,7 @@ export default function Shelf({ title, books = [], seeAllTo }) {
       <div className="shelf-track" ref={scroller}>
         {books.map((b) => (
           <div key={b.id} className="shelf-item">
-            <BookCard book={b} />
+            <BookCard book={b} variant="shelf" />
           </div>
         ))}
       </div>

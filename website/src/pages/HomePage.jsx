@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Shelf from "../components/Shelf";
+import TrendingGrid from "../components/TrendingGrid";
 import { getBootstrap } from "../api";
 
 const GENRE_PILLS = [
@@ -149,7 +150,7 @@ export default function HomePage() {
           <p className="meta">No published stories yet. Seed novels from the admin panel.</p>
         )}
 
-        <Shelf title="Trending Stories" books={trending} seeAllTo="/discover" />
+        <TrendingGrid title="Trending Stories" books={trending} seeAllTo="/discover" />
         <Shelf title="Recently Updated" books={updated} seeAllTo="/discover?section=updated" />
         <Shelf title="Completed Stories" books={completed} seeAllTo="/discover?section=completed" />
 
