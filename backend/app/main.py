@@ -1032,6 +1032,12 @@ def startup_initialize_database():
         from .startup_tasks import run_startup_tasks
         from . import database as db_mod
 
+        # Auto-migrate auth columns (password_hash) on every boot
+        try:
+            _ensure_password_hash_column()
+        except Exception as col_exc:
+            LOGGER.warning("password_hash column ensure failed: %s", col_exc)
+
         summary = run_startup_tasks()
         LOGGER.info("Startup tasks summary: %s", summary)
 
