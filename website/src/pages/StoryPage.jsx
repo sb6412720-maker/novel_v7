@@ -1,27 +1,41 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { isGuestUser, isChapterAllowedForGuest, GUEST_CHAPTER_LIMIT } from "../utils/guest";
 import {
   addToReadingList,
+  followAuthor,
+  getAuthorFollow,
   getBook,
   getBookChapters,
   getBookLike,
-  likeBook,
-  unlikeBook,
-  resolveAssetUrl,
+  getBookReviews,
   getToken,
+  likeBook,
+  postBookReview,
+  resolveAssetUrl,
+  unfollowAuthor,
+  unlikeBook,
 } from "../api";
+import {
+  GUEST_CHAPTER_LIMIT,
+  isChapterAllowedForGuest,
+  isGuestUser,
+} from "../utils/guest";
 
 export default function StoryPage({ user }) {
-  const guest = isGuestUser(user);
   const { id } = useParams();
+  const guest = isGuestUser(user);
   const [book, setBook] = useState(null);
   const [chapters, setChapters] = useState([]);
+  const [reviews, setReviews] = useState([]);
   const [liked, setLiked] = useState(false);
+  const [following, setFollowing] = useState(false);
   const [chaptersOpen, setChaptersOpen] = useState(true);
   const [error, setError] = useState("");
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(true);
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState("");
+  const [reviewBusy, setReviewBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -29,13 +43,15 @@ export default function StoryPage({ user }) {
       setLoading(true);
       setError("");
       try {
-        const [b, ch] = await Promise.all([
+        const [b, ch, rev] = await Promise.all([
           getBook(id),
           getBookChapters(id).then((r) => r?.items || []).catch(() => []),
+          getBookReviews(id).then((r) => r?.items || r || []).catch(() => []),
         ]);
         if (!cancelled) {
           setBook(b);
           setChapters(Array.isArray(ch) ? ch : []);
+          setReviews(Array.isArray(rev) ? rev : []);
         }
         if (getToken()) {
           try {
@@ -43,6 +59,15 @@ export default function StoryPage({ user }) {
             if (!cancelled) setLiked(!!(like?.liked || like?.is_liked));
           } catch {
             /* ignore */
+          }
+          const authorId = b?.user_id;
+          if (authorId) {
+            try {
+              const f = await getAuthorFollow(authorId);
+              if (!cancelled) setFollowing(!!f?.following);
+            } catch {
+              /* ignore */
+            }
           }
         }
       } catch (e) {
@@ -57,7 +82,7 @@ export default function StoryPage({ user }) {
   }, [id]);
 
   async function onLike() {
-    if (!getToken()) {
+    if (!getToken() || guest) {
       setMsg("Sign in to like stories");
       return;
     }
@@ -77,7 +102,7 @@ export default function StoryPage({ user }) {
   }
 
   async function onSave() {
-    if (!getToken()) {
+    if (!getToken() || guest) {
       setMsg("Sign in to save to reading list");
       return;
     }
@@ -89,6 +114,51 @@ export default function StoryPage({ user }) {
     }
   }
 
+  async function onFollow() {
+    const authorId = book?.user_id;
+    if (!authorId) {
+      setMsg("Author profile not available");
+      return;
+    }
+    if (!getToken() || guest) {
+      setMsg("Sign in to follow authors");
+      return;
+    }
+    try {
+      if (following) {
+        await unfollowAuthor(authorId);
+        setFollowing(false);
+        setMsg("Unfollowed");
+      } else {
+        await followAuthor(authorId);
+        setFollowing(true);
+        setMsg("Following");
+      }
+    } catch (e) {
+      setMsg(String(e.message || e));
+    }
+  }
+
+  async function onReview(e) {
+    e.preventDefault();
+    if (!getToken() || guest) {
+      setMsg("Sign in to write a review");
+      return;
+    }
+    setReviewBusy(true);
+    try {
+      await postBookReview(id, { rating: Number(rating), comment: comment.trim() });
+      setComment("");
+      const rev = await getBookReviews(id);
+      setReviews(rev?.items || rev || []);
+      setMsg("Review posted");
+    } catch (err) {
+      setMsg(String(err.message || err));
+    } finally {
+      setReviewBusy(false);
+    }
+  }
+
   if (loading) return <div className="container page">Loading story…</div>;
   if (error) return <div className="container page error-banner">{error}</div>;
   if (!book) return null;
@@ -96,11 +166,11 @@ export default function StoryPage({ user }) {
   const cover = resolveAssetUrl(book.cover_path || book.coverPath || "");
   const firstChapter = chapters[0];
   const tags = [book.genre, book.status_text].filter(Boolean);
-  const authorInitial = (book.author || "?").slice(0, 1).toUpperCase();
+  const authorInitial = (book.author || "?")[0].toUpperCase();
+  const authorId = book.user_id;
 
   return (
     <div className="story-page">
-      {/* Banner with centered cover — Inkitt style */}
       <div className="story-banner">
         <div
           className="story-banner-blur"
@@ -124,9 +194,7 @@ export default function StoryPage({ user }) {
         </div>
       </div>
 
-      {/* 3-column body: actions | main | chapters */}
       <div className="container story-three">
-        {/* LEFT — actions */}
         <aside className="story-col-actions">
           <button
             type="button"
@@ -138,6 +206,11 @@ export default function StoryPage({ user }) {
           <button type="button" className="story-action-btn" onClick={onSave}>
             🔖 Add to Reading List
           </button>
+          {authorId ? (
+            <button type="button" className="story-action-btn" onClick={onFollow}>
+              {following ? "✓ Following" : "+ Follow author"}
+            </button>
+          ) : null}
           {firstChapter ? (
             <Link
               className="story-action-btn story-action-primary"
@@ -150,19 +223,9 @@ export default function StoryPage({ user }) {
               No chapters yet
             </button>
           )}
-          <p className="share-label">Share with your friends</p>
-          <div className="share-row">
-            <button type="button" className="share-ico" title="Share" onClick={() => {
-              if (navigator.share) navigator.share({ title: book.title, url: window.location.href });
-              else { navigator.clipboard?.writeText(window.location.href); setMsg("Link copied"); }
-            }}>
-              ↗
-            </button>
-          </div>
           {msg ? <p className="meta side-msg">{msg}</p> : null}
         </aside>
 
-        {/* CENTER — title, author, summary */}
         <div className="story-col-main">
           <h1 className="story-title">{book.title}</h1>
           <div className="story-author-row">
@@ -171,8 +234,8 @@ export default function StoryPage({ user }) {
             </div>
             <div>
               <div className="author-name-lg">
-                {book.user_id ? (
-                  <Link to={`/authors/${book.user_id}`}>{book.author || "Unknown"}</Link>
+                {authorId ? (
+                  <Link to={`/authors/${authorId}`}>{book.author || "Unknown"}</Link>
                 ) : (
                   book.author || "Unknown"
                 )}
@@ -193,9 +256,49 @@ export default function StoryPage({ user }) {
           )}
           <h2 className="section-title">Summary</h2>
           <p className="story-summary">{book.description || "No summary yet."}</p>
+
+          <section className="reviews-block">
+            <h2 className="section-title">Reviews ({reviews.length})</h2>
+            <form className="review-form" onSubmit={onReview}>
+              <label>
+                Rating
+                <select value={rating} onChange={(e) => setRating(e.target.value)}>
+                  {[5, 4, 3, 2, 1].map((n) => (
+                    <option key={n} value={n}>
+                      {n} ★
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Your review
+                <textarea
+                  rows={3}
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  placeholder={guest ? "Sign in to write a review" : "What did you think?"}
+                  disabled={guest}
+                />
+              </label>
+              <button type="submit" className="btn btn-primary" disabled={guest || reviewBusy}>
+                {reviewBusy ? "Posting…" : "Write a Review"}
+              </button>
+            </form>
+            <ul className="review-list">
+              {reviews.map((r) => (
+                <li key={r.id}>
+                  <div className="review-head">
+                    <strong>{r.display_name || "Reader"}</strong>
+                    <span className="review-stars">{"★".repeat(Number(r.rating) || 0)}</span>
+                  </div>
+                  <p>{r.comment || ""}</p>
+                </li>
+              ))}
+              {reviews.length === 0 && <li className="meta">No reviews yet — be the first.</li>}
+            </ul>
+          </section>
         </div>
 
-        {/* RIGHT — chapters panel */}
         <aside className="story-col-chapters">
           <button
             type="button"
@@ -207,7 +310,9 @@ export default function StoryPage({ user }) {
               <strong>Chapters</strong>
               <span className="chapters-count">
                 {chapters.length
-                  ? ` ${chapters[0]?.chapter_number != null ? chapters[0].chapter_number : 1}. ${chapters[0]?.title || "Chapter 1"}`
+                  ? ` ${chapters[0]?.chapter_number != null ? chapters[0].chapter_number : 1}. ${
+                      chapters[0]?.title || "Chapter 1"
+                    }`
                   : " None yet"}
               </span>
             </span>
@@ -243,7 +348,7 @@ export default function StoryPage({ user }) {
                     Guests can read the first {GUEST_CHAPTER_LIMIT} chapters. Sign in for the full
                     story.
                   </p>
-                  <Link className="btn btn-primary btn-sm" to="/login">
+                  <Link className="btn btn-primary" to="/login">
                     Sign in
                   </Link>
                 </div>

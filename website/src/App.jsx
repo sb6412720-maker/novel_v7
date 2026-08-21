@@ -62,13 +62,13 @@ export default function App() {
   }
 
   async function handleLoginSuccess(token) {
-    setToken(token);
+    if (token) setToken(token);
     await refreshUser();
   }
 
   return (
     <div className="app-shell">
-      <Header user={user} onLogout={handleLogout} />
+      <Header user={user} onLogout={handleLogout} onAuthSuccess={handleLoginSuccess} />
       <main className="main">
         {bootLoading ? (
           <div className="page-loading">Loading…</div>
@@ -84,8 +84,8 @@ export default function App() {
             <Route path="/write" element={<WritePage user={user} />} />
             <Route path="/write/stories/:storyId" element={<StoryEditorPage user={user} />} />
             <Route path="/login" element={<LoginPage onSuccess={handleLoginSuccess} />} />
-            <Route path="/community" element={<CommunityPage />} />
-            <Route path="/contests" element={<ContestsPage />} />
+            <Route path="/community" element={<CommunityPage user={user} />} />
+            <Route path="/contests" element={<ContestsPage user={user} />} />
             <Route
               path="/audiobooks"
               element={

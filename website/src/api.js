@@ -82,10 +82,14 @@ export function guestLogin() {
   });
 }
 
-export function emailLogin(email, password) {
+export function emailLogin(email, password, display_name = "") {
   return request("/api/auth/email", {
     method: "POST",
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({
+      email,
+      display_name: display_name || email.split("@")[0],
+      password: password || undefined,
+    }),
   });
 }
 
@@ -210,4 +214,53 @@ export function updateChapter(chapterId, payload) {
 
 export function deleteChapter(chapterId) {
   return request(`/api/write/chapters/${chapterId}`, { method: "DELETE" });
+}
+
+export function emailAuth({ email, display_name = "", password = "", username = "" }) {
+  // Backend currently accepts email + display_name; password forwarded if server supports it
+  return request("/api/auth/email", {
+    method: "POST",
+    body: JSON.stringify({
+      email,
+      display_name: display_name || username || email.split("@")[0],
+      password: password || undefined,
+      username: username || undefined,
+    }),
+  });
+}
+
+export function googleAuth({ id_token, access_token }) {
+  return request("/api/auth/google", {
+    method: "POST",
+    body: JSON.stringify({ id_token, access_token }),
+  });
+}
+
+export function followAuthor(authorId) {
+  return request(`/api/authors/${authorId}/follow`, { method: "POST", body: "{}" });
+}
+
+export function unfollowAuthor(authorId) {
+  return request(`/api/authors/${authorId}/follow`, { method: "DELETE" });
+}
+
+export function getAuthorFollow(authorId) {
+  return request(`/api/authors/${authorId}/follow`);
+}
+
+export function getUserWall(userId) {
+  return request(`/api/users/${userId}/wall`);
+}
+
+export function postUserWall(userId, body) {
+  return request(`/api/users/${userId}/wall`, {
+    method: "POST",
+    body: JSON.stringify({ body }),
+  });
+}
+
+export function getActivityFeed(userId) {
+  return request(`/api/users/${userId}/activity`).catch(() =>
+    request(`/api/activity?user_id=${userId}`).catch(() => ({ items: [] }))
+  );
 }
