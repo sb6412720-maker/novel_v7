@@ -1133,7 +1133,7 @@ class _SectionBooksScreen extends StatelessWidget {
           : ListView.separated(
               padding: const EdgeInsets.all(12),
               itemCount: books.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              separatorBuilder: (_, _) => const SizedBox(height: 8),
               itemBuilder: (context, index) {
                 final item = books[index];
                 final cover = item.coverPath;
@@ -1173,7 +1173,7 @@ class _SectionBooksScreen extends StatelessWidget {
                         ? Image.network(
                             apiService.resolveAssetUrl(cover),
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => ColoredBox(
+                            errorBuilder: (_, _, _) => ColoredBox(
                               color: isDark
                                   ? const Color(0xFF2C2C2C)
                                   : const Color(0xFFE4E4E4),
