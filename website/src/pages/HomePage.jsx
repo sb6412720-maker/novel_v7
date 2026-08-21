@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Shelf from "../components/Shelf";
 import TrendingGrid from "../components/TrendingGrid";
-import { getBootstrap } from "../api";
+import PhoneMockupRow from "../components/PhoneMockup";
+import ReadingListsRow from "../components/ReadingListsRow";
+import { getBootstrap, getReadingLists } from "../api";
 
 const GENRE_PILLS = [
   { label: "Romance", color: "#fce7f3" },
@@ -31,7 +33,6 @@ function collectBooks(data) {
       if (b && b.id != null && !map.has(b.id)) map.set(b.id, b);
     }
   }
-  // also flatten sections if present
   if (Array.isArray(data.sections)) {
     for (const s of data.sections) {
       for (const b of s.books || []) {
@@ -44,6 +45,7 @@ function collectBooks(data) {
 
 export default function HomePage() {
   const [data, setData] = useState(null);
+  const [readingLists, setReadingLists] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -56,6 +58,12 @@ export default function HomePage() {
       try {
         const boot = await getBootstrap();
         if (!cancelled) setData(boot);
+        try {
+          const rl = await getReadingLists();
+          if (!cancelled) setReadingLists(rl?.items || rl || []);
+        } catch {
+          /* reading lists need auth — optional */
+        }
       } catch (e) {
         if (!cancelled) setError(String(e.message || e));
       } finally {
@@ -71,7 +79,7 @@ export default function HomePage() {
 
   const trending = useMemo(() => {
     const rated = [...allBooks].sort((a, b) => Number(b.rating || 0) - Number(a.rating || 0));
-    return rated.slice(0, 16);
+    return rated.slice(0, 18);
   }, [allBooks]);
 
   const updated = useMemo(() => {
@@ -114,36 +122,26 @@ export default function HomePage() {
                 type="button"
                 className="pill pill-soft"
                 style={{ background: g.color }}
-                onClick={() => navigate(`/discover?genre=${encodeURIComponent(g.label)}`)}
+                onClick={() => navigate(`/genres/${encodeURIComponent(g.label)}`)}
               >
                 {g.label}
               </button>
             ))}
-            <button
-              type="button"
-              className="pill"
-              onClick={() => navigate("/discover")}
-            >
+            <button type="button" className="pill" onClick={() => navigate("/discover")}>
               More
             </button>
           </div>
-          <div className="hero-cta">
-            <Link className="btn btn-primary" to="/discover">
-              Read Stories
-            </Link>
-            <Link className="btn btn-outline" to="/write">
-              Start Writing
-            </Link>
-          </div>
         </div>
+
+        {/* Phone mockups under hero — Inkitt style */}
+        <PhoneMockupRow />
       </section>
 
-      <div className="container home-body">
+      <div className="full-bleed"><div className="full-bleed-inner home-body">
         {loading && <p className="meta">Loading stories from your database…</p>}
         {error && (
           <div className="error-banner">
-            Could not reach API: {error}. Start the backend and set{" "}
-            <code>VITE_API_BASE_URL</code>.
+            Could not reach API: {error}. Start the backend and set <code>VITE_API_BASE_URL</code>.
           </div>
         )}
         {!loading && !error && allBooks.length === 0 && (
@@ -151,16 +149,21 @@ export default function HomePage() {
         )}
 
         <TrendingGrid title="Trending Stories" books={trending} seeAllTo="/discover" />
+        <ReadingListsRow lists={readingLists} books={allBooks} />
         <Shelf title="Recently Updated" books={updated} seeAllTo="/discover?section=updated" />
         <Shelf title="Completed Stories" books={completed} seeAllTo="/discover?section=completed" />
 
         <section className="cta-band">
           <h2>Write Your Own Bestseller</h2>
-          <p>Your story could be the next big hit. Join a community that discovers tomorrow’s authors today.</p>
+          <p>
+            Your story could be the next big hit. Join a community that discovers tomorrow’s authors
+            today.
+          </p>
           <Link className="btn btn-primary" to="/write">
             Start Writing
           </Link>
         </section>
+      </div>
       </div>
     </>
   );

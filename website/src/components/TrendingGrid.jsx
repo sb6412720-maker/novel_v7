@@ -8,7 +8,8 @@ export default function TrendingGrid({ title = "Trending Stories", books = [], s
   if (!books.length) return null;
 
   return (
-    <section className="trending-section">
+    <section className="trending-section full-bleed">
+      <div className="full-bleed-inner">
       <div className="trending-header">
         <h2 className="trending-title">{title}</h2>
         {seeAllTo ? (
@@ -23,6 +24,7 @@ export default function TrendingGrid({ title = "Trending Stories", books = [], s
             <BookCard book={b} variant="grid" />
           </div>
         ))}
+      </div>
       </div>
     </section>
   );

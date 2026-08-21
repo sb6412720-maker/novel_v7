@@ -1,6 +1,16 @@
 import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 
+const NAV = [
+  { to: "/discover", label: "Free Books", real: true },
+  { to: "/audiobooks", label: "Audiobooks", real: true, beta: true },
+  { to: "/write", label: "Write", real: true },
+  { to: "/community", label: "Community", real: true },
+  { to: "/galatea", label: "Galatea", real: true },
+  { to: "/contests", label: "Writing Contests", real: true },
+  { to: "/subscription", label: "Author Subscription", real: true },
+];
+
 export default function Header({ user, onLogout }) {
   const [q, setQ] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -34,19 +44,17 @@ export default function Header({ user, onLogout }) {
         </Link>
 
         <nav className={`nav-links ${menuOpen ? "open" : ""}`}>
-          <NavLink to="/discover" onClick={() => setMenuOpen(false)}>
-            Free Books
-          </NavLink>
-          <span className="nav-item muted" title="Coming soon">
-            Audiobooks <span className="badge-beta">Beta</span>
-          </span>
-          <NavLink to="/write" onClick={() => setMenuOpen(false)}>
-            Write
-          </NavLink>
-          <span className="nav-item muted">Community</span>
-          <span className="nav-item muted">Galatea</span>
-          <span className="nav-item muted">Writing Contests</span>
-          <span className="nav-item muted">Author Subscription</span>
+          {NAV.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              onClick={() => setMenuOpen(false)}
+              className={({ isActive }) => (isActive ? "active" : undefined)}
+            >
+              {item.label}
+              {item.beta ? <span className="badge-beta">Beta</span> : null}
+            </NavLink>
+          ))}
         </nav>
 
         <div className="header-actions">
@@ -75,6 +83,9 @@ export default function Header({ user, onLogout }) {
             </>
           ) : (
             <>
+              <Link className="btn-text" to="/library">
+                Library
+              </Link>
               <span className="user-chip" title={user.email || ""}>
                 {user.display_name || user.email}
               </span>
