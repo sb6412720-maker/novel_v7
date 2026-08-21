@@ -171,3 +171,43 @@ export function getUserProfile(userId) {
 export function getTags() {
   return request("/api/tags").catch(() => ({ items: [] }));
 }
+
+export function getWriteStory(storyId) {
+  return request(`/api/write/stories/${storyId}`);
+}
+
+export function createStory(payload) {
+  return request("/api/write/stories", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateStory(storyId, payload) {
+  return request(`/api/write/stories/${storyId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteStory(storyId) {
+  return request(`/api/write/stories/${storyId}`, { method: "DELETE" });
+}
+
+export function createChapter(storyId, payload) {
+  return request(`/api/write/stories/${storyId}/chapters`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateChapter(chapterId, payload) {
+  return request(`/api/write/chapters/${chapterId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteChapter(chapterId) {
+  return request(`/api/write/chapters/${chapterId}`, { method: "DELETE" });
+}
