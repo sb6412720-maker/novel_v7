@@ -114,6 +114,13 @@ export function getBookReviews(bookId) {
   return request(`/api/books/${bookId}/reviews`).catch(() => ({ items: [] }));
 }
 
+export function postBookReview(bookId, { rating, comment }) {
+  return request(`/api/books/${bookId}/reviews`, {
+    method: "POST",
+    body: JSON.stringify({ rating, comment }),
+  });
+}
+
 export function getLibrary() {
   return request("/api/library");
 }
