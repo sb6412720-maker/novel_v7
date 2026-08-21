@@ -170,7 +170,13 @@ export default function StoryPage({ user }) {
               {authorInitial}
             </div>
             <div>
-              <div className="author-name-lg">{book.author || "Unknown"}</div>
+              <div className="author-name-lg">
+                {book.user_id ? (
+                  <Link to={`/authors/${book.user_id}`}>{book.author || "Unknown"}</Link>
+                ) : (
+                  book.author || "Unknown"
+                )}
+              </div>
               {book.rating ? (
                 <div className="author-sub">★ {Number(book.rating).toFixed(1)}</div>
               ) : null}

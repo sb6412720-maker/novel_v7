@@ -10,6 +10,9 @@ import LibraryPage from "./pages/LibraryPage";
 import LoginPage from "./pages/LoginPage";
 import WritePage from "./pages/WritePage";
 import GenrePage from "./pages/GenrePage";
+import ContestsPage from "./pages/ContestsPage";
+import CommunityPage from "./pages/CommunityPage";
+import AuthorPage from "./pages/AuthorPage";
 import PlaceholderPage from "./pages/PlaceholderPage";
 import { getMe, guestLogin, setToken, getToken, clearToken } from "./api";
 
@@ -75,24 +78,18 @@ export default function App() {
             <Route path="/genres/:genre" element={<GenrePage />} />
             <Route path="/stories/:id" element={<StoryPage user={user} />} />
             <Route path="/stories/:id/chapters/:chapterId" element={<ChapterPage user={user} />} />
+            <Route path="/authors/:authorId" element={<AuthorPage />} />
             <Route path="/library" element={<LibraryPage user={user} />} />
             <Route path="/write" element={<WritePage user={user} />} />
             <Route path="/login" element={<LoginPage onSuccess={handleLoginSuccess} />} />
+            <Route path="/community" element={<CommunityPage />} />
+            <Route path="/contests" element={<ContestsPage />} />
             <Route
               path="/audiobooks"
               element={
                 <PlaceholderPage
                   title="Audiobooks"
-                  blurb="Listen to stories — Beta. Wire audio assets when ready; same catalog as Free Books."
-                />
-              }
-            />
-            <Route
-              path="/community"
-              element={
-                <PlaceholderPage
-                  title="Community"
-                  blurb="Forums and newsfeed can connect to your activity/wall APIs next."
+                  blurb="Beta — same story catalog; audio files can attach later via uploads API."
                 />
               }
             />
@@ -101,16 +98,7 @@ export default function App() {
               element={
                 <PlaceholderPage
                   title="Galatea"
-                  blurb="Partner / premium reading experience placeholder (Inkitt’s Galatea link)."
-                />
-              }
-            />
-            <Route
-              path="/contests"
-              element={
-                <PlaceholderPage
-                  title="Writing Contests"
-                  blurb="Contest listings can be driven from admin notifications or a contests table."
+                  blurb="Premium reading partner page placeholder (Inkitt → Galatea)."
                 />
               }
             />
@@ -119,7 +107,7 @@ export default function App() {
               element={
                 <PlaceholderPage
                   title="Author Subscription"
-                  blurb="Subscription author program placeholder — monetization hooks later."
+                  blurb="Subscription program placeholder — billing can integrate later."
                 />
               }
             />

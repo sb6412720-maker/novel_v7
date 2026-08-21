@@ -159,3 +159,15 @@ export function searchStories(q, genre) {
   if (genre) params.set("genre", genre);
   return request(`/api/search?${params.toString()}`);
 }
+
+export function getAuthorBooks(authorId) {
+  return request(`/api/authors/${authorId}/books`).catch(() => ({ items: [] }));
+}
+
+export function getUserProfile(userId) {
+  return request(`/api/users/${userId}`).catch(() => null);
+}
+
+export function getTags() {
+  return request("/api/tags").catch(() => ({ items: [] }));
+}
