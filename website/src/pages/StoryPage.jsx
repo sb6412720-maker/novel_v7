@@ -79,9 +79,10 @@ export default function StoryPage({ user }) {
       return;
     }
     try {
-      const res = await toggleBookLike(id);
-      setLiked(!!res?.liked || !!res?.is_liked || !liked);
-      setMsg(liked ? "Unliked" : "Liked");
+      const res = await toggleBookLike(id, liked);
+      const nowLiked = res?.liked === true || res?.is_liked === true || (res?.liked !== false && !liked);
+      setLiked(nowLiked);
+      setMsg(nowLiked ? "Liked" : "Unliked");
     } catch (e) {
       setMsg(String(e.message || e));
     }

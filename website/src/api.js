@@ -160,6 +160,32 @@ export function getBookLike(bookId) {
   return request(`/api/books/${bookId}/like`);
 }
 
+/** Toggle like: POST if not liked, DELETE if liked. Pass currentlyLiked when known. */
+export async function toggleBookLike(bookId, currentlyLiked = null) {
+  if (currentlyLiked === true) {
+    return unlikeBook(bookId);
+  }
+  if (currentlyLiked === false) {
+    return likeBook(bookId);
+  }
+  // Unknown state: try POST; if fails (already liked), DELETE
+  try {
+    return await likeBook(bookId);
+  } catch (e) {
+    const msg = String(e.message || e);
+    if (/already|409|400|exist/i.test(msg)) {
+      return unlikeBook(bookId);
+    }
+    // fallback: attempt unlike then like
+    try {
+      await unlikeBook(bookId);
+      return { liked: false };
+    } catch {
+      throw e;
+    }
+  }
+}
+
 export function getMyStories() {
   return request("/api/write/stories").catch(() => ({ items: [] }));
 }
