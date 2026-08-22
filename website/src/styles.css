@@ -1866,3 +1866,134 @@ img {
 .wall-list p {
   margin: 6px 0;
 }
+
+/* Append to styles.css */
+
+.promo-banner {
+  background: #1a2f9e;
+  color: #fff;
+  padding: 14px 16px;
+}
+.promo-banner-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 1.05rem;
+}
+.promo-icon {
+  font-size: 1.6rem;
+}
+.btn-promo {
+  background: #fff;
+  color: #1a2f9e;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 22px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.home-shelves {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 28px 20px 48px;
+}
+.reading-list-track {
+  display: flex;
+  gap: 20px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+.reading-list-card {
+  min-width: 160px;
+  max-width: 180px;
+  flex-shrink: 0;
+}
+.rl-covers {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.rl-cover-thumb .book-cover-wrap {
+  width: 48px;
+  height: 72px;
+}
+.rl-cover-thumb .book-cover {
+  width: 48px;
+  height: 72px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+.btn-follow-outline {
+  margin-top: 8px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 16px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.book-tag-chip {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  font-size: 0.7rem;
+  color: #6b7280;
+}
+.top-reviews-row {
+  display: flex;
+  gap: 20px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+.top-review-card {
+  display: flex;
+  gap: 12px;
+  min-width: 280px;
+  max-width: 320px;
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid #f3f4f6;
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+}
+.top-review-card .book-cover-wrap {
+  width: 64px;
+  height: 96px;
+  flex-shrink: 0;
+}
+.top-review-card .book-cover {
+  width: 64px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+.top-review-body .stars {
+  color: #f5b301;
+  letter-spacing: 1px;
+  font-size: 0.85rem;
+}
+.review-snippet {
+  font-size: 0.85rem;
+  color: #4b5563;
+  margin: 6px 0 0;
+  line-height: 1.4;
+}
+.hero-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 40px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+}
+@media (max-width: 900px) {
+  .hero-inner { flex-direction: column; text-align: center; }
+}

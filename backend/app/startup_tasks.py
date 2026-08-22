@@ -376,5 +376,52 @@ def run_startup_tasks() -> dict[str, Any]:
         LOGGER.exception("Patch step failed: %s", exc)
 
     LOGGER.info("Startup tasks finished: %s", result)
+    
+
+
+    # Inkitt-style expanded catalog (idempotent by title) — no import from main (avoids circular import)
+    try:
+        from .inkitt_seed import ensure_inkitt_catalog
+
+        def _fetch(q, p=None):
+            conn = get_connection()
+            if USE_SQLITE:
+                cur = conn.cursor()
+            else:
+                try:
+                    cur = conn.cursor(dictionary=True)
+                except TypeError:
+                    cur = conn.cursor()
+            try:
+                qq = q.replace("%s", "?") if USE_SQLITE else q
+                cur.execute(qq, p or ())
+                rows = cur.fetchall()
+                if not rows:
+                    return []
+                if isinstance(rows[0], dict):
+                    return list(rows)
+                cols = [d[0] for d in cur.description]
+                return [dict(zip(cols, r)) for r in rows]
+            finally:
+                cur.close()
+
+        def _write(q, p=()):
+            conn = get_connection()
+            cur = conn.cursor()
+            try:
+                qq = q.replace("%s", "?") if USE_SQLITE else q
+                cur.execute(qq, p)
+                conn.commit()
+                lid = getattr(cur, "lastrowid", None) or 0
+                return lid, cur.rowcount
+            finally:
+                cur.close()
+
+        result["inkitt_seed"] = ensure_inkitt_catalog(_write, _fetch, USE_SQLITE)
+        LOGGER.info("inkitt_seed: %s", result["inkitt_seed"])
+    except Exception as ink_exc:
+        LOGGER.warning("inkitt_seed failed: %s", ink_exc)
+        result["inkitt_seed_error"] = str(ink_exc)
+
     return result
 

@@ -1,51 +1,71 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import BookCard from "../components/BookCard";
+import PhoneMockup from "../components/PhoneMockup";
 import Shelf from "../components/Shelf";
-import TrendingGrid from "../components/TrendingGrid";
-import PhoneMockupRow from "../components/PhoneMockup";
-import ReadingListsRow from "../components/ReadingListsRow";
 import { getBootstrap, getReadingLists } from "../api";
 
 const GENRE_PILLS = [
-  { label: "Romance", color: "#fce7f3" },
-  { label: "Fantasy", color: "#ede9fe" },
-  { label: "Thriller", color: "#ffedd5" },
-  { label: "Young Adult", color: "#d1fae5" },
-  { label: "LGBTQ+", color: "#f3e8ff" },
-  { label: "Sci-Fi", color: "#d1fae5" },
-  { label: "Drama", color: "#e0f2fe" },
-  { label: "Adventure", color: "#ffedd5" },
+  "Romance",
+  "Fantasy",
+  "Thriller",
+  "Young Adult",
+  "Sci-Fi",
+  "LGBTQ+",
+  "Mystery",
+  "Werewolves",
+  "Adventure",
+  "More",
 ];
 
-function collectBooks(data) {
-  if (!data) return [];
-  const lists = [
-    data.books,
-    data.recently_updated,
-    data.recently_completed,
-    data.featured,
-    data.trending,
-  ];
+const GENRE_SHELVES = [
+  "Contemporary Romance",
+  "Dark Romance",
+  "Thriller",
+  "Sci-Fi",
+  "LGBTQ+",
+  "Werewolves & Shifters",
+  "Fantasy",
+  "Horror",
+];
+
+function collectBooks(boot) {
+  if (!boot) return [];
   const map = new Map();
-  for (const list of lists) {
-    if (!Array.isArray(list)) continue;
-    for (const b of list) {
-      if (b && b.id != null && !map.has(b.id)) map.set(b.id, b);
-    }
+  const add = (arr) => {
+    (arr || []).forEach((b) => {
+      if (b && b.id != null) map.set(String(b.id), b);
+    });
+  };
+  add(boot.books);
+  add(boot.trending);
+  add(boot.recently_updated);
+  add(boot.recently_completed);
+  add(boot.featured);
+  if (Array.isArray(boot.sections)) {
+    boot.sections.forEach((s) => add(s.books || s.items));
   }
-  if (Array.isArray(data.sections)) {
-    for (const s of data.sections) {
-      for (const b of s.books || []) {
-        if (b && b.id != null && !map.has(b.id)) map.set(b.id, b);
-      }
-    }
+  if (boot.categories && typeof boot.categories === "object") {
+    Object.values(boot.categories).forEach((v) => {
+      if (Array.isArray(v)) add(v);
+      else if (v?.books) add(v.books);
+    });
   }
   return [...map.values()];
 }
 
+function byGenre(books, genre) {
+  const g = genre.toLowerCase();
+  return books.filter((b) => {
+    const fields = [b.genre, b.primary_genre, b.secondary_genre, b.section_name]
+      .filter(Boolean)
+      .map((x) => String(x).toLowerCase());
+    return fields.some((f) => f.includes(g) || g.includes(f));
+  });
+}
+
 export default function HomePage() {
   const [data, setData] = useState(null);
-  const [readingLists, setReadingLists] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -54,16 +74,9 @@ export default function HomePage() {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      setError("");
       try {
         const boot = await getBootstrap();
         if (!cancelled) setData(boot);
-        try {
-          const rl = await getReadingLists();
-          if (!cancelled) setReadingLists(rl?.items || rl || []);
-        } catch {
-          /* reading lists need auth — optional */
-        }
       } catch (e) {
         if (!cancelled) setError(String(e.message || e));
       } finally {
@@ -79,91 +92,138 @@ export default function HomePage() {
 
   const trending = useMemo(() => {
     const rated = [...allBooks].sort((a, b) => Number(b.rating || 0) - Number(a.rating || 0));
-    return rated.slice(0, 18);
+    return rated.slice(0, 16);
   }, [allBooks]);
 
-  const updated = useMemo(() => {
-    if (Array.isArray(data?.recently_updated) && data.recently_updated.length) {
-      return data.recently_updated;
-    }
-    return allBooks.filter((b) => (b.section_name || "") === "recently_updated").slice(0, 16);
-  }, [data, allBooks]);
-
-  const completed = useMemo(() => {
-    if (Array.isArray(data?.recently_completed) && data.recently_completed.length) {
-      return data.recently_completed;
-    }
-    return allBooks
-      .filter(
-        (b) =>
-          (b.section_name || "") === "recently_completed" ||
-          /complete|publish/i.test(b.status_text || "")
-      )
-      .slice(0, 16);
-  }, [data, allBooks]);
+  if (loading) return <div className="container page">Loading…</div>;
+  if (error) return <div className="container page error-banner">{error}</div>;
 
   return (
     <>
       <section className="hero inkitt-hero">
-        <div className="container">
-          <h1>Discover Millions of Free Books</h1>
-          <p className="hero-tagline">Our readers are trendsetters.</p>
-          <p className="lead">
-            Every day, millions of readers come to NovelHub to discover the next bestseller.
-          </p>
-          <p className="hero-stat">
-            <strong>1 in 2 novels</strong> discovered by them become community favorites.
-          </p>
-          <p className="hero-explore">Explore stories in your favorite genre:</p>
-          <div className="genre-pills">
-            {GENRE_PILLS.map((g) => (
-              <button
-                key={g.label}
-                type="button"
-                className="pill pill-soft"
-                style={{ background: g.color }}
-                onClick={() => navigate(`/genres/${encodeURIComponent(g.label)}`)}
-              >
-                {g.label}
-              </button>
-            ))}
-            <button type="button" className="pill" onClick={() => navigate("/discover")}>
-              More
-            </button>
+        <div className="hero-inner">
+          <div className="hero-copy">
+            <h1>Discover Millions of Free Books</h1>
+            <p className="hero-tagline">Our readers are trendsetters.</p>
+            <p className="lead">
+              Every day, millions of readers come to NovelHub to discover the next bestseller.
+            </p>
+            <p className="hero-stat">
+              <strong>1 in 2 novels</strong> discovered by them become community favorites.
+            </p>
+            <p className="hero-explore">Explore stories in your favorite genre:</p>
+            <div className="genre-pills">
+              {GENRE_PILLS.map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  className="genre-pill"
+                  onClick={() => navigate(g === "More" ? "/discover" : `/genres/${encodeURIComponent(g)}`)}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
           </div>
+          <PhoneMockup />
         </div>
-
-        {/* Phone mockups under hero — Inkitt style */}
-        <PhoneMockupRow />
       </section>
 
-      <div className="full-bleed"><div className="full-bleed-inner home-body">
-        {loading && <p className="meta">Loading stories from your database…</p>}
-        {error && (
-          <div className="error-banner">
-            Could not reach API: {error}. Start the backend and set <code>VITE_API_BASE_URL</code>.
+      {/* Promo banner like Inkitt */}
+      <div className="promo-banner">
+        <div className="promo-banner-inner">
+          <span className="promo-icon">☎</span>
+          <div>
+            <strong>Tell us how we’re doing.</strong>
+            <span> Get a $20 Gift Card</span>
           </div>
-        )}
-        {!loading && !error && allBooks.length === 0 && (
-          <p className="meta">No published stories yet. Seed novels from the admin panel.</p>
-        )}
-
-        <TrendingGrid title="Trending Stories" books={trending} seeAllTo="/discover" />
-        <ReadingListsRow lists={readingLists} books={allBooks} />
-        <Shelf title="Recently Updated" books={updated} seeAllTo="/discover?section=updated" />
-        <Shelf title="Completed Stories" books={completed} seeAllTo="/discover?section=completed" />
-
-        <section className="cta-band">
-          <h2>Write Your Own Bestseller</h2>
-          <p>
-            Your story could be the next big hit. Join a community that discovers tomorrow’s authors
-            today.
-          </p>
-          <Link className="btn btn-primary" to="/write">
-            Start Writing
+          <Link className="btn btn-promo" to="/login">
+            SIGN UP
           </Link>
-        </section>
+        </div>
       </div>
+
+      <div className="home-shelves">
+        <Shelf title="Trending Stories" books={trending} seeAllTo="/discover" />
+
+        {/* Reading lists row (public showcase) */}
+        <section className="shelf reading-lists-shelf">
+          <div className="shelf-head">
+            <h2>Reading Lists</h2>
+          </div>
+          <div className="shelf-track reading-list-track">
+            {[
+              { name: "Finished Reading", by: "PhoenixWerewolf", n: 13 },
+              { name: "Completed", by: "I'm_just_here", n: 10 },
+              { name: "Heart Breaking", by: "Jasmine N", n: 8 },
+              { name: "Mafia", by: "Anjola", n: 11 },
+              { name: "Favs", by: "abcya", n: 39 },
+              { name: "Vampire", by: "Gillian", n: 10 },
+            ].map((rl) => (
+              <div key={rl.name} className="reading-list-card">
+                <div className="rl-covers">
+                  {trending.slice(0, 3).map((b) => (
+                    <div key={b.id} className="rl-cover-thumb">
+                      <BookCard book={b} variant="mini" />
+                    </div>
+                  ))}
+                </div>
+                <h3>{rl.name}</h3>
+                <p className="meta">
+                  {rl.n} stories · by {rl.by}
+                </p>
+                <button type="button" className="btn-follow-outline">
+                  Follow
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {GENRE_SHELVES.map((genre) => {
+          let books = byGenre(allBooks, genre);
+          if (books.length < 4) {
+            // pad from trending so shelves never look empty
+            const ids = new Set(books.map((b) => b.id));
+            for (const b of trending) {
+              if (books.length >= 10) break;
+              if (!ids.has(b.id)) {
+                books = [...books, b];
+                ids.add(b.id);
+              }
+            }
+          }
+          if (!books.length) return null;
+          return (
+            <Shelf
+              key={genre}
+              title={genre}
+              books={books.slice(0, 14)}
+              seeAllTo={`/genres/${encodeURIComponent(genre.split(" ")[0])}`}
+            />
+          );
+        })}
+
+        <section className="shelf">
+          <div className="shelf-head">
+            <h2>Top Reviews</h2>
+          </div>
+          <div className="top-reviews-row">
+            {trending.slice(0, 5).map((b) => (
+              <Link key={b.id} to={`/stories/${b.id}`} className="top-review-card">
+                <BookCard book={b} variant="mini" />
+                <div className="top-review-body">
+                  <div className="stars">{"★".repeat(Math.round(Number(b.rating) || 5))}</div>
+                  <strong>{b.title}</strong>
+                  <p className="meta">by {b.author}</p>
+                  <p className="review-snippet">
+                    {(b.description || "A captivating read from start to finish.").slice(0, 120)}…
+                  </p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
       </div>
     </>
   );
