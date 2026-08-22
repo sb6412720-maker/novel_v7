@@ -15,6 +15,7 @@ import GenrePage from "./pages/GenrePage";
 import ContestsPage from "./pages/ContestsPage";
 import CommunityPage from "./pages/CommunityPage";
 import AuthorPage from "./pages/AuthorPage";
+import ReviewPage from "./pages/ReviewPage";
 import PlaceholderPage from "./pages/PlaceholderPage";
 import { getMe, guestLogin, setToken, getToken, clearToken } from "./api";
 
@@ -79,6 +80,7 @@ export default function App() {
             <Route path="/discover" element={<DiscoverPage />} />
             <Route path="/genres/:genre" element={<GenrePage />} />
             <Route path="/stories/:id" element={<StoryPage user={user} />} />
+            <Route path="/stories/:id/review" element={<ReviewPage user={user} />} />
             <Route path="/stories/:id/chapters/:chapterId" element={<ChapterPage user={user} />} />
             <Route path="/authors/:authorId" element={<AuthorPage />} />
             <Route path="/library" element={<LibraryPage user={user} />} />

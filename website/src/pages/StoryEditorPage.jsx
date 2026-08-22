@@ -157,7 +157,28 @@ export default function StoryEditorPage({ user }) {
 
   async function onSubmitChapter() {
     if (!activeChapterId) return;
+    const text = String(chapterForm.content || "").trim();
+    if (text.length < 50) {
+      setError("Chapter needs at least 50 characters to publish. Saved as draft.");
+      setSavingChapter(true);
+      try {
+        await updateChapter(activeChapterId, {
+          title: chapterForm.title,
+          content: chapterForm.content,
+          chapter_number: Number(chapterForm.chapter_number) || 1,
+          submission_status: "draft",
+        });
+        setMsg("Saved as draft (under 50 characters)");
+        await reload();
+      } catch (err) {
+        setError(String(err.message || err));
+      } finally {
+        setSavingChapter(false);
+      }
+      return;
+    }
     setSavingChapter(true);
+    setError("");
     try {
       await updateChapter(activeChapterId, {
         title: chapterForm.title,
@@ -165,7 +186,20 @@ export default function StoryEditorPage({ user }) {
         chapter_number: Number(chapterForm.chapter_number) || 1,
         submission_status: "published",
       });
-      setMsg("Chapter submitted");
+      // If story was draft and has a published chapter, mark published
+      try {
+        await updateStory(storyId, {
+          title: meta.title,
+          author: meta.author,
+          description: meta.description,
+          genre: meta.genre,
+          status_text: "Published",
+          content_warnings: meta.content_warnings,
+        });
+      } catch {
+        /* optional */
+      }
+      setMsg("Chapter submitted / published");
       await reload();
     } catch (err) {
       setError(String(err.message || err));

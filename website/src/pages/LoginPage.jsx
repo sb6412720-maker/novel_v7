@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { emailLogin, guestLogin, setToken } from "../api";
+import { emailLogin, guestLogin, setToken, getMe } from "../api";
 
 export default function LoginPage({ onSuccess }) {
   const [email, setEmail] = useState("");
@@ -9,17 +9,26 @@ export default function LoginPage({ onSuccess }) {
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
 
+  async function finish(token) {
+    setToken(token);
+    try {
+      await onSuccess?.(token);
+    } catch {
+      /* still navigate — token is set */
+    }
+    // Force leave login page
+    navigate("/", { replace: true });
+  }
+
   async function onSubmit(e) {
     e.preventDefault();
     setBusy(true);
     setError("");
     try {
       const res = await emailLogin(email.trim(), password);
-      const token = res?.access_token || res?.token;
-      if (!token) throw new Error("No token returned");
-      setToken(token);
-      await onSuccess?.(token);
-      navigate("/");
+      const token = res?.access_token || res?.token || res?.accessToken;
+      if (!token) throw new Error("No token returned — check email/password");
+      await finish(token);
     } catch (err) {
       setError(String(err.message || err));
     } finally {
@@ -34,9 +43,7 @@ export default function LoginPage({ onSuccess }) {
       const res = await guestLogin();
       const token = res?.access_token || res?.token;
       if (!token) throw new Error("Guest login failed");
-      setToken(token);
-      await onSuccess?.(token);
-      navigate("/");
+      await finish(token);
     } catch (err) {
       setError(String(err.message || err));
     } finally {
@@ -47,7 +54,7 @@ export default function LoginPage({ onSuccess }) {
   return (
     <div className="container page narrow">
       <h1>Sign in</h1>
-      <p className="meta">Uses the same auth API as the mobile app.</p>
+      <p className="meta">Same auth as the mobile app and admin panel.</p>
       <form className="auth-form" onSubmit={onSubmit}>
         <label>
           Email
@@ -71,7 +78,7 @@ export default function LoginPage({ onSuccess }) {
         </label>
         {error && <div className="error-banner">{error}</div>}
         <button type="submit" className="btn btn-primary" disabled={busy}>
-          {busy ? "…" : "Sign in"}
+          {busy ? "Signing in…" : "Sign in"}
         </button>
         <button type="button" className="btn" disabled={busy} onClick={asGuest}>
           Continue as guest

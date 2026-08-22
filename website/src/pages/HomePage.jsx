@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import BookCard from "../components/BookCard";
 import PhoneMockup from "../components/PhoneMockup";
 import Shelf from "../components/Shelf";
-import { getBootstrap, getReadingLists } from "../api";
+import { getBootstrap } from "../api";
 
 const GENRE_PILLS = [
   "Romance",
@@ -60,7 +60,7 @@ function byGenre(books, genre) {
     const fields = [b.genre, b.primary_genre, b.secondary_genre, b.section_name]
       .filter(Boolean)
       .map((x) => String(x).toLowerCase());
-    return fields.some((f) => f.includes(g) || g.includes(f));
+    return fields.some((f) => f.includes(g.split(" ")[0]) || g.includes(f) || f.includes(g));
   });
 }
 
@@ -99,7 +99,7 @@ export default function HomePage() {
   if (error) return <div className="container page error-banner">{error}</div>;
 
   return (
-    <>
+    <div className="home-inkitt">
       <section className="hero inkitt-hero">
         <div className="hero-inner">
           <div className="hero-copy">
@@ -118,7 +118,9 @@ export default function HomePage() {
                   key={g}
                   type="button"
                   className="genre-pill"
-                  onClick={() => navigate(g === "More" ? "/discover" : `/genres/${encodeURIComponent(g)}`)}
+                  onClick={() =>
+                    navigate(g === "More" ? "/discover" : `/genres/${encodeURIComponent(g)}`)
+                  }
                 >
                   {g}
                 </button>
@@ -129,23 +131,13 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Promo banner like Inkitt */}
-      <div className="promo-banner">
-        <div className="promo-banner-inner">
-          <span className="promo-icon">☎</span>
-          <div>
-            <strong>Tell us how we’re doing.</strong>
-            <span> Get a $20 Gift Card</span>
-          </div>
-          <Link className="btn btn-promo" to="/login">
-            SIGN UP
-          </Link>
-        </div>
-      </div>
-
       <section className="contest-neon">
         <div className="contest-neon-inner">
-          <h2 className="neon-title">LOVE IN<br />FULL COLOR</h2>
+          <h2 className="neon-title">
+            LOVE IN
+            <br />
+            FULL COLOR
+          </h2>
           <div className="neon-copy">
             <p className="neon-kicker">WRITING CONTEST 2026</p>
             <p>Every kind of love, every kind of story.</p>
@@ -156,75 +148,78 @@ export default function HomePage() {
         </div>
       </section>
 
-      <div className="home-shelves">
-        <Shelf title="Trending Stories" books={trending} seeAllTo="/discover" />
+      <Shelf title="Trending Stories" books={trending} seeAllTo="/discover" />
 
-        {/* Reading lists row (public showcase) */}
-        <section className="shelf reading-lists-shelf">
-          <div className="shelf-head">
+      {/* Reading Lists */}
+      <section className="shelf shelf--inkitt">
+        <div className="shelf-inner">
+          <div className="shelf-header">
             <h2>Reading Lists</h2>
           </div>
-          <div className="shelf-track reading-list-track">
-            {[
-              { name: "Finished Reading", by: "PhoenixWerewolf", n: 13 },
-              { name: "Completed", by: "I'm_just_here", n: 10 },
-              { name: "Heart Breaking", by: "Jasmine N", n: 8 },
-              { name: "Mafia", by: "Anjola", n: 11 },
-              { name: "Favs", by: "abcya", n: 39 },
-              { name: "Vampire", by: "Gillian", n: 10 },
-            ].map((rl) => (
-              <div key={rl.name} className="reading-list-card">
-                <div className="rl-covers">
-                  {trending.slice(0, 3).map((b) => (
-                    <div key={b.id} className="rl-cover-thumb">
-                      <BookCard book={b} variant="mini" />
-                    </div>
-                  ))}
+          <div className="shelf-track-wrap">
+            <div className="shelf-track reading-list-track">
+              {[
+                { name: "Finished Reading", by: "PhoenixWerewolf", n: 13 },
+                { name: "Heart Breaking", by: "Jasmine N", n: 8 },
+                { name: "Mafia", by: "Anjola", n: 11 },
+                { name: "Update?", by: "abcya", n: 26 },
+                { name: "Mine", by: "Debbie Waters", n: 13 },
+                { name: "Fantasy", by: "Therese Simek", n: 10 },
+              ].map((rl, i) => (
+                <div key={rl.name} className="reading-list-card">
+                  <div className="rl-covers-grid">
+                    {trending.slice(i % 4, (i % 4) + 4).map((b) => (
+                      <div key={`${rl.name}-${b.id}`} className="rl-thumb">
+                        <BookCard book={b} variant="mini" />
+                      </div>
+                    ))}
+                  </div>
+                  <h3>{rl.name}</h3>
+                  <p className="meta">
+                    {rl.n} stories · by {rl.by}
+                  </p>
+                  <button type="button" className="btn-follow-outline">
+                    Follow
+                  </button>
                 </div>
-                <h3>{rl.name}</h3>
-                <p className="meta">
-                  {rl.n} stories · by {rl.by}
-                </p>
-                <button type="button" className="btn-follow-outline">
-                  Follow
-                </button>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </section>
+        </div>
+      </section>
 
-        {GENRE_SHELVES.map((genre) => {
-          let books = byGenre(allBooks, genre);
-          if (books.length < 4) {
-            // pad from trending so shelves never look empty
-            const ids = new Set(books.map((b) => b.id));
-            for (const b of trending) {
-              if (books.length >= 10) break;
-              if (!ids.has(b.id)) {
-                books = [...books, b];
-                ids.add(b.id);
-              }
+      {GENRE_SHELVES.map((genre) => {
+        let books = byGenre(allBooks, genre);
+        if (books.length < 4) {
+          const ids = new Set(books.map((b) => b.id));
+          for (const b of trending) {
+            if (books.length >= 12) break;
+            if (!ids.has(b.id)) {
+              books = [...books, b];
+              ids.add(b.id);
             }
           }
-          if (!books.length) return null;
-          return (
-            <Shelf
-              key={genre}
-              title={genre}
-              books={books.slice(0, 14)}
-              seeAllTo={`/genres/${encodeURIComponent(genre.split(" ")[0])}`}
-            />
-          );
-        })}
+        }
+        if (!books.length) return null;
+        return (
+          <Shelf
+            key={genre}
+            title={genre}
+            books={books.slice(0, 14)}
+            seeAllTo={`/genres/${encodeURIComponent(genre.split(" ")[0])}`}
+          />
+        );
+      })}
 
-        <section className="shelf fandoms-shelf">
-          <div className="shelf-head">
+      <section className="shelf shelf--inkitt">
+        <div className="shelf-inner">
+          <div className="shelf-header">
             <h2>Fandoms</h2>
             <Link className="see-all" to="/discover">
               View All →
             </Link>
           </div>
-          <div className="fandoms-track">
+          <div className="shelf-track fandoms-track">
             {[
               { name: "Asian Pop", n: 5191 },
               { name: "Harry Potter", n: 2177 },
@@ -249,29 +244,8 @@ export default function HomePage() {
               </Link>
             ))}
           </div>
-        </section>
-
-        <section className="shelf">
-          <div className="shelf-head">
-            <h2>Top Reviews</h2>
-          </div>
-          <div className="top-reviews-row">
-            {trending.slice(0, 5).map((b) => (
-              <Link key={b.id} to={`/stories/${b.id}`} className="top-review-card">
-                <BookCard book={b} variant="mini" />
-                <div className="top-review-body">
-                  <div className="stars">{"★".repeat(Math.round(Number(b.rating) || 5))}</div>
-                  <strong>{b.title}</strong>
-                  <p className="meta">by {b.author}</p>
-                  <p className="review-snippet">
-                    {(b.description || "A captivating read from start to finish.").slice(0, 120)}…
-                  </p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-      </div>
-    </>
+        </div>
+      </section>
+    </div>
   );
 }

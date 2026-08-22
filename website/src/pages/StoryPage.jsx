@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   addToReadingList,
   followAuthor,
@@ -9,11 +9,9 @@ import {
   getBookLike,
   getBookReviews,
   getToken,
-  likeBook,
-  postBookReview,
   resolveAssetUrl,
+  toggleBookLike,
   unfollowAuthor,
-  unlikeBook,
 } from "../api";
 import {
   GUEST_CHAPTER_LIMIT,
@@ -23,105 +21,80 @@ import {
 
 export default function StoryPage({ user }) {
   const { id } = useParams();
+  const navigate = useNavigate();
   const guest = isGuestUser(user);
   const [book, setBook] = useState(null);
   const [chapters, setChapters] = useState([]);
   const [reviews, setReviews] = useState([]);
   const [liked, setLiked] = useState(false);
   const [following, setFollowing] = useState(false);
-  const [chaptersOpen, setChaptersOpen] = useState(true);
   const [error, setError] = useState("");
   const [msg, setMsg] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [rating, setRating] = useState(5);
-  const [comment, setComment] = useState("");
-  const [reviewBusy, setReviewBusy] = useState(false);
+  const [listOpen, setListOpen] = useState(false);
+  const [chOpen, setChOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      setLoading(true);
       setError("");
       try {
         const [b, ch, rev] = await Promise.all([
           getBook(id),
-          getBookChapters(id).then((r) => r?.items || []).catch(() => []),
+          getBookChapters(id),
           getBookReviews(id).then((r) => r?.items || r || []).catch(() => []),
         ]);
-        if (!cancelled) {
-          setBook(b);
-          setChapters(Array.isArray(ch) ? ch : []);
-          setReviews(Array.isArray(rev) ? rev : []);
-        }
-        if (getToken()) {
+        if (cancelled) return;
+        setBook(b);
+        setChapters(ch?.items || []);
+        setReviews(Array.isArray(rev) ? rev : []);
+        if (getToken() && !isGuestUser(user)) {
           try {
             const like = await getBookLike(id);
-            if (!cancelled) setLiked(!!(like?.liked || like?.is_liked));
+            if (!cancelled) setLiked(!!like?.liked || !!like?.is_liked);
           } catch {
-            /* ignore */
+            /* optional */
           }
-          const authorId = b?.user_id;
+          const authorId = b?.author_id || b?.user_id;
           if (authorId) {
             try {
               const f = await getAuthorFollow(authorId);
               if (!cancelled) setFollowing(!!f?.following);
             } catch {
-              /* ignore */
+              /* optional */
             }
           }
         }
       } catch (e) {
         if (!cancelled) setError(String(e.message || e));
-      } finally {
-        if (!cancelled) setLoading(false);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, user]);
 
   async function onLike() {
     if (!getToken() || guest) {
-      setMsg("Sign in to like stories");
+      setMsg("Sign in to like");
       return;
     }
     try {
-      if (liked) {
-        await unlikeBook(id);
-        setLiked(false);
-        setMsg("Removed like");
-      } else {
-        await likeBook(id);
-        setLiked(true);
-        setMsg("Liked");
-      }
+      const res = await toggleBookLike(id);
+      setLiked(!!res?.liked || !!res?.is_liked || !liked);
+      setMsg(liked ? "Unliked" : "Liked");
     } catch (e) {
-      setMsg(e.status === 401 ? "Sign in to like stories" : String(e.message || e));
-    }
-  }
-
-  async function onSave() {
-    if (!getToken() || guest) {
-      setMsg("Sign in to save to reading list");
-      return;
-    }
-    try {
-      await addToReadingList(Number(id));
-      setMsg("Saved to reading list");
-    } catch (e) {
-      setMsg(e.status === 401 ? "Sign in to save" : String(e.message || e));
+      setMsg(String(e.message || e));
     }
   }
 
   async function onFollow() {
-    const authorId = book?.user_id;
-    if (!authorId) {
-      setMsg("Author profile not available");
+    if (!getToken() || guest) {
+      setMsg("Sign in to follow");
       return;
     }
-    if (!getToken() || guest) {
-      setMsg("Sign in to follow authors");
+    const authorId = book?.author_id || book?.user_id;
+    if (!authorId) {
+      setMsg("Author profile not linked");
       return;
     }
     try {
@@ -139,222 +112,200 @@ export default function StoryPage({ user }) {
     }
   }
 
-  async function onReview(e) {
-    e.preventDefault();
+  async function onAddList() {
     if (!getToken() || guest) {
-      setMsg("Sign in to write a review");
+      setMsg("Sign in to save");
       return;
     }
-    setReviewBusy(true);
     try {
-      await postBookReview(id, { rating: Number(rating), comment: comment.trim() });
-      setComment("");
-      const rev = await getBookReviews(id);
-      setReviews(rev?.items || rev || []);
-      setMsg("Review posted");
-    } catch (err) {
-      setMsg(String(err.message || err));
-    } finally {
-      setReviewBusy(false);
+      await addToReadingList(Number(id));
+      setMsg("Added to Currently Reading");
+      setListOpen(false);
+    } catch (e) {
+      setMsg(String(e.message || e));
     }
   }
 
-  if (loading) return <div className="container page">Loading story…</div>;
   if (error) return <div className="container page error-banner">{error}</div>;
-  if (!book) return null;
+  if (!book) return <div className="container page">Loading…</div>;
 
   const cover = resolveAssetUrl(book.cover_path || book.coverPath || "");
-  const firstChapter = chapters[0];
-  const tags = [book.genre, book.status_text].filter(Boolean);
-  const authorInitial = (book.author || "?")[0].toUpperCase();
-  const authorId = book.user_id;
+  const first = chapters[0];
+  const tags = [book.genre, book.primary_genre, book.secondary_genre].filter(Boolean);
+  const rating = book.rating != null ? Number(book.rating).toFixed(1) : "—";
 
   return (
-    <div className="story-page">
-      <div className="story-banner">
-        <div
-          className="story-banner-blur"
-          style={
-            cover
-              ? { backgroundImage: `url(${cover})` }
-              : { background: book.accent_hex || "#1f2937" }
-          }
-        />
-        <div className="story-banner-cover">
+    <div className="story-inkitt">
+      <div
+        className="story-hero"
+        style={{
+          backgroundImage: cover
+            ? `linear-gradient(180deg, rgba(0,0,0,0.35), rgba(255,255,255,0.95) 70%), url(${cover})`
+            : undefined,
+        }}
+      >
+        <div className="story-hero-inner">
           {cover ? (
-            <img src={cover} alt="" />
+            <img className="story-hero-cover" src={cover} alt="" />
           ) : (
             <div
-              className="book-cover--fallback tall"
-              style={{ background: book.accent_hex || "#1f2937", display: "grid" }}
+              className="story-hero-cover story-hero-cover--ph"
+              style={{ background: book.accent_hex || "#1f2937" }}
             >
-              <span className="fallback-letter">{(book.title || "?")[0]}</span>
+              {(book.title || "?")[0]}
             </div>
           )}
         </div>
       </div>
 
-      <div className="container story-three">
-        <aside className="story-col-actions">
-          <button
-            type="button"
-            className={`story-action-btn ${liked ? "is-liked" : ""}`}
-            onClick={onLike}
-          >
+      <div className="story-inkitt-body">
+        <aside className="story-left-rail">
+          <button type="button" className={`story-action-btn ${liked ? "liked" : ""}`} onClick={onLike}>
             {liked ? "♥ Liked" : "♡ Like"}
           </button>
-          <button type="button" className="story-action-btn" onClick={onSave}>
-            🔖 Add to Reading List
-          </button>
-          {authorId ? (
-            <button type="button" className="story-action-btn" onClick={onFollow}>
-              {following ? "✓ Following" : "+ Follow author"}
+          <div className="list-dropdown-wrap">
+            <button type="button" className="story-action-btn" onClick={() => setListOpen((v) => !v)}>
+              🔖 Add to Reading List
             </button>
-          ) : null}
-          {firstChapter ? (
-            <Link
-              className="story-action-btn story-action-primary"
-              to={`/stories/${id}/chapters/${firstChapter.id}`}
-            >
-              Start reading
-            </Link>
-          ) : (
-            <button type="button" className="story-action-btn story-action-primary" disabled>
-              No chapters yet
-            </button>
-          )}
+            {listOpen && (
+              <div className="list-dropdown">
+                <div className="list-dropdown-title">Private Lists</div>
+                <button type="button" onClick={onAddList}>
+                  Currently Reading
+                </button>
+                <button type="button" onClick={onAddList}>
+                  Archived / Finished Books
+                </button>
+                <button type="button" className="list-create" onClick={onAddList}>
+                  + Create New List
+                </button>
+              </div>
+            )}
+          </div>
+          <Link className="story-action-btn story-action-primary" to={`/stories/${id}/review`}>
+            Write a Review
+          </Link>
           {msg ? <p className="meta side-msg">{msg}</p> : null}
+          <div className="share-block meta">Share with your friends</div>
+          <button type="button" className="story-action-btn muted">
+            Report
+          </button>
         </aside>
 
-        <div className="story-col-main">
+        <main className="story-center">
           <h1 className="story-title">{book.title}</h1>
           <div className="story-author-row">
-            <div className="author-avatar" aria-hidden>
-              {authorInitial}
-            </div>
+            <div className="author-avatar">{(book.author || "A")[0]}</div>
             <div>
-              <div className="author-name-lg">
-                {authorId ? (
-                  <Link to={`/authors/${authorId}`}>{book.author || "Unknown"}</Link>
-                ) : (
-                  book.author || "Unknown"
-                )}
+              <div className="author-name-line">
+                <Link to={book.author_id ? `/authors/${book.author_id}` : "#"}>
+                  {book.author || "Unknown"}
+                </Link>
+                <button type="button" className="btn-follow-sm" onClick={onFollow}>
+                  {following ? "Following" : "Follow +"}
+                </button>
               </div>
-              {book.rating ? (
-                <div className="author-sub">★ {Number(book.rating).toFixed(1)}</div>
-              ) : null}
+              <p className="meta">Author</p>
             </div>
           </div>
-          {tags.length > 0 && (
-            <div className="tag-row">
-              {tags.map((t) => (
-                <span key={t} className="tag">
-                  {t}
-                </span>
-              ))}
+          <div className="tag-row">
+            {tags.map((t) => (
+              <span key={t} className="tag-chip">
+                {t}
+              </span>
+            ))}
+          </div>
+
+          <h2 className="section-title">Summary</h2>
+          <p className="summary-text">{book.description || "No summary yet."}</p>
+
+          <div className="story-meta-grid">
+            <div>
+              <span className="meta-label">Genre</span>
+              <strong className="meta-teal">{book.genre || book.primary_genre || "—"}</strong>
+            </div>
+            <div>
+              <span className="meta-label">Status</span>
+              <strong>{book.status_text || (book.is_completed ? "Complete" : "Ongoing")}</strong>
+            </div>
+            <div>
+              <span className="meta-label">Rating</span>
+              <strong className="meta-teal">
+                ★ {rating} {reviews.length ? `${reviews.length} reviews` : ""}
+              </strong>
+            </div>
+            <div>
+              <span className="meta-label">Author</span>
+              <strong className="meta-teal">{book.author || "—"}</strong>
+            </div>
+            <div>
+              <span className="meta-label">Chapters</span>
+              <strong>{chapters.length}</strong>
+            </div>
+            <div>
+              <span className="meta-label">Age Rating</span>
+              <strong>13+</strong>
+            </div>
+          </div>
+
+          {first && (
+            <div className="start-reading">
+              <Link
+                className="btn btn-primary"
+                to={`/stories/${id}/chapters/${first.id}`}
+              >
+                Start reading — {first.title || "Chapter 1"}
+              </Link>
             </div>
           )}
-          <h2 className="section-title">Summary</h2>
-          <p className="story-summary">{book.description || "No summary yet."}</p>
 
           <section className="reviews-block">
             <h2 className="section-title">Reviews ({reviews.length})</h2>
-            <form className="review-form" onSubmit={onReview}>
-              <label>
-                Rating
-                <select value={rating} onChange={(e) => setRating(e.target.value)}>
-                  {[5, 4, 3, 2, 1].map((n) => (
-                    <option key={n} value={n}>
-                      {n} ★
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Your review
-                <textarea
-                  rows={3}
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  placeholder={guest ? "Sign in to write a review" : "What did you think?"}
-                  disabled={guest}
-                />
-              </label>
-              <button type="submit" className="btn btn-primary" disabled={guest || reviewBusy}>
-                {reviewBusy ? "Posting…" : "Write a Review"}
-              </button>
-            </form>
             <ul className="review-list">
-              {reviews.map((r) => (
-                <li key={r.id}>
-                  <div className="review-head">
-                    <strong>{r.display_name || "Reader"}</strong>
-                    <span className="review-stars">{"★".repeat(Number(r.rating) || 0)}</span>
-                  </div>
-                  <p>{r.comment || ""}</p>
+              {reviews.slice(0, 8).map((r) => (
+                <li key={r.id || r.created_at}>
+                  <strong>
+                    ★ {r.rating} · {r.display_name || r.username || "Reader"}
+                  </strong>
+                  <p>{r.comment || r.body || r.title || ""}</p>
                 </li>
               ))}
-              {reviews.length === 0 && <li className="meta">No reviews yet — be the first.</li>}
+              {!reviews.length && <li className="meta">No reviews yet. Be the first.</li>}
             </ul>
           </section>
-        </div>
+        </main>
 
-        <aside className="story-col-chapters">
-          <button
-            type="button"
-            className="chapters-toggle"
-            onClick={() => setChaptersOpen((v) => !v)}
-            aria-expanded={chaptersOpen}
-          >
-            <span>
-              <strong>Chapters</strong>
-              <span className="chapters-count">
-                {chapters.length
-                  ? ` ${chapters[0]?.chapter_number != null ? chapters[0].chapter_number : 1}. ${
-                      chapters[0]?.title || "Chapter 1"
-                    }`
-                  : " None yet"}
+        <aside className="story-right-rail">
+          <div className="chapters-panel">
+            <button type="button" className="chapters-panel-head" onClick={() => setChOpen((v) => !v)}>
+              <span>Chapters</span>
+              <span className="meta">
+                {chapters[0] ? `1 ${chapters[0].title || "Chapter 1"}` : "—"} ▾
               </span>
-            </span>
-            <span className="chev">{chaptersOpen ? "▴" : "▾"}</span>
-          </button>
-          {chaptersOpen && (
-            <>
+            </button>
+            {chOpen && (
               <ul className="chapter-list chapter-list--panel">
                 {chapters.map((c, i) => {
                   const locked = guest && !isChapterAllowedForGuest(i);
                   return (
-                    <li key={c.id || i} className={locked ? "chapter-locked" : ""}>
+                    <li key={c.id} className={locked ? "chapter-locked" : ""}>
                       {locked ? (
                         <span>
                           {c.chapter_number != null ? `${c.chapter_number}. ` : ""}
-                          {c.title || `Chapter ${i + 1}`}
+                          {c.title} 🔒
                         </span>
                       ) : (
                         <Link to={`/stories/${id}/chapters/${c.id}`}>
                           {c.chapter_number != null ? `${c.chapter_number}. ` : ""}
-                          {c.title || `Chapter ${i + 1}`}
+                          {c.title}
                         </Link>
                       )}
                     </li>
                   );
                 })}
-                {chapters.length === 0 && <li className="meta">No chapters published.</li>}
               </ul>
-              {guest && chapters.length > GUEST_CHAPTER_LIMIT ? (
-                <div className="guest-lock" style={{ marginTop: 12, padding: 16 }}>
-                  <h3 style={{ fontSize: "1rem", margin: "0 0 6px" }}>Guest limit</h3>
-                  <p style={{ margin: "0 0 10px", fontSize: "0.85rem" }}>
-                    Guests can read the first {GUEST_CHAPTER_LIMIT} chapters. Sign in for the full
-                    story.
-                  </p>
-                  <Link className="btn btn-primary" to="/login">
-                    Sign in
-                  </Link>
-                </div>
-              ) : null}
-            </>
-          )}
+            )}
+          </div>
         </aside>
       </div>
     </div>
