@@ -186,6 +186,30 @@ def ensure_inkitt_catalog(execute_write, fetch_all, USE_SQLITE: bool) -> dict[st
 
     lists_added = 0
     try:
+        # profile_id is NOT NULL in MySQL — use profile 1 (same as create_public_reading_list)
+        try:
+            profiles = fetch_all("SELECT id FROM profiles ORDER BY id ASC LIMIT 1")
+            profile_id = 1
+            if profiles:
+                row = profiles[0]
+                profile_id = int(row["id"] if isinstance(row, dict) else row[0])
+            else:
+                # create a minimal profile so FK / NOT NULL is satisfied
+                execute_write(
+                    """
+                    INSERT INTO profiles (display_name, username, following, followers, blocked, chapters_read, social_karma, day_streak)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    ("Community", "community", 0, 0, 0, 0, 0, 0),
+                )
+                profiles = fetch_all("SELECT id FROM profiles ORDER BY id ASC LIMIT 1")
+                if profiles:
+                    row = profiles[0]
+                    profile_id = int(row["id"] if isinstance(row, dict) else row[0])
+        except Exception as pe:
+            LOGGER.warning("profile resolve for lists: %s", pe)
+            profile_id = 1
+
         for name, owner, count in INKITT_READING_LISTS:
             exists = fetch_all("SELECT id FROM reading_lists WHERE name=%s LIMIT 1", (name,))
             if exists:
@@ -195,7 +219,7 @@ def ensure_inkitt_catalog(execute_write, fetch_all, USE_SQLITE: bool) -> dict[st
                 INSERT INTO reading_lists (user_id, profile_id, name, story_count, cover_path, sort_order)
                 VALUES (%s, %s, %s, %s, %s, %s)
                 """,
-                (None, None, name, int(count), _c(lists_added), lists_added),
+                (None, profile_id, name, int(count), _c(lists_added), lists_added),
             )
             lists_added += 1
     except Exception as exc:
@@ -203,6 +227,40 @@ def ensure_inkitt_catalog(execute_write, fetch_all, USE_SQLITE: bool) -> dict[st
 
     contests_added = 0
     try:
+        # Ensure contests table exists (module may register later)
+        try:
+            if USE_SQLITE:
+                execute_write(
+                    """
+                    CREATE TABLE IF NOT EXISTS contests (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        title TEXT NOT NULL,
+                        theme TEXT DEFAULT '',
+                        deadline TEXT DEFAULT 'Open entry',
+                        is_active INTEGER DEFAULT 1,
+                        is_neon INTEGER DEFAULT 0,
+                        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """,
+                    (),
+                )
+            else:
+                execute_write(
+                    """
+                    CREATE TABLE IF NOT EXISTS contests (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        title VARCHAR(255) NOT NULL,
+                        theme TEXT,
+                        deadline VARCHAR(128) DEFAULT 'Open entry',
+                        is_active TINYINT DEFAULT 1,
+                        is_neon TINYINT DEFAULT 0,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """,
+                    (),
+                )
+        except Exception as te:
+            LOGGER.warning("contests table ensure in seed: %s", te)
         # Table may be created by contests module; try insert
         for title, theme, deadline, active, neon in INKITT_CONTESTS:
             exists = fetch_all("SELECT id FROM contests WHERE title=%s LIMIT 1", (title,))
