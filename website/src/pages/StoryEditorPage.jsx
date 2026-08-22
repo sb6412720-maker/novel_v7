@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   createChapter,
@@ -8,16 +8,19 @@ import {
   resolveAssetUrl,
   updateChapter,
   updateStory,
+  uploadWriteImage,
 } from "../api";
 import { isGuestUser } from "../utils/guest";
 
 const MIN_PUBLISH_CHARS = 50;
+const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export default function StoryEditorPage({ user }) {
   const { storyId } = useParams();
   const [search] = useSearchParams();
   const navigate = useNavigate();
   const guest = isGuestUser(user);
+  const coverInputRef = useRef(null);
 
   const [story, setStory] = useState(null);
   const [chapters, setChapters] = useState([]);
@@ -33,14 +36,22 @@ export default function StoryEditorPage({ user }) {
   const [submitOpen, setSubmitOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [notes, setNotes] = useState("");
+  const [titleModal, setTitleModal] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [renameId, setRenameId] = useState(null);
+  const [renameVal, setRenameVal] = useState("");
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [newScheduleOpen, setNewScheduleOpen] = useState(false);
-  const [audioView, setAudioView] = useState(search.get("entry") === "audiobook");
+  const [editScheduleId, setEditScheduleId] = useState(null);
+  const [audioView, setAudioView] = useState(
+    search.get("entry") === "audiobook" || window.location.pathname.includes("/audiobook")
+  );
   const [scheduleForm, setScheduleForm] = useState({
     name: "",
     interval: "Weekly",
     days: [],
-    time: "01:00",
+    timezone: "Asia/Colombo",
+    time: "05:00",
     start: new Date().toISOString().slice(0, 10),
     chapters: "1",
   });
@@ -57,43 +68,42 @@ export default function StoryEditorPage({ user }) {
     [chapters, activeId]
   );
 
+  function persistSchedules(list) {
+    setSchedules(list);
+    localStorage.setItem(`nh_schedules_${storyId}`, JSON.stringify(list));
+  }
+
   async function load(id) {
     const res = await getWriteStory(id);
     const s = res?.story || res?.item || res;
-    const ch = res?.chapters || res?.items || [];
+    let ch = res?.chapters || res?.items || [];
+    if (!Array.isArray(ch)) ch = [];
     setStory(s);
     setStoryTitle(s?.title || "Untitled Story");
+
+    if (!ch.length) {
+      try {
+        await createChapter(id, {
+          title: "Chapter 1",
+          content: "",
+          chapter_number: 1,
+          submission_status: "draft",
+        });
+        const res2 = await getWriteStory(id);
+        ch = res2?.chapters || res2?.items || [];
+      } catch (ce) {
+        setMsg(String(ce.message || ce));
+      }
+    }
+
     setChapters(Array.isArray(ch) ? ch : []);
-    if (ch?.length) {
-      const prefer = activeId && ch.find((c) => String(c.id) === String(activeId));
-      const pick = prefer || ch[0];
+    const prefer = activeId && ch.find((c) => String(c.id) === String(activeId));
+    const pick = prefer || ch[0];
+    if (pick) {
       setActiveId(pick.id);
       setTitle(pick.title || "Chapter 1");
       setContent(pick.content || "");
       setNotes(pick.notes || localStorage.getItem(`nh_notes_${pick.id}`) || "");
-    } else {
-      // Inkitt creates Chapter 1 automatically for new stories
-      try {
-        const created = await createChapter(id, {
-          title: "Chapter 1",
-          content: "",
-          chapter_number: 1,
-          status_text: "Draft",
-        });
-        const res2 = await getWriteStory(id);
-        const ch2 = res2?.chapters || res2?.items || [];
-        setChapters(Array.isArray(ch2) ? ch2 : []);
-        const pick = ch2[0] || { id: created?.id || created?.chapter_id, title: "Chapter 1", content: "" };
-        setActiveId(pick.id);
-        setTitle(pick.title || "Chapter 1");
-        setContent(pick.content || "");
-        setNotes("");
-      } catch (ce) {
-        setActiveId(null);
-        setTitle("Chapter 1");
-        setContent("");
-        setMsg(String(ce.message || ce));
-      }
     }
   }
 
@@ -115,6 +125,11 @@ export default function StoryEditorPage({ user }) {
           return;
         }
         await load(storyId);
+        try {
+          setSchedules(JSON.parse(localStorage.getItem(`nh_schedules_${storyId}`) || "[]"));
+        } catch {
+          /* ignore */
+        }
       } catch (e) {
         if (!cancelled) setError(String(e.message || e));
       }
@@ -130,6 +145,7 @@ export default function StoryEditorPage({ user }) {
     setTitle(c.title || "");
     setContent(c.content || "");
     setNotes(c.notes || localStorage.getItem(`nh_notes_${c.id}`) || "");
+    setRenameId(null);
     setMsg("");
   }
 
@@ -141,7 +157,7 @@ export default function StoryEditorPage({ user }) {
     setSaving(true);
     setMsg("");
     try {
-      await updateChapter(active.id, { title, content });
+      await updateChapter(active.id, { title, content, notes });
       localStorage.setItem(`nh_notes_${active.id}`, notes || "");
       setLastSaved(new Date().toLocaleString());
       setMsg("Saved");
@@ -153,14 +169,34 @@ export default function StoryEditorPage({ user }) {
     }
   }
 
-  async function saveStoryTitle() {
+  async function saveStoryTitleModal() {
     if (!storyId) return;
     try {
-      await updateStory(storyId, { title: storyTitle || "Untitled Story" });
+      await updateStory(storyId, { title: (titleDraft || "Untitled Story").trim() });
+      setStoryTitle(titleDraft.trim() || "Untitled Story");
+      setTitleModal(false);
       setMsg("Title updated");
       await load(storyId);
     } catch (e) {
       setMsg(String(e.message || e));
+    }
+  }
+
+  async function onCoverFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setMsg("Uploading cover…");
+    try {
+      const up = await uploadWriteImage(file);
+      const path = up?.path || up?.filename;
+      if (!path) throw new Error("No path returned");
+      await updateStory(storyId, { cover_path: path });
+      setMsg("Cover updated");
+      await load(storyId);
+    } catch (err) {
+      setMsg(String(err.message || err));
+    } finally {
+      if (coverInputRef.current) coverInputRef.current.value = "";
     }
   }
 
@@ -171,6 +207,7 @@ export default function StoryEditorPage({ user }) {
         title: name,
         content: "",
         chapter_number: chapters.length + 1,
+        submission_status: "draft",
       });
       setNewChapterName("");
       await load(storyId);
@@ -182,11 +219,16 @@ export default function StoryEditorPage({ user }) {
     }
   }
 
-  async function renameChapter(c) {
-    const next = window.prompt("Chapter name", c.title || "");
-    if (next == null || !next.trim()) return;
+  async function applyRename(c) {
+    const next = (renameVal || "").trim();
+    if (!next) {
+      setRenameId(null);
+      return;
+    }
     try {
-      await updateChapter(c.id, { title: next.trim() });
+      await updateChapter(c.id, { title: next });
+      setRenameId(null);
+      if (String(c.id) === String(active?.id)) setTitle(next);
       await load(storyId);
     } catch (e) {
       setMsg(String(e.message || e));
@@ -209,25 +251,21 @@ export default function StoryEditorPage({ user }) {
 
   async function submitChapter(mode) {
     setSubmitOpen(false);
-    if (!active?.id && mode === "one") {
-      setMsg("Select a chapter");
-      return;
-    }
     try {
       if (mode === "one") {
+        if (!active?.id) {
+          setMsg("Select a chapter");
+          return;
+        }
         if (!canPublish(content)) {
-          await updateChapter(active.id, {
-            title,
-            content,
-            status_text: "Draft",
-          });
+          await updateChapter(active.id, { title, content, submission_status: "draft" });
           await updateStory(storyId, { status_text: "Draft" });
-          setMsg(`Need at least ${MIN_PUBLISH_CHARS} characters to submit — kept as draft`);
+          setMsg(`Need at least ${MIN_PUBLISH_CHARS} characters — kept as draft`);
         } else {
           await updateChapter(active.id, {
             title,
             content,
-            status_text: "Published",
+            submission_status: "published",
           });
           await updateStory(storyId, { status_text: "Published" });
           setMsg("Chapter submitted");
@@ -240,22 +278,22 @@ export default function StoryEditorPage({ user }) {
             await updateChapter(c.id, {
               title: c.id === active?.id ? title : c.title,
               content: body,
-              status_text: "Published",
+              submission_status: "published",
             });
             any = true;
           } else {
             await updateChapter(c.id, {
               title: c.id === active?.id ? title : c.title,
               content: body,
-              status_text: "Draft",
+              submission_status: "draft",
             });
           }
         }
         await updateStory(storyId, { status_text: any ? "Published" : "Draft" });
-        setMsg(any ? "Submitted eligible chapters" : "No chapter met 50-character rule — all drafts");
+        setMsg(any ? "Submitted eligible chapters" : "No chapter met 50-char rule");
       } else if (mode === "withdraw") {
         for (const c of chapters) {
-          await updateChapter(c.id, { status_text: "Draft" });
+          await updateChapter(c.id, { submission_status: "draft" });
         }
         await updateStory(storyId, { status_text: "Draft" });
         setMsg("All chapters withdrawn to draft");
@@ -266,16 +304,66 @@ export default function StoryEditorPage({ user }) {
     }
   }
 
+  function openNewSchedule() {
+    setEditScheduleId(null);
+    setScheduleForm({
+      name: "",
+      interval: "Weekly",
+      days: [],
+      timezone: "Asia/Colombo",
+      time: new Date().toTimeString().slice(0, 5),
+      start: new Date().toISOString().slice(0, 10),
+      chapters: "1",
+    });
+    setScheduleOpen(false);
+    setNewScheduleOpen(true);
+  }
+
+  function openEditSchedule(s) {
+    setEditScheduleId(s.id);
+    setScheduleForm({
+      name: s.name || "",
+      interval: s.interval || "Weekly",
+      days: s.days || [],
+      timezone: s.timezone || "Asia/Colombo",
+      time: s.time || "05:00",
+      start: s.start || new Date().toISOString().slice(0, 10),
+      chapters: s.chapters || "1",
+    });
+    setScheduleOpen(false);
+    setNewScheduleOpen(true);
+  }
+
   function saveSchedule() {
+    if (!(scheduleForm.name || "").trim()) {
+      setMsg("Schedule name required");
+      return;
+    }
     const item = {
-      id: Date.now(),
+      id: editScheduleId || Date.now(),
       ...scheduleForm,
+      name: scheduleForm.name.trim(),
     };
-    const next = [...schedules, item];
-    setSchedules(next);
-    localStorage.setItem(`nh_schedules_${storyId}`, JSON.stringify(next));
+    const next = editScheduleId
+      ? schedules.map((s) => (s.id === editScheduleId ? item : s))
+      : [...schedules, item];
+    persistSchedules(next);
     setNewScheduleOpen(false);
-    setMsg("Schedule saved locally (publish runner not configured)");
+    setScheduleOpen(true);
+    setMsg("Schedule saved");
+  }
+
+  function formatScheduleLine(s) {
+    const days =
+      s.days?.length > 0
+        ? `on ${s.days.map((d) => d + "s").join(", ")}`
+        : "";
+    return `${s.chapters || 1} chapters ${(s.interval || "weekly").toLowerCase()} ${days} @ ${s.time || ""} ${s.timezone || ""} - Free for everyone`;
+  }
+
+  function isPublishedChapter(c) {
+    const st = String(c.submission_status || c.status_text || "").toLowerCase();
+    return st.includes("publish") || st === "submitted";
   }
 
   if (guest) {
@@ -297,9 +385,7 @@ export default function StoryEditorPage({ user }) {
   }
 
   if (audioView) {
-    const published = chapters.filter((c) =>
-      String(c.status_text || "").toLowerCase().includes("publish")
-    );
+    const published = chapters.filter(isPublishedChapter);
     return (
       <div className="audio-entry-page">
         <h1>No published chapters yet</h1>
@@ -308,11 +394,14 @@ export default function StoryEditorPage({ user }) {
           audiobook.
         </p>
         {published.length > 0 ? (
-          <ul>
-            {published.map((c) => (
-              <li key={c.id}>{c.title}</li>
-            ))}
-          </ul>
+          <>
+            <p className="meta">Published chapters ready:</p>
+            <ul style={{ textAlign: "left", maxWidth: 360, margin: "12px auto" }}>
+              {published.map((c) => (
+                <li key={c.id}>{c.title}</li>
+              ))}
+            </ul>
+          </>
         ) : null}
         <button type="button" className="btn btn-primary" onClick={() => setAudioView(false)}>
           Back to story editor
@@ -323,21 +412,34 @@ export default function StoryEditorPage({ user }) {
 
   const cover = resolveAssetUrl(story?.cover_path || "");
   const chapterStatus = (c) => {
-    const st = String(c.status_text || "Draft").toLowerCase();
-    if (st.includes("publish")) return { label: "Submitted", cls: "ok" };
+    if (isPublishedChapter(c)) return { label: "Submitted", cls: "ok" };
     return { label: "Not Submitted", cls: "warn" };
   };
 
   return (
     <div className="editor-inkitt">
       <div className="editor-grid">
-        {/* Left */}
         <aside className="editor-left">
           <div className="editor-cover-box">
-            {cover ? <img src={cover} alt="" /> : <div className="editor-cover-empty" />}
-            <button type="button" className="cover-edit-btn" disabled>
+            {cover ? (
+              <img src={cover} alt="" />
+            ) : (
+              <div className="editor-cover-empty" />
+            )}
+            <button
+              type="button"
+              className="cover-edit-btn"
+              onClick={() => coverInputRef.current?.click()}
+            >
               Edit Story Cover
             </button>
+            <input
+              ref={coverInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/jpg"
+              hidden
+              onChange={onCoverFile}
+            />
           </div>
           <div className="editor-left-links">
             <button type="button" className="linkish">
@@ -360,13 +462,12 @@ export default function StoryEditorPage({ user }) {
               className="btn btn-primary submit-main"
               onClick={() => submitChapter("one")}
             >
-              Submit Chapter
+              {schedules.length ? "Add to schedules" : "Submit Chapter"}
             </button>
             <button
               type="button"
               className="btn btn-primary submit-caret"
               onClick={() => setSubmitOpen((v) => !v)}
-              aria-label="More submit options"
             >
               ▾
             </button>
@@ -387,16 +488,17 @@ export default function StoryEditorPage({ user }) {
           {msg ? <p className="meta editor-msg">{msg}</p> : null}
         </aside>
 
-        {/* Center */}
         <main className="editor-center">
           <div className="story-title-row">
-            <input
-              className="story-title-input"
-              value={storyTitle}
-              onChange={(e) => setStoryTitle(e.target.value)}
-              onBlur={saveStoryTitle}
-            />
-            <button type="button" className="edit-title-chip" onClick={saveStoryTitle}>
+            <span className="story-title-display">{(storyTitle || "UNTITLED STORY").toUpperCase()}</span>
+            <button
+              type="button"
+              className="edit-title-chip"
+              onClick={() => {
+                setTitleDraft(storyTitle || "Untitled Story");
+                setTitleModal(true);
+              }}
+            >
               Edit Title
             </button>
           </div>
@@ -407,13 +509,13 @@ export default function StoryEditorPage({ user }) {
             </button>
           </div>
           <div className="editor-toolbar">
-            <button type="button" title="Bold" onClick={() => setContent((c) => c + "**")}>
+            <button type="button" onClick={() => setContent((c) => `${c}**`)}>
               B
             </button>
-            <button type="button" title="Italic" onClick={() => setContent((c) => c + "*")}>
+            <button type="button" onClick={() => setContent((c) => `${c}*`)}>
               <em>I</em>
             </button>
-            <button type="button" title="List" onClick={() => setContent((c) => c + "\n- ")}>
+            <button type="button" onClick={() => setContent((c) => `${c}\n- `)}>
               ≡
             </button>
           </div>
@@ -425,30 +527,55 @@ export default function StoryEditorPage({ user }) {
           />
         </main>
 
-        {/* Right chapters */}
         <aside className="editor-right">
           <h3 className="chapters-heading">CHAPTERS</h3>
           <ul className="editor-chapter-list">
             {chapters.map((c) => {
               const st = chapterStatus(c);
               const selected = String(c.id) === String(active?.id);
+              const renaming = String(renameId) === String(c.id);
               return (
                 <li key={c.id} className={selected ? "selected" : ""}>
-                  <button type="button" className="ch-select" onClick={() => selectChapter(c)}>
-                    <strong>{c.title || "Chapter"}</strong>
-                    <span className="meta">
-                      Chapter {c.chapter_number != null ? c.chapter_number : ""}
-                    </span>
-                    <span className={`ch-status ${st.cls}`}>{st.label}</span>
-                  </button>
-                  <div className="ch-actions">
-                    <button type="button" onClick={() => renameChapter(c)}>
-                      Rename
-                    </button>
-                    <button type="button" className="danger" onClick={() => removeChapter(c)}>
-                      Delete
-                    </button>
-                  </div>
+                  {renaming ? (
+                    <div className="ch-rename-box">
+                      <input
+                        value={renameVal}
+                        onChange={(e) => setRenameVal(e.target.value)}
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") applyRename(c);
+                          if (e.key === "Escape") setRenameId(null);
+                        }}
+                      />
+                      <button type="button" className="btn btn-primary btn-sm" onClick={() => applyRename(c)}>
+                        + Rename
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <button type="button" className="ch-select" onClick={() => selectChapter(c)}>
+                        <strong>{c.title || "Chapter"}</strong>
+                        <span className="meta">
+                          Chapter {c.chapter_number != null ? c.chapter_number : ""}
+                        </span>
+                        <span className={`ch-status ${st.cls}`}>{st.label}</span>
+                      </button>
+                      <div className="ch-actions">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRenameId(c.id);
+                            setRenameVal(c.title || "");
+                          }}
+                        >
+                          Rename
+                        </button>
+                        <button type="button" className="danger" onClick={() => removeChapter(c)}>
+                          Delete
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </li>
               );
             })}
@@ -464,14 +591,44 @@ export default function StoryEditorPage({ user }) {
               + Create Chapter
             </button>
           </div>
-          <button type="button" className="btn btn-primary upload-ms" disabled title="Paste text for now">
+          <button type="button" className="btn btn-primary upload-ms" disabled>
             ↑ Upload Manuscript
           </button>
-          <p className="meta upload-hint">Microsoft Word files (.doc / .docx) — coming soon; paste text in the editor.</p>
+          <p className="meta upload-hint">
+            Microsoft Word files (.doc / .docx) — paste text in the editor for now.
+          </p>
         </aside>
       </div>
 
-      {/* Chapter notes modal */}
+      {/* Change Story Title */}
+      {titleModal && (
+        <div className="modal-backdrop" onClick={() => setTitleModal(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <h2>Change Story Title</h2>
+              <button type="button" className="auth-close" onClick={() => setTitleModal(false)}>
+                ×
+              </button>
+            </div>
+            <p className="meta">Enter a new title for your story:</p>
+            <input
+              className="title-modal-input"
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              autoFocus
+            />
+            <div className="modal-actions">
+              <button type="button" className="btn" onClick={() => setTitleModal(false)}>
+                Close
+              </button>
+              <button type="button" className="btn btn-primary" onClick={saveStoryTitleModal}>
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {notesOpen && (
         <div className="modal-backdrop" onClick={() => setNotesOpen(false)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
@@ -479,6 +636,12 @@ export default function StoryEditorPage({ user }) {
               <h2>Chapter Notes</h2>
               <button type="button" className="auth-close" onClick={() => setNotesOpen(false)}>
                 ×
+              </button>
+            </div>
+            <div className="editor-toolbar" style={{ borderRadius: 6, marginBottom: 0 }}>
+              <button type="button">B</button>
+              <button type="button">
+                <em>I</em>
               </button>
             </div>
             <textarea
@@ -494,8 +657,13 @@ export default function StoryEditorPage({ user }) {
               <button
                 type="button"
                 className="btn btn-primary"
-                onClick={() => {
-                  if (active?.id) localStorage.setItem(`nh_notes_${active.id}`, notes);
+                onClick={async () => {
+                  if (active?.id) {
+                    localStorage.setItem(`nh_notes_${active.id}`, notes);
+                    try {
+                      await updateChapter(active.id, { notes });
+                    } catch (_) {}
+                  }
                   setNotesOpen(false);
                   setMsg("Notes saved");
                 }}
@@ -507,7 +675,6 @@ export default function StoryEditorPage({ user }) {
         </div>
       )}
 
-      {/* Schedule manager */}
       {scheduleOpen && (
         <div className="modal-backdrop" onClick={() => setScheduleOpen(false)}>
           <div className="modal-card modal-wide" onClick={(e) => e.stopPropagation()}>
@@ -522,11 +689,14 @@ export default function StoryEditorPage({ user }) {
             ) : (
               <ul className="schedule-list">
                 {schedules.map((s) => (
-                  <li key={s.id}>
-                    <strong>{s.name || "Untitled schedule"}</strong>
-                    <span className="meta">
-                      {s.interval} · {s.time} · chapters {s.chapters}
-                    </span>
+                  <li key={s.id} className="schedule-row">
+                    <div>
+                      <strong>{s.name}</strong>
+                      <p className="meta">{formatScheduleLine(s)}</p>
+                    </div>
+                    <button type="button" className="btn schedule-edit" onClick={() => openEditSchedule(s)}>
+                      Edit
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -535,14 +705,7 @@ export default function StoryEditorPage({ user }) {
               <button type="button" className="btn" onClick={() => setScheduleOpen(false)}>
                 Close
               </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={() => {
-                  setScheduleOpen(false);
-                  setNewScheduleOpen(true);
-                }}
-              >
+              <button type="button" className="btn btn-primary" onClick={openNewSchedule}>
                 Create New Schedule
               </button>
             </div>
@@ -554,7 +717,7 @@ export default function StoryEditorPage({ user }) {
         <div className="modal-backdrop" onClick={() => setNewScheduleOpen(false)}>
           <div className="modal-card modal-wide" onClick={(e) => e.stopPropagation()}>
             <div className="modal-head">
-              <h2>New Schedule</h2>
+              <h2>{editScheduleId ? "Edit Schedule" : "New Schedule"}</h2>
               <button type="button" className="auth-close" onClick={() => setNewScheduleOpen(false)}>
                 ×
               </button>
@@ -579,24 +742,34 @@ export default function StoryEditorPage({ user }) {
             </label>
             <div className="form-label">Days of week</div>
             <div className="days-grid">
-              {["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map(
-                (d) => (
-                  <label key={d} className="day-check">
-                    <input
-                      type="checkbox"
-                      checked={scheduleForm.days.includes(d)}
-                      onChange={(e) => {
-                        const days = e.target.checked
-                          ? [...scheduleForm.days, d]
-                          : scheduleForm.days.filter((x) => x !== d);
-                        setScheduleForm({ ...scheduleForm, days });
-                      }}
-                    />
-                    {d}
-                  </label>
-                )
-              )}
+              {DAYS.map((d) => (
+                <label key={d} className="day-check">
+                  <input
+                    type="checkbox"
+                    checked={scheduleForm.days.includes(d)}
+                    onChange={(e) => {
+                      const days = e.target.checked
+                        ? [...scheduleForm.days, d]
+                        : scheduleForm.days.filter((x) => x !== d);
+                      setScheduleForm({ ...scheduleForm, days });
+                    }}
+                  />
+                  {d}
+                </label>
+              ))}
             </div>
+            <label className="form-label">
+              Timezone
+              <select
+                value={scheduleForm.timezone}
+                onChange={(e) => setScheduleForm({ ...scheduleForm, timezone: e.target.value })}
+              >
+                <option>Asia/Colombo</option>
+                <option>UTC</option>
+                <option>America/New_York</option>
+                <option>Europe/London</option>
+              </select>
+            </label>
             <label className="form-label">
               Time
               <input
@@ -625,7 +798,7 @@ export default function StoryEditorPage({ user }) {
                 Cancel
               </button>
               <button type="button" className="btn btn-primary" onClick={saveSchedule}>
-                Create
+                {editScheduleId ? "Save" : "Create"}
               </button>
             </div>
           </div>

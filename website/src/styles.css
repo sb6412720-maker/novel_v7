@@ -4005,3 +4005,54 @@ img {
   }
   .editor-left, .editor-right { border: none; }
 }
+
+
+.story-title-display {
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+  font-weight: 600;
+  flex: 1;
+}
+.title-modal-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 8px 0 4px;
+  font-size: 1rem;
+}
+.cover-edit-btn {
+  cursor: pointer !important;
+  opacity: 1 !important;
+}
+.ch-rename-box {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ch-rename-box input {
+  border: 1px solid #14b8a6;
+  border-radius: 6px;
+  padding: 8px;
+}
+.schedule-list { list-style: none; padding: 0; margin: 0; }
+.schedule-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+.schedule-edit {
+  border: 1px solid #99f6e4 !important;
+  color: #0d9488 !important;
+  background: #fff !important;
+  border-radius: 8px !important;
+  padding: 6px 14px !important;
+}

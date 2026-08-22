@@ -379,3 +379,26 @@ export function toggleReadingListFollow(listId) {
 export function getAudiobooks() {
   return request("/api/audiobooks").catch(() => ({ items: [] }));
 }
+
+
+export async function uploadWriteImage(file) {
+  const token = getToken();
+  const form = new FormData();
+  form.append("file", file);
+  const headers = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}/api/write/upload-image`, {
+    method: "POST",
+    headers,
+    body: form,
+  });
+  if (!res.ok) {
+    let msg = `Upload failed (${res.status})`;
+    try {
+      const j = await res.json();
+      msg = j.detail || j.message || msg;
+    } catch (_) {}
+    throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+  }
+  return res.json();
+}
