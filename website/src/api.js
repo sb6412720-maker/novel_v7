@@ -213,10 +213,21 @@ export function getWriteStory(storyId) {
   return request(`/api/write/stories/${storyId}`);
 }
 
-export function createStory(payload) {
+export function createStory(payload = {}) {
+  // Backend StoryCreateRequest requires: title, author, description, genre
+  const body = {
+    title: (payload.title || "Untitled Story").trim() || "Untitled Story",
+    author: (payload.author || payload.display_name || "Author").trim() || "Author",
+    description: payload.description != null ? String(payload.description) : "",
+    genre: (payload.genre || "Romance").trim() || "Romance",
+    cover_path: payload.cover_path || "",
+    tags: Array.isArray(payload.tags) ? payload.tags : [],
+    content_warnings: payload.content_warnings || "",
+    status_text: payload.status_text || "Draft",
+  };
   return request("/api/write/stories", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
 }
 
@@ -231,10 +242,17 @@ export function deleteStory(storyId) {
   return request(`/api/write/stories/${storyId}`, { method: "DELETE" });
 }
 
-export function createChapter(storyId, payload) {
+export function createChapter(storyId, payload = {}) {
+  const body = {
+    title: (payload.title || "Chapter 1").trim() || "Chapter 1",
+    content: payload.content != null ? String(payload.content) : "",
+    chapter_number: payload.chapter_number != null ? payload.chapter_number : null,
+    notes: payload.notes || "",
+    submission_status: payload.submission_status || payload.status_text || "draft",
+  };
   return request(`/api/write/stories/${storyId}/chapters`, {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
 }
 

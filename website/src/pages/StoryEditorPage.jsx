@@ -105,6 +105,7 @@ export default function StoryEditorPage({ user }) {
         if (!storyId || storyId === "new") {
           const res = await createStory({
             title: "Untitled Story",
+            author: user?.display_name || user?.username || user?.email || "Author",
             description: "",
             status_text: "Draft",
             genre: "Romance",
