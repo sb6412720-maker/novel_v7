@@ -143,6 +143,19 @@ export default function HomePage() {
         </div>
       </div>
 
+      <section className="contest-neon">
+        <div className="contest-neon-inner">
+          <h2 className="neon-title">LOVE IN<br />FULL COLOR</h2>
+          <div className="neon-copy">
+            <p className="neon-kicker">WRITING CONTEST 2026</p>
+            <p>Every kind of love, every kind of story.</p>
+            <Link className="btn btn-neon" to="/contests">
+              ENTER NOW
+            </Link>
+          </div>
+        </div>
+      </section>
+
       <div className="home-shelves">
         <Shelf title="Trending Stories" books={trending} seeAllTo="/discover" />
 
@@ -203,6 +216,40 @@ export default function HomePage() {
             />
           );
         })}
+
+        <section className="shelf fandoms-shelf">
+          <div className="shelf-head">
+            <h2>Fandoms</h2>
+            <Link className="see-all" to="/discover">
+              View All →
+            </Link>
+          </div>
+          <div className="fandoms-track">
+            {[
+              { name: "Asian Pop", n: 5191 },
+              { name: "Harry Potter", n: 2177 },
+              { name: "Marvel Universe", n: 687 },
+              { name: "Supernatural", n: 557 },
+              { name: "My Hero Academia", n: 545 },
+              { name: "Naruto", n: 498 },
+              { name: "DC Universe", n: 398 },
+            ].map((f) => (
+              <Link
+                key={f.name}
+                className="fandom-card"
+                to={`/genres/${encodeURIComponent(f.name)}`}
+              >
+                <div className="fandom-covers">
+                  {trending.slice(0, 4).map((b) => (
+                    <BookCard key={`${f.name}-${b.id}`} book={b} variant="mini" />
+                  ))}
+                </div>
+                <h3>{f.name}</h3>
+                <p className="meta">{f.n} stories</p>
+              </Link>
+            ))}
+          </div>
+        </section>
 
         <section className="shelf">
           <div className="shelf-head">

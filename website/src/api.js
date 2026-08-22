@@ -271,3 +271,32 @@ export function getActivityFeed(userId) {
     request(`/api/activity?user_id=${userId}`).catch(() => ({ items: [] }))
   );
 }
+
+
+export function getChapterComments(bookId, chapterNumber) {
+  return request(`/api/books/${bookId}/chapters/${chapterNumber}/comments`).catch(() => ({
+    items: [],
+    paragraph_counts: {},
+  }));
+}
+
+export function postChapterComment(bookId, chapterNumber, { body, paragraph_index }) {
+  return request(`/api/books/${bookId}/chapters/${chapterNumber}/comments`, {
+    method: "POST",
+    body: JSON.stringify({ body, paragraph_index }),
+  });
+}
+
+export function getChapterReactions(bookId, chapterNumber) {
+  return request(`/api/books/${bookId}/chapters/${chapterNumber}/reactions`).catch(() => ({
+    counts: {},
+    mine: [],
+  }));
+}
+
+export function toggleChapterReaction(bookId, chapterNumber, label) {
+  return request(`/api/books/${bookId}/chapters/${chapterNumber}/reactions`, {
+    method: "POST",
+    body: JSON.stringify({ label }),
+  });
+}

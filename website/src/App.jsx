@@ -10,6 +10,7 @@ import LibraryPage from "./pages/LibraryPage";
 import LoginPage from "./pages/LoginPage";
 import WritePage from "./pages/WritePage";
 import StoryEditorPage from "./pages/StoryEditorPage";
+import ManageStoriesPage from "./pages/ManageStoriesPage";
 import GenrePage from "./pages/GenrePage";
 import ContestsPage from "./pages/ContestsPage";
 import CommunityPage from "./pages/CommunityPage";
@@ -82,6 +83,7 @@ export default function App() {
             <Route path="/authors/:authorId" element={<AuthorPage />} />
             <Route path="/library" element={<LibraryPage user={user} />} />
             <Route path="/write" element={<WritePage user={user} />} />
+            <Route path="/manage-stories" element={<ManageStoriesPage user={user} />} />
             <Route path="/write/stories/:storyId" element={<StoryEditorPage user={user} />} />
             <Route path="/login" element={<LoginPage onSuccess={handleLoginSuccess} />} />
             <Route path="/community" element={<CommunityPage user={user} />} />
