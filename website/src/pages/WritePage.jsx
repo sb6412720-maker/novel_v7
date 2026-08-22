@@ -108,12 +108,14 @@ export default function WritePage({ user }) {
               Sign in to write
             </Link>
           ) : (
-            <button type="button" className="btn btn-primary" onClick={() => setShowNew(true)}>
-              + New story
-            </button>
-            <Link className="btn" to="/manage-stories" style={{ marginLeft: 8 }}>
-              Manage Stories
-            </Link>
+            <>
+              <button type="button" className="btn btn-primary" onClick={() => setShowNew(true)}>
+                + New story
+              </button>
+              <Link className="btn" to="/manage-stories" style={{ marginLeft: 8 }}>
+                Manage Stories
+              </Link>
+            </>
           )}
         </div>
       </section>
