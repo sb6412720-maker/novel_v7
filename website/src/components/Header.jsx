@@ -115,6 +115,8 @@ export default function Header({ user, onLogout, onAuthSuccess }) {
         onClose={() => setAuthOpen(false)}
         onSuccess={async (token, res) => {
           await onAuthSuccess?.(token, res);
+          setAuthOpen(false);
+          navigate("/", { replace: true });
         }}
       />
     </>

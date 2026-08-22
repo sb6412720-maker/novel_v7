@@ -1,17 +1,18 @@
 import { Link } from "react-router-dom";
 import { resolveAssetUrl } from "../api";
 
-export default function BookCard({ book, variant = "shelf" }) {
+export default function BookCard({ book, variant = "shelf", link = true }) {
   if (!book) return null;
   const cover = resolveAssetUrl(book.cover_path || book.coverPath || "");
   const rating = book.rating != null ? Number(book.rating).toFixed(1) : null;
   const tag = book.secondary_genre || book.genre || book.primary_genre || "";
   const to = `/stories/${book.id}`;
+  const className = `book-card book-card--${variant}`;
 
-  return (
-    <Link to={to} className={`book-card book-card--${variant}`}>
+  const body = (
+    <>
       <div className="book-cover-wrap">
-        {rating != null && !Number.isNaN(rating) && (
+        {rating != null && !Number.isNaN(rating) && variant !== "mini" && (
           <span className="rating-badge">
             <span className="star">★</span> {rating}
           </span>
@@ -34,6 +35,15 @@ export default function BookCard({ book, variant = "shelf" }) {
           {tag && variant === "shelf" ? <span className="book-tag-chip">{tag}</span> : null}
         </div>
       )}
+    </>
+  );
+
+  if (!link) {
+    return <div className={className}>{body}</div>;
+  }
+  return (
+    <Link to={to} className={className}>
+      {body}
     </Link>
   );
 }

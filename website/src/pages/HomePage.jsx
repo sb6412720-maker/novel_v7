@@ -170,7 +170,7 @@ export default function HomePage() {
                   <div className="rl-covers-grid">
                     {trending.slice(i % 4, (i % 4) + 4).map((b) => (
                       <div key={`${rl.name}-${b.id}`} className="rl-thumb">
-                        <BookCard book={b} variant="mini" />
+                        <BookCard book={b} variant="mini" link={false} />
                       </div>
                     ))}
                   </div>
@@ -236,7 +236,7 @@ export default function HomePage() {
               >
                 <div className="fandom-covers">
                   {trending.slice(0, 4).map((b) => (
-                    <BookCard key={`${f.name}-${b.id}`} book={b} variant="mini" />
+                    <BookCard key={`${f.name}-${b.id}`} book={b} variant="mini" link={false} />
                   ))}
                 </div>
                 <h3>{f.name}</h3>
