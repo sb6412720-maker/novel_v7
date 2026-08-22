@@ -68,13 +68,32 @@ export default function StoryEditorPage({ user }) {
       const prefer = activeId && ch.find((c) => String(c.id) === String(activeId));
       const pick = prefer || ch[0];
       setActiveId(pick.id);
-      setTitle(pick.title || "");
+      setTitle(pick.title || "Chapter 1");
       setContent(pick.content || "");
       setNotes(pick.notes || localStorage.getItem(`nh_notes_${pick.id}`) || "");
     } else {
-      setActiveId(null);
-      setTitle("");
-      setContent("");
+      // Inkitt creates Chapter 1 automatically for new stories
+      try {
+        const created = await createChapter(id, {
+          title: "Chapter 1",
+          content: "",
+          chapter_number: 1,
+          status_text: "Draft",
+        });
+        const res2 = await getWriteStory(id);
+        const ch2 = res2?.chapters || res2?.items || [];
+        setChapters(Array.isArray(ch2) ? ch2 : []);
+        const pick = ch2[0] || { id: created?.id || created?.chapter_id, title: "Chapter 1", content: "" };
+        setActiveId(pick.id);
+        setTitle(pick.title || "Chapter 1");
+        setContent(pick.content || "");
+        setNotes("");
+      } catch (ce) {
+        setActiveId(null);
+        setTitle("Chapter 1");
+        setContent("");
+        setMsg(String(ce.message || ce));
+      }
     }
   }
 

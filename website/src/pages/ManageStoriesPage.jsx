@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { createStory, getMyStories, resolveAssetUrl } from "../api";
+import { createChapter, createStory, getMyStories, resolveAssetUrl } from "../api";
 import { isGuestUser } from "../utils/guest";
 
 const SIDE_NAV = [
@@ -53,10 +53,21 @@ export default function ManageStoriesPage({ user }) {
         genre: "Romance",
       });
       const id = res?.id || res?.story_id || res?.item?.id;
-      if (id) navigate(`/write/${id}`);
-      else {
+      if (id) {
+        try {
+          await createChapter(id, {
+            title: "Chapter 1",
+            content: "",
+            chapter_number: 1,
+            status_text: "Draft",
+          });
+        } catch (_) {
+          /* chapter may be auto-created by backend */
+        }
+        navigate(`/write/${id}`);
+      } else {
         await load();
-        navigate("/write");
+        navigate("/manage-stories");
       }
     } catch (e) {
       setError(String(e.message || e));

@@ -94,7 +94,7 @@ export default function Header({ user, onLogout, onAuthSuccess }) {
                   {writeOpen && (
                     <div className="nav-dropdown-menu">
                       <Link
-                        to="/write"
+                        to="/manage-stories"
                         onClick={() => {
                           setWriteOpen(false);
                           setMenuOpen(false);
