@@ -1,34 +1,90 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { getMyStories, resolveAssetUrl } from "../api";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { createStory, getMyStories, resolveAssetUrl } from "../api";
 import { isGuestUser } from "../utils/guest";
+
+const SIDE_NAV = [
+  { id: "manage", label: "Manage Stories", to: "/manage-stories" },
+  { id: "analytics", label: "Analytics", soon: true },
+  { id: "subscribers", label: "Subscribers", soon: true },
+  { id: "subscription", label: "Manage Subscription", to: "/subscription" },
+  { id: "experiments", label: "Experiments", soon: true },
+];
 
 export default function ManageStoriesPage({ user }) {
   const guest = isGuestUser(user);
+  const navigate = useNavigate();
   const [tab, setTab] = useState("submitted");
   const [stories, setStories] = useState([]);
   const [q, setQ] = useState("");
+  const [sort, setSort] = useState("recent");
+  const [filter, setFilter] = useState("all");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
+
+  async function load() {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await getMyStories();
+      setStories(res?.items || res || []);
+    } catch (e) {
+      setError(String(e.message || e));
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (guest) return;
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      try {
-        const res = await getMyStories();
-        if (!cancelled) setStories(res?.items || res || []);
-      } catch (e) {
-        if (!cancelled) setError(String(e.message || e));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    load();
   }, [guest]);
+
+  async function onCreate() {
+    if (creating) return;
+    setCreating(true);
+    setError("");
+    try {
+      const res = await createStory({
+        title: "Untitled Story",
+        description: "",
+        status_text: "Draft",
+        genre: "Romance",
+      });
+      const id = res?.id || res?.story_id || res?.item?.id;
+      if (id) navigate(`/write/${id}`);
+      else {
+        await load();
+        navigate("/write");
+      }
+    } catch (e) {
+      setError(String(e.message || e));
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  const filtered = useMemo(() => {
+    let list = [...stories];
+    list = list.filter((s) => {
+      const status = String(s.status_text || s.status || "Published").toLowerCase();
+      const isDraft = status.includes("draft") || status === "draft";
+      if (tab === "drafts" && !isDraft) return false;
+      if (tab === "submitted" && isDraft) return false;
+      if (filter === "completed" && !s.is_completed) return false;
+      if (q && !String(s.title || "").toLowerCase().includes(q.toLowerCase())) return false;
+      return true;
+    });
+    if (sort === "title") {
+      list.sort((a, b) => String(a.title || "").localeCompare(String(b.title || "")));
+    } else if (sort === "rating") {
+      list.sort((a, b) => Number(b.rating || 0) - Number(a.rating || 0));
+    } else {
+      list.sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
+    }
+    return list;
+  }, [stories, tab, q, sort, filter]);
 
   if (guest) {
     return (
@@ -43,60 +99,86 @@ export default function ManageStoriesPage({ user }) {
     );
   }
 
-  const filtered = stories.filter((s) => {
-    const status = (s.status_text || "Published").toLowerCase();
-    const isDraft = status.includes("draft");
-    if (tab === "drafts" && !isDraft) return false;
-    if (tab === "submitted" && isDraft) return false;
-    if (q && !String(s.title || "").toLowerCase().includes(q.toLowerCase())) return false;
-    return true;
-  });
-
   return (
-    <div className="manage-stories-page">
-      <div className="manage-layout">
-        <aside className="manage-nav">
-          <Link className="manage-nav-item active" to="/manage-stories">
-            Manage Stories
-          </Link>
-          <span className="manage-nav-item disabled">Analytics</span>
-          <span className="manage-nav-item disabled">Subscribers</span>
-          <Link className="manage-nav-item" to="/write">
-            Write
-          </Link>
+    <div className="manage-page-inkitt">
+      <div className="manage-banner" aria-hidden />
+
+      <div className="manage-body">
+        <aside className="manage-side">
+          {SIDE_NAV.map((item) =>
+            item.soon ? (
+              <span key={item.id} className="manage-side-item muted">
+                {item.label}
+              </span>
+            ) : (
+              <Link
+                key={item.id}
+                to={item.to}
+                className={`manage-side-item ${item.id === "manage" ? "active" : ""}`}
+              >
+                {item.label}
+              </Link>
+            )
+          )}
         </aside>
 
-        <main className="manage-main">
-          <div className="manage-header">
-            <h1>Manage Stories</h1>
-            <Link className="btn btn-primary" to="/write">
-              CREATE NEW STORY
-            </Link>
+        <main className="manage-content">
+          <h1 className="manage-title">Manage Stories</h1>
+
+          <div className="streak-card">
+            <h3>Start your streak today</h3>
+            <p>
+              Your first writing session builds your chain. Looking forward to seeing it grow.{" "}
+              <Link to="/write">See All →</Link>
+            </p>
           </div>
 
-          <div className="manage-tabs">
-            <button
-              type="button"
-              className={tab === "submitted" ? "active" : ""}
-              onClick={() => setTab("submitted")}
-            >
-              Submitted
-            </button>
-            <button
-              type="button"
-              className={tab === "drafts" ? "active" : ""}
-              onClick={() => setTab("drafts")}
-            >
-              Drafts
+          <div className="manage-toolbar">
+            <div className="manage-tabs">
+              <button
+                type="button"
+                className={tab === "submitted" ? "active" : ""}
+                onClick={() => setTab("submitted")}
+              >
+                Submitted
+              </button>
+              <button
+                type="button"
+                className={tab === "drafts" ? "active" : ""}
+                onClick={() => setTab("drafts")}
+              >
+                Drafts
+              </button>
+            </div>
+            <button type="button" className="btn btn-primary create-story-btn" onClick={onCreate} disabled={creating}>
+              {creating ? "Creating…" : "CREATE NEW STORY"}
             </button>
           </div>
 
           <div className="manage-filters">
-            <input
-              placeholder="Search"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-            />
+            <label className="search-field">
+              <span>Search</span>
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search"
+              />
+            </label>
+            <label>
+              <span>Sort by</span>
+              <select value={sort} onChange={(e) => setSort(e.target.value)}>
+                <option value="recent">Recently updated</option>
+                <option value="title">Title</option>
+                <option value="rating">Rating</option>
+              </select>
+            </label>
+            <label>
+              <span>Filter by</span>
+              <select value={filter} onChange={(e) => setFilter(e.target.value)}>
+                <option value="all">All stories</option>
+                <option value="completed">Completed</option>
+              </select>
+            </label>
           </div>
 
           {error && <div className="error-banner">{error}</div>}
@@ -105,40 +187,52 @@ export default function ManageStoriesPage({ user }) {
           {!loading && filtered.length === 0 && (
             <div className="manage-empty">
               <div className="manage-empty-icon">📚</div>
-              <h3>No {tab === "drafts" ? "draft" : "submitted"} stories yet</h3>
-              <p className="meta">Once you submit a story, you’ll find it here.</p>
-              <Link className="btn btn-primary" to="/write">
+              <h3>{tab === "drafts" ? "No drafts yet" : "No submitted stories yet"}</h3>
+              <p>
+                {tab === "drafts"
+                  ? "Save a draft and it will appear here."
+                  : "Once you submit a story, you'll find it here."}
+              </p>
+              <button type="button" className="btn btn-primary" onClick={onCreate} disabled={creating}>
                 CREATE NEW STORY
-              </Link>
+              </button>
             </div>
           )}
 
-          <ul className="manage-story-list">
+          <div className="manage-story-grid">
             {filtered.map((s) => {
-              const cover = resolveAssetUrl(s.cover_path || "");
+              const cover = resolveAssetUrl(s.cover_path || s.coverPath || "");
               return (
-                <li key={s.id} className="manage-story-row">
-                  <div className="manage-cover">
-                    {cover ? <img src={cover} alt="" /> : <div className="cover-ph">{(s.title || "?")[0]}</div>}
-                  </div>
-                  <div className="manage-info">
-                    <h3>{s.title}</h3>
+                <article key={s.id} className="manage-story-card">
+                  <Link to={`/write/${s.id}`} className="manage-cover">
+                    {cover ? (
+                      <img src={cover} alt="" />
+                    ) : (
+                      <div className="manage-cover-ph" style={{ background: s.accent_hex || "#e5e7eb" }}>
+                        {(s.title || "?")[0]}
+                      </div>
+                    )}
+                  </Link>
+                  <div className="manage-story-meta">
+                    <Link to={`/write/${s.id}`}>
+                      <h3>{s.title || "Untitled"}</h3>
+                    </Link>
                     <p className="meta">
-                      {s.genre || "—"} · {s.status_text || "Published"}
+                      {s.status_text || "Published"} · {s.genre || s.primary_genre || "—"}
                     </p>
+                    <div className="manage-story-actions">
+                      <Link className="btn" to={`/write/${s.id}`}>
+                        Edit
+                      </Link>
+                      <Link className="btn" to={`/stories/${s.id}`}>
+                        View
+                      </Link>
+                    </div>
                   </div>
-                  <div className="manage-actions">
-                    <Link className="btn btn-primary" to={`/write/stories/${s.id}`}>
-                      Edit
-                    </Link>
-                    <Link className="btn" to={`/stories/${s.id}`}>
-                      View
-                    </Link>
-                  </div>
-                </li>
+                </article>
               );
             })}
-          </ul>
+          </div>
         </main>
       </div>
     </div>

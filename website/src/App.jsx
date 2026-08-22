@@ -87,6 +87,8 @@ export default function App() {
             <Route path="/authors/:authorId" element={<AuthorPage />} />
             <Route path="/library" element={<LibraryPage user={user} />} />
             <Route path="/write" element={<WritePage user={user} />} />
+            <Route path="/write/:storyId" element={<StoryEditorPage user={user} />} />
+            <Route path="/write/new" element={<StoryEditorPage user={user} />} />
             <Route path="/manage-stories" element={<ManageStoriesPage user={user} />} />
             <Route path="/write/stories/:storyId" element={<StoryEditorPage user={user} />} />
             <Route path="/login" element={<LoginPage onSuccess={handleLoginSuccess} />} />
