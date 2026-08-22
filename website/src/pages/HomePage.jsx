@@ -156,6 +156,29 @@ export default function HomePage() {
         </div>
       </section>
 
+      <section className="beyond-the-page">
+        <div className="beyond-inner">
+          <div className="beyond-copy">
+            <h2>BEYOND THE PAGE</h2>
+            <p className="beyond-sub">AUDIOBOOK CONTEST</p>
+            <p className="beyond-text">
+              Some stories are meant to be read. Others are meant to be heard — or even murmured
+              straight into a reader&apos;s ear. Some both!
+            </p>
+            <Link className="btn beyond-btn" to="/contests">
+              ENTER NOW
+            </Link>
+          </div>
+          <div className="beyond-prize">
+            <div className="prize-burst">
+              <span className="prize-label">1ST PLACE</span>
+              <span className="prize-amount">$1000</span>
+              <span className="prize-more">+MORE</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <Shelf title="Trending Stories" books={trending} seeAllTo="/discover" />
 
       {/* Reading Lists */}

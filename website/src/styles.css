@@ -2936,3 +2936,123 @@ img {
   border-color: #0d9488;
   color: #0d9488;
 }
+
+
+/* Write dropdown */
+.nav-dropdown { position: relative; display: inline-flex; align-items: center; }
+.nav-dropdown-btn {
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  padding: 8px 10px;
+  font-weight: 500;
+}
+.nav-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 240px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+  z-index: 50;
+  padding: 8px 0;
+}
+.nav-dropdown-menu a {
+  display: block;
+  padding: 10px 16px;
+  text-decoration: none;
+  color: #111;
+  font-size: 0.95rem;
+}
+.nav-dropdown-menu a:hover { background: #f3f4f6; }
+.nav-dropdown-menu hr {
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  margin: 6px 0;
+}
+
+/* Teal beyond the page banner */
+.beyond-the-page {
+  background: linear-gradient(90deg, #0d9488 0%, #14b8a6 40%, #2dd4bf 100%);
+  color: #fff;
+  padding: 28px 16px;
+}
+.beyond-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.beyond-copy h2 {
+  margin: 0;
+  font-size: clamp(1.5rem, 4vw, 2.4rem);
+  letter-spacing: 0.06em;
+  font-weight: 800;
+}
+.beyond-sub {
+  margin: 4px 0 10px;
+  font-weight: 700;
+  opacity: 0.95;
+  letter-spacing: 0.08em;
+}
+.beyond-text {
+  max-width: 420px;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  opacity: 0.95;
+}
+.beyond-btn {
+  display: inline-block;
+  margin-top: 12px;
+  background: #0f766e;
+  color: #fff;
+  border-radius: 8px;
+  padding: 10px 20px;
+  text-decoration: none;
+  font-weight: 700;
+}
+.prize-burst {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #5eead4, #0f766e);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+}
+.prize-label { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; }
+.prize-amount { font-size: 1.6rem; font-weight: 900; }
+.prize-more { font-size: 0.75rem; opacity: 0.9; }
+
+/* Galatea */
+.galatea-hero {
+  background: linear-gradient(180deg, #fdf2f8 0%, #fff 100%);
+  padding: 48px 16px;
+  text-align: center;
+}
+.galatea-kicker {
+  letter-spacing: 0.14em;
+  font-size: 0.8rem;
+  color: #be185d;
+  font-weight: 700;
+}
+.collection-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.collection-links a {
+  color: #0d9488;
+  text-decoration: none;
+  font-weight: 600;
+}

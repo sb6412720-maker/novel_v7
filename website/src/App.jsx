@@ -16,7 +16,8 @@ import ContestsPage from "./pages/ContestsPage";
 import CommunityPage from "./pages/CommunityPage";
 import AuthorPage from "./pages/AuthorPage";
 import ReviewPage from "./pages/ReviewPage";
-import PlaceholderPage from "./pages/PlaceholderPage";
+import GalateaPage from "./pages/GalateaPage";
+import SubscriptionPage from "./pages/SubscriptionPage";
 import AudiobooksPage from "./pages/AudiobooksPage";
 import { getMe, guestLogin, setToken, getToken, clearToken } from "./api";
 
@@ -92,24 +93,8 @@ export default function App() {
             <Route path="/community" element={<CommunityPage user={user} />} />
             <Route path="/contests" element={<ContestsPage user={user} />} />
 <Route path="/audiobooks" element={<AudiobooksPage />} />
-            <Route
-              path="/galatea"
-              element={
-                <PlaceholderPage
-                  title="Galatea"
-                  blurb="Premium reading partner page placeholder (Inkitt → Galatea)."
-                />
-              }
-            />
-            <Route
-              path="/subscription"
-              element={
-                <PlaceholderPage
-                  title="Author Subscription"
-                  blurb="Subscription program placeholder — billing can integrate later."
-                />
-              }
-            />
+            <Route path="/galatea" element={<GalateaPage />} />
+            <Route path="/subscription" element={<SubscriptionPage user={user} />} />
           </Routes>
         )}
       </main>
