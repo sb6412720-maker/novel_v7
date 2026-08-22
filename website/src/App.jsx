@@ -17,6 +17,7 @@ import CommunityPage from "./pages/CommunityPage";
 import AuthorPage from "./pages/AuthorPage";
 import ReviewPage from "./pages/ReviewPage";
 import PlaceholderPage from "./pages/PlaceholderPage";
+import AudiobooksPage from "./pages/AudiobooksPage";
 import { getMe, guestLogin, setToken, getToken, clearToken } from "./api";
 
 export default function App() {
@@ -90,15 +91,7 @@ export default function App() {
             <Route path="/login" element={<LoginPage onSuccess={handleLoginSuccess} />} />
             <Route path="/community" element={<CommunityPage user={user} />} />
             <Route path="/contests" element={<ContestsPage user={user} />} />
-            <Route
-              path="/audiobooks"
-              element={
-                <PlaceholderPage
-                  title="Audiobooks"
-                  blurb="Beta — same story catalog; audio files can attach later via uploads API."
-                />
-              }
-            />
+<Route path="/audiobooks" element={<AudiobooksPage />} />
             <Route
               path="/galatea"
               element={

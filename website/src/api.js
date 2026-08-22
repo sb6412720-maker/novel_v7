@@ -326,3 +326,38 @@ export function toggleChapterReaction(bookId, chapterNumber, label) {
     body: JSON.stringify({ label }),
   });
 }
+
+
+export function getContests() {
+  return request("/api/contests").catch(() => ({ items: [] }));
+}
+
+export function adminListContests() {
+  return request("/api/admin/contests");
+}
+
+export function adminCreateContest(payload) {
+  return request("/api/admin/contests", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function adminDeleteContest(id) {
+  return request(`/api/admin/contests/${id}`, { method: "DELETE" });
+}
+
+export function getPublicReadingLists() {
+  return request("/api/public/reading-lists").catch(() => ({ items: [] }));
+}
+
+export function toggleReadingListFollow(listId) {
+  return request(`/api/reading-lists/${listId}/follow`, {
+    method: "POST",
+    body: "{}",
+  });
+}
+
+export function getAudiobooks() {
+  return request("/api/audiobooks").catch(() => ({ items: [] }));
+}

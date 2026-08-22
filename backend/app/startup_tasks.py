@@ -288,6 +288,22 @@ def _apply_runtime_patches() -> None:
                 bump_content_version=getattr(main_mod, "bump_content_version", None),
             )
             LOGGER.info("Registered inkitt routes")
+
+        try:
+            from .inkitt_extra_routes import register_inkitt_extra_routes
+            from . import main as main_mod
+            register_inkitt_extra_routes(
+                main_mod.app,
+                require_user=main_mod.require_user,
+                fetch_all=main_mod.fetch_all,
+                execute_write=main_mod.execute_write,
+                LOGGER=LOGGER,
+                USE_SQLITE=USE_SQLITE,
+            )
+            LOGGER.info("Registered inkitt extra routes (contests, list follow, audiobooks)")
+        except Exception as extra_exc:
+            LOGGER.warning("inkitt extra routes not registered: %s", extra_exc)
+
         except Exception as inkitt_exc:
             LOGGER.warning("Inkitt routes not registered: %s", inkitt_exc)
 

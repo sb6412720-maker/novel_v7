@@ -6,105 +6,103 @@ from typing import Any
 
 LOGGER = logging.getLogger(__name__)
 
-# Reuse existing cover files from the project seed set (rotated).
-_C = [
-    "story_card_images/c1a4b2d2-7ba9-44ea-9ea9-81873119a8ec.jpg",
-    "story_card_images/cf12c459-4fe5-4725-8ca0-01f42b898d21.jpg",
-    "story_card_images/d1a0655f-892d-4603-919f-92cdf779dae7.jpg",
-    "story_card_images/d7728b65-7fcc-45cc-bfb2-38a47dfea216.jpg",
-    "story_card_images/d55997d3-bc48-43a1-a42e-d004598104d0.jpg",
-    "story_card_images/dc335f4a-9cf3-498d-8c27-5addd0cb15cf.jpg",
-    "story_card_images/dc499710-91bd-4dae-8d0c-145faa5345e2.jpg",
-    "story_card_images/de52e8d5-1a1c-43b2-8752-70582d3e6c94.jpg",
-    "story_card_images/e65f5659-9564-4623-b4c6-a5c37cb4aa5e.jpg",
-    "story_card_images/fdc309b2-20b4-4966-8293-9db4532dd8e3.jpg",
-    "story_card_images/8de846ae-c1cc-4e8b-a52e-e8aa48b6abb1.jpg",
-    "story_card_images/6290b4c8-83e9-4d5d-a740-06d4ec94d335.jpg",
+# Filenames that map to /uploads/<file> (same names as story_card_images assets).
+_COVER_FILES = [
+    "c1a4b2d2-7ba9-44ea-9ea9-81873119a8ec.jpg",
+    "cf12c459-4fe5-4725-8ca0-01f42b898d21.jpg",
+    "d1a0655f-892d-4603-919f-92cdf779dae7.jpg",
+    "d7728b65-7fcc-45cc-bfb2-38a47dfea216.jpg",
+    "d55997d3-bc48-43a1-a42e-d004598104d0.jpg",
+    "dc335f4a-9cf3-498d-8c27-5addd0cb15cf.jpg",
+    "dc499710-91bd-4dae-8d0c-145faa5345e2.jpg",
+    "de52e8d5-1a1c-43b2-8752-70582d3e6c94.jpg",
+    "e65f5659-9564-4623-b4c6-a5c37cb4aa5e.jpg",
+    "fdc309b2-20b4-4966-8293-9db4532dd8e3.jpg",
+    "8de846ae-c1cc-4e8b-a52e-e8aa48b6abb1.jpg",
+    "6290b4c8-83e9-4d5d-a740-06d4ec94d335.jpg",
+    "4463cfc125314397830f91dc63b79d05.jpg",
+    "006575b1-f6b5-49b2-b3a4-6a9ef1a1e02e.jpg",
+    "3306c2bd5ab844c3afe1e695b3c1e261.jpg",
+    "7d7d5cc8-5b0a-4821-9e57-3f58c36998b0.jpg",
+    "6a5c2a85-2d8c-498d-9153-1d72ec4005e4.jpg",
+    "04d68518-aafb-497e-995e-10bc6e4bef90.jpg",
+    "0d88ca6e-bdb9-4d45-b7f4-013f0ef843e5.jpg",
+    "19eb26e8-6ee4-4010-8848-8f5779f602dd.jpg",
 ]
 
+
 def _c(i: int) -> str:
-    return _C[i % len(_C)]
+    """Always store public URL path so Flutter/web resolve via /uploads/."""
+    return f"/uploads/{_COVER_FILES[i % len(_COVER_FILES)]}"
 
 
 # title, author, description, cover, accent, section, status, rating, genre, secondary, sort, completed
 INKITT_BOOKS: list[tuple] = [
-    # Contemporary Romance
     ("Rebuilding After Betrayal", "CosmicChaos", "After everything fell apart, she learns how to trust again.", _c(0), "#c45c6a", "trending", "Published", 4.9, "Contemporary Romance", "Drama", 1, 0),
     ("The Easter Bunny", "Michele Dixon", "A single dad, a holiday miracle, and a second chance.", _c(1), "#e8a0b0", "trending", "Published", 4.7, "Contemporary Romance", "Love", 2, 0),
     ("Buried Alive", "CosmicChaos", "Secrets buried for years surface when the past returns.", _c(2), "#6b4c7a", "trending", "Published", 4.7, "Contemporary Romance", "Suspense", 3, 0),
     ("Marked By His Touch", "Ava Reed", "One touch and her carefully built walls begin to crack.", _c(3), "#1a1a2e", "trending", "Published", 4.5, "Contemporary Romance", "Sex", 4, 0),
     ("The Boss Before Feelings", "Nensha Jennifer", "Office rules were simple—until he became more than her boss.", _c(4), "#2c3e50", "trending", "Published", 4.4, "Contemporary Romance", "Love", 5, 0),
     ("Full Volume", "Anne-Marie", "Music, rivalry, and a love that refuses to stay quiet.", _c(5), "#3498db", "trending", "Published", 4.7, "Contemporary Romance", "Drama", 6, 0),
-    ("Hit and Run", "Uxcutc", "A chance collision that changes both of their lives.", _c(6), "#e67e22", "trending", "Published", 4.9, "Contemporary Romance", "Romance", 7, 0),
-    ("Married by Fate", "Alice", "A marriage of convenience that becomes something real.", _c(7), "#f5d0c5", "trending", "Published", 4.9, "Contemporary Romance", "Sex", 8, 0),
-    ("If You'd Chosen Me", "AuthorAcacia", "She was always second—until someone finally chose her first.", _c(8), "#f8e9a1", "trending", "Published", 5.0, "Contemporary Romance", "Unrequited Love", 9, 0),
-    # Dark Romance
-    ("What We Never Healed", "Ava Reed", "Two years ago he chose his career. Fate brings them back together.", _c(9), "#8b0000", "trending", "Published", 4.7, "Dark Romance", "Alpha", 10, 1),
-    ("Half-Claimed", "Elle Harper Hayden", "An alpha twins revenge that blurs the line between hate and desire.", _c(10), "#4a0e4e", "trending", "Published", 4.7, "Dark Romance", "Werewolf", 11, 0),
-    ("THE WOMAN HE BOUGHT", "The Secret Chapter", "Bought as leverage. Kept for reasons he refuses to name.", _c(11), "#2d1b1b", "trending", "Published", 4.2, "Dark Romance", "Revenge", 12, 0),
-    ("His Brother's Mate", "Drowned Abyss", "The wrong brother. The right bond. Forbidden from the start.", _c(0), "#1c1c1c", "trending", "Published", 4.8, "Dark Romance", "Werewolf", 13, 0),
-    ("THE BLOOD DEBT", "Alice", "A debt paid in blood—and something far more intimate.", _c(1), "#5c0000", "trending", "Published", 4.8, "Dark Romance", "Death", 14, 0),
-    ("The Golden Cage", "Tara", "Luxury was the cage. He was the lock.", _c(2), "#c9a227", "trending", "Published", 5.0, "Dark Romance", "Love", 15, 0),
-    ("Let me Hate you", "Anjaani Sadek", "Hate was safer than falling for him again.", _c(3), "#3d0c11", "trending", "Published", 4.8, "Dark Romance", "Dominantmale", 16, 0),
-    ("Book One: Rejecting My Ruthless Alpha Mate", "Amal A. Usman", "She rejected him once. He never forgot.", _c(4), "#0f0f0f", "trending", "Published", 4.6, "Dark Romance", "Love", 17, 0),
-    # Thriller
-    ("Warrior Wolves, M.C.", "topperjoslin", "An MC thriller where loyalty cuts deeper than steel.", _c(5), "#2c3e50", "recently_updated", "Published", 4.8, "Thriller", "Slow Burn", 18, 0),
-    ("The Pack - On the Run (unedited)", "Marcy", "On the run from a pack that wants her silenced.", _c(6), "#34495e", "recently_updated", "Published", 4.4, "Thriller", "Suspense", 19, 0),
-    ("Vampire's Pet", "Cannon", "Captured. Claimed. Learning to survive as his pet.", _c(7), "#1a0000", "recently_updated", "Published", 4.8, "Thriller", "Vampire", 20, 0),
-    ("Property of Sin", "LizetteCombrinck", "Steel & Sin MC—property means protection, and possession.", _c(8), "#4a3728", "recently_updated", "Published", 4.2, "Thriller", "Mc Romance", 21, 0),
-    ("Poor Little Rich Girl", "topperjoslin", "Money couldn't buy her freedom—or his mercy.", _c(9), "#d4af37", "recently_updated", "Published", 4.9, "Thriller", "Suspense", 22, 0),
-    ("His Accidental Billion-Dollar Bride", "Serena B. Vale", "One mistake, one marriage, one empire on the line.", _c(10), "#ecf0f1", "recently_updated", "Published", 4.7, "Thriller", "Love Story", 23, 0),
-    ("My 21 Brothers", "I_Am_Weird69", "Twenty-one protectors. One secret she can't keep.", _c(11), "#7f8c8d", "recently_updated", "Published", 4.7, "Thriller", "Mafia", 24, 0),
-    ("Furry Humans", "Jariah Weaver", "When the line between human and beast disappears.", _c(0), "#27ae60", "recently_updated", "Published", 4.7, "Thriller", "History", 25, 0),
-    # Sci-Fi
-    ("A Lab Rat and her Alien", "E_L_B_SMITH", "She was the experiment. He was the escape.", _c(1), "#16a085", "recently_completed", "Published", 4.9, "Sci-Fi", "Romance", 26, 0),
-    ("A Different Species", "biancapv", "Humanity was never the only species watching.", _c(2), "#2980b9", "recently_completed", "Published", 4.7, "Sci-Fi", "Science Fantasy", 27, 0),
-    ("Furry Humans: Origins", "Jariah Weaver", "Before the world knew, the change had already begun.", _c(3), "#8e44ad", "recently_completed", "Published", 4.7, "Sci-Fi", "History", 28, 0),
-    ("Twin Hearts", "Leslee Kahler", "Two souls, one fate, across the stars.", _c(4), "#e74c3c", "recently_completed", "Published", 4.9, "Sci-Fi", "Love", 29, 0),
-    ("Wrench's Girl", "sjwilke", "Grease, grit, and a girl who refuses to be left behind.", _c(5), "#f39c12", "recently_completed", "Published", 4.5, "Sci-Fi", "Romance", 30, 0),
-    ("Her Gift", "Kara Elle", "A power she never asked for—and a war that needs it.", _c(6), "#c0392b", "recently_completed", "Published", 4.8, "Sci-Fi", "Mature", 31, 0),
-    ("The Lost Alpha", "siarra22", "An alpha without a pack. A world without rules.", _c(7), "#2c3e50", "recently_completed", "Published", 4.6, "Sci-Fi", "Werewolf", 32, 0),
-    ("The Guardian: A Journey Begins", "E.J. Wedge", "Mountains, monsters, and a guardian's first trial.", _c(8), "#1abc9c", "recently_completed", "Published", 4.6, "Sci-Fi", "Friendship", 33, 0),
-    ("Gloom (complete)", "icyandotheremotions", "When the light goes out, something else wakes up.", _c(9), "#0d0d0d", "recently_completed", "Completed", 4.8, "Sci-Fi", "Monster", 34, 1),
-    # LGBTQ+
-    ("Yours Anyway", "Kex Harper", "He was never supposed to fall—for him.", _c(10), "#e91e63", "trending", "Published", 4.8, "LGBTQ+", "Gaydrama", 35, 0),
-    ("Poisoned Light", "Magnus_K", "Light that heals. Poison that binds.", _c(11), "#9b59b6", "trending", "Published", 4.6, "LGBTQ+", "Lgbt", 36, 0),
-    ("Acceptance", "AstridCross", "Learning to accept himself—and the one who already did.", _c(0), "#34495e", "trending", "Published", 4.8, "LGBTQ+", "Smut", 37, 0),
-    ("High School Boys", "AJ Wylder", "Senior year secrets and a love they can't name yet.", _c(1), "#e74c3c", "trending", "Published", 4.8, "LGBTQ+", "Love", 38, 0),
-    ("Truck Stop", "poppingdaisies", "A roadside stop that changes the map of his heart.", _c(2), "#f1c40f", "trending", "Published", 4.9, "LGBTQ+", "Anxiety", 39, 0),
-    ("No One Told Me My Rival Was My Fated Mate", "Rose Heart", "Rivals on the court. Mates by fate.", _c(3), "#3498db", "trending", "Published", 5.0, "LGBTQ+", "Love", 40, 0),
-    ("The Wingman Who Fell First", "Aurora G", "He was only supposed to help—until he fell.", _c(4), "#1abc9c", "trending", "Published", 5.0, "LGBTQ+", "Mature", 41, 0),
-    ("Want You, Hate You", "Written_By_Nate", "Hate was the mask. Want was the truth.", _c(5), "#e67e22", "trending", "Published", 4.5, "LGBTQ+", "Slowburnromance", 42, 0),
-    ("STUCK with YOU", "Hitsy", "Stuck together. Falling apart. Falling in love.", _c(6), "#2c3e50", "trending", "Published", 5.0, "LGBTQ+", "Romance", 43, 0),
-    # Werewolves & Shifters
-    ("The Alpha's Exiled Mate", "Amal A. Usman", "Exiled from the pack, claimed by the one who banished her.", _c(7), "#5d4e37", "trending", "Published", 4.4, "Werewolves & Shifters", "Werewolf", 44, 0),
-    ("Moonbound Hearts", "Luna Vale", "Every full moon pulls them closer to the truth.", _c(8), "#4a5568", "trending", "Published", 4.8, "Werewolves & Shifters", "Romance", 45, 0),
-    ("The Whitefortis Alpha", "Pack Lore", "An alpha without mercy—until she arrived.", _c(9), "#2d3748", "trending", "Published", 4.8, "Werewolves & Shifters", "Alpha", 46, 0),
-    ("Heart of the Moon", "Silver Fang", "The moon chose her. The pack disagreed.", _c(10), "#718096", "trending", "Published", 4.9, "Werewolves & Shifters", "Love", 47, 0),
-    ("The Grizzly's Unintended Guest", "Northern Wilds", "A cabin in the woods. A shifter who doesn't share.", _c(11), "#553c2a", "trending", "Published", 5.0, "Werewolves & Shifters", "Bear", 48, 0),
-    # Fantasy
-    ("Goddess Tamer", "Ari Nova", "A reborn hero must tame a dangerous goddess.", _c(0), "#7F74C1", "recently_completed", "Completed", 4.9, "Fantasy", "Adventure", 49, 1),
-    ("Avengard: The Fall of Senvia", "R. Den", "Two survivors chase a stolen voice across a drowned empire.", _c(1), "#6A8DB5", "recently_updated", "Published", 4.3, "Fantasy", "Romance", 50, 0),
-    ("River (Revised version)", "Lola Grant", "Deeper character arcs in a historical fantasy world.", _c(2), "#8DB7C8", "recently_updated", "Published", 4.5, "Fantasy", "Drama", 51, 0),
-    # Horror / Mystery
-    ("Misery's Chosen", "I. Falon", "A shadowed figure with glowing eyes on a stormy night.", _c(3), "#4A4A62", "recently_completed", "Completed", 4.8, "Horror", "Mystery", 52, 1),
-    ("Diary Of Nobody", "K. Haze", "Pages no one was meant to read.", _c(4), "#7D6A5A", "recently_updated", "Published", 4.1, "Poetry", "Drama", 53, 0),
+    ("Hit and Run", "Uxcutc", "A chance collision that changes both of their lives.", _c(6), "#e67e22", "trending", "Published", 4.9, "Contemporary Romance", "Romantic Comedy", 7, 0),
+    ("If You'd Chosen Me", "AuthorAcacia", "What if she had said yes the first time?", _c(7), "#9b59b6", "trending", "Published", 4.8, "Contemporary Romance", "Love", 8, 0),
+    ("Married by Fate", "Alice", "An arranged marriage becomes something real.", _c(8), "#16a085", "trending", "Published", 4.9, "Contemporary Romance", "Drama", 9, 0),
+    ("What We Never Healed", "Ava Reed", "Two years later, fate brings them back together.", _c(9), "#8e44ad", "trending", "Published", 4.6, "Contemporary Romance", "Office Romance", 10, 1),
+    ("Half-Claimed", "Elle Harper Hayden", "The alpha's claim was only half the story.", _c(10), "#2c1654", "trending", "Published", 4.8, "Werewolves & Shifters", "Werewolves", 11, 0),
+    ("THE WOMAN HE BOUGHT", "The Secret Chapter", "He bought her contract. She stole his heart.", _c(11), "#1a1a1a", "trending", "Published", 4.2, "Dark Romance", "Ceo", 12, 0),
+    ("The Alpha's Exiled Mate", "Amal A. Usman", "Exiled from the pack, claimed by destiny.", _c(12), "#4a3728", "trending", "Published", 4.4, "Werewolves & Shifters", "Alpha", 13, 0),
+    ("Property of Sin", "Lizette Combrinck", "Steel & Sin MC. Book 1.", _c(13), "#c0392b", "trending", "Published", 4.2, "Thriller", "Forced Proximity", 14, 0),
+    ("Vampire's Pet", "Cannon", "She was never meant to be his pet.", _c(14), "#7b241c", "trending", "Published", 4.8, "Thriller", "Vampire", 15, 0),
+    ("His Accidental Billion-Dollar Bride", "Serena B. Vale", "One paperwork error. One very real marriage.", _c(15), "#1c2833", "trending", "Published", 4.7, "Thriller", "Love", 16, 0),
+    ("Poor Little Rich Girl", "topperjoslin", "Money couldn't buy the one thing she needed.", _c(16), "#5d6d7e", "trending", "Published", 4.9, "Thriller", "Drama", 17, 0),
+    ("My 21 Brothers", "I_Am_Weird69", "A family secret twenty-one brothers strong.", _c(17), "#f5b041", "trending", "Published", 4.7, "Thriller", "Family", 18, 0),
+    ("Furry Humans", "Jariah Weaver", "When the full moon rises, so does the truth.", _c(18), "#1b2631", "trending", "Published", 4.7, "Thriller", "Completed", 19, 1),
+    ("Unwanted Twin", "Ree", "The twin they tried to forget.", _c(19), "#17202a", "trending", "Published", 4.7, "Thriller", "Italian Mafia", 20, 0),
+    ("A Lab Rat and her Alien", "Nova K", "Science never prepared her for him.", _c(0), "#1abc9c", "recently_updated", "Published", 4.6, "Sci-Fi", "Alien", 21, 0),
+    ("A Different Species", "StarWriter", "Between two worlds, only one truth remains.", _c(1), "#2980b9", "recently_updated", "Published", 4.5, "Sci-Fi", "Romance", 22, 0),
+    ("Love Beyond Stars", "GalaxyPen", "Light-years apart was never enough to stop them.", _c(2), "#8e44ad", "recently_updated", "Published", 4.8, "Sci-Fi", "Love", 23, 0),
+    ("Dark Claim", "NightInk", "He claimed her in the dark—and she claimed him back.", _c(3), "#1a1a1a", "recently_updated", "Published", 4.7, "Dark Romance", "Possessive", 24, 0),
+    ("Forbidden Ink", "ScarletPage", "Every mark on her skin told a secret.", _c(4), "#922b21", "recently_updated", "Published", 4.6, "Dark Romance", "Tattoo", 25, 0),
+    ("Rainbow Bound", "PrideQuill", "Love has every color—and every risk.", _c(5), "#e91e63", "recently_updated", "Published", 4.9, "LGBTQ+", "Romance", 26, 0),
+    ("His Secret", "TrueNorth", "Coming out was only the beginning.", _c(6), "#3498db", "recently_updated", "Published", 4.5, "LGBTQ+", "Drama", 27, 0),
+    ("Moonbound Heart", "PackTales", "The mate bond never lies.", _c(7), "#4a235a", "recently_updated", "Published", 4.8, "Werewolves & Shifters", "Mate", 28, 0),
+    ("Alpha's Second Chance", "WolfMoon", "Rejected once. Chosen forever.", _c(8), "#6c3483", "recently_updated", "Published", 4.7, "Werewolves & Shifters", "Alpha", 29, 0),
+    ("Shadow Pack", "LunaWrite", "Not all packs are born of blood.", _c(9), "#1c2833", "recently_updated", "Published", 4.4, "Werewolves & Shifters", "Pack", 30, 0),
+    ("His Dark Forever", "Mai-Dee", "Some love stories last a thousand nights.", _c(10), "#2c3e50", "featured", "Published", 5.0, "Romance", "Love Story", 31, 0),
+    ("Her Obsessed Stepbrother", "Annie", "Obsession was never supposed to feel this right.", _c(11), "#7d3c98", "featured", "Published", 5.0, "Dark Romance", "Dark", 32, 0),
+    ("A Little Less Room", "Paul Wolfe", "A short story about space, silence, and staying.", _c(12), "#1a252f", "featured", "Published", 4.8, "Drama", "Dark", 33, 0),
+    ("Please Stay on the Line", "Paul Wolfe", "Sometimes all someone needs is a voice.", _c(13), "#17202a", "featured", "Published", 4.9, "Thriller", "Suspense", 34, 0),
+    ("YOUTH NOVELL - MORE THAN FRIENDS", "VulcanoJesse", "High school was never just high school.", _c(14), "#f39c12", "featured", "Published", 4.7, "Young Adult", "Friendship", 35, 0),
+    ("The Pack - On the Run", "Marcy", "Hunted. United. Unbroken.", _c(15), "#5d6d7e", "featured", "Published", 4.4, "Thriller", "Mystery/Sci Fi", 36, 0),
+    ("The Golden Cage", "Tara", "Luxury was the trap.", _c(16), "#1c2833", "featured", "Published", 5.0, "Thriller", "Stalker", 37, 0),
+    ("Diary Of Nobody", "K. Haze", "Pages no one was meant to read.", _c(17), "#7D6A5A", "recently_completed", "Completed", 4.1, "Poetry", "Drama", 38, 1),
+    ("Warrior Wolves, M.C.", "Lexi Melton", "Brothers by oath. Warriors by blood.", _c(18), "#4A4A62", "recently_completed", "Completed", 4.8, "Thriller", "MC", 39, 1),
+    ("Love in Full Color", "Contest Winner", "Every kind of love, every kind of story.", _c(19), "#ff00cc", "trending", "Published", 4.9, "Romance", "Contest", 40, 0),
 ]
 
 INKITT_READING_LISTS = [
     ("Finished Reading", "PhoenixWerewolf", 13),
-    ("Completed", "I'm_just_here", 10),
     ("Heart Breaking", "Jasmine N", 8),
     ("Mafia", "Anjola", 11),
-    ("Favs", "abcya", 39),
-    ("Vampire", "Gillian", 10),
     ("Update?", "abcya", 26),
+    ("Mine", "Debbie Waters", 13),
+    ("Fantasy", "Therese Simek", 10),
+    ("Vampire", "Gillian", 10),
+]
+
+INKITT_CONTESTS = [
+    ("Love in Full Color", "Every kind of love, every kind of story. Writing Contest 2026.", "Open entry", 1, 1),
+    ("Beyond the Page Audiobook Contest", "Some stories are meant to be heard. 1st place $1000.", "Open entry", 1, 0),
+    ("Dark Romance Challenge", "Forbidden love, tension, and second chances.", "Open entry", 1, 0),
+    ("Myth Weaver", "Mythology-inspired romance or drama.", "Open entry", 1, 0),
 ]
 
 
 def ensure_inkitt_catalog(execute_write, fetch_all, USE_SQLITE: bool) -> dict[str, Any]:
-    """Insert missing Inkitt catalog books. Idempotent by title."""
+    """Insert missing books, normalize covers, seed lists + contests."""
     added = 0
+    covers_fixed = 0
+
     for (
         title,
         author,
@@ -120,8 +118,24 @@ def ensure_inkitt_catalog(execute_write, fetch_all, USE_SQLITE: bool) -> dict[st
         is_completed,
     ) in INKITT_BOOKS:
         try:
-            rows = fetch_all("SELECT id FROM books WHERE title=%s LIMIT 1", (title,))
+            rows = fetch_all("SELECT id, cover_path FROM books WHERE title=%s LIMIT 1", (title,))
             if rows:
+                # Fix legacy cover paths to /uploads/...
+                row = rows[0]
+                existing = ""
+                if isinstance(row, dict):
+                    existing = str(row.get("cover_path") or "")
+                    book_id = row.get("id")
+                else:
+                    book_id = row[0]
+                    existing = str(row[1] if len(row) > 1 else "")
+                if existing and not existing.startswith(("/uploads/", "http")):
+                    fname = existing.split("/")[-1]
+                    execute_write(
+                        "UPDATE books SET cover_path=%s WHERE id=%s",
+                        (f"/uploads/{fname}", book_id),
+                    )
+                    covers_fixed += 1
                 continue
             execute_write(
                 """
@@ -151,6 +165,66 @@ def ensure_inkitt_catalog(execute_write, fetch_all, USE_SQLITE: bool) -> dict[st
         except Exception as exc:
             LOGGER.warning("inkitt seed book failed %s: %s", title, exc)
 
-    # Optional public reading-list-style categories as books already cover genres
-    LOGGER.info("inkitt_seed: added %s books", added)
-    return {"books_added": added, "catalog_size": len(INKITT_BOOKS)}
+    # Normalize any remaining non-/uploads covers project-wide (best effort)
+    try:
+        bad = fetch_all(
+            "SELECT id, cover_path FROM books WHERE cover_path IS NOT NULL AND cover_path != '' AND cover_path NOT LIKE '/uploads/%%' AND cover_path NOT LIKE 'http%%' LIMIT 200"
+        )
+        for row in bad or []:
+            if isinstance(row, dict):
+                bid, cp = row.get("id"), str(row.get("cover_path") or "")
+            else:
+                bid, cp = row[0], str(row[1] if len(row) > 1 else "")
+            if not cp:
+                continue
+            fname = cp.split("/")[-1]
+            if fname:
+                execute_write("UPDATE books SET cover_path=%s WHERE id=%s", (f"/uploads/{fname}", bid))
+                covers_fixed += 1
+    except Exception as exc:
+        LOGGER.warning("cover normalize pass failed: %s", exc)
+
+    lists_added = 0
+    try:
+        for name, owner, count in INKITT_READING_LISTS:
+            exists = fetch_all("SELECT id FROM reading_lists WHERE name=%s LIMIT 1", (name,))
+            if exists:
+                continue
+            execute_write(
+                """
+                INSERT INTO reading_lists (user_id, profile_id, name, story_count, cover_path, sort_order)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """,
+                (None, None, name, int(count), _c(lists_added), lists_added),
+            )
+            lists_added += 1
+    except Exception as exc:
+        LOGGER.warning("reading list seed failed: %s", exc)
+
+    contests_added = 0
+    try:
+        # Table may be created by contests module; try insert
+        for title, theme, deadline, active, neon in INKITT_CONTESTS:
+            exists = fetch_all("SELECT id FROM contests WHERE title=%s LIMIT 1", (title,))
+            if exists:
+                continue
+            execute_write(
+                """
+                INSERT INTO contests (title, theme, deadline, is_active, is_neon)
+                VALUES (%s, %s, %s, %s, %s)
+                """,
+                (title, theme, deadline, int(active), int(neon)),
+            )
+            contests_added += 1
+    except Exception as exc:
+        LOGGER.warning("contest seed deferred (table may not exist yet): %s", exc)
+
+    result = {
+        "books_added": added,
+        "covers_fixed": covers_fixed,
+        "lists_added": lists_added,
+        "contests_added": contests_added,
+        "catalog_size": len(INKITT_BOOKS),
+    }
+    LOGGER.info("inkitt_seed: %s", result)
+    return result

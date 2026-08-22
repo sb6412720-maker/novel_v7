@@ -2897,3 +2897,42 @@ img {
   font-size: 0.9rem;
   margin: 12px 0;
 }
+
+
+.audiobook-hero {
+  background: linear-gradient(180deg, #e8f8f5 0%, #ffffff 100%);
+  padding: 48px 16px 32px;
+  text-align: center;
+}
+.audiobook-hero h1 {
+  font-size: clamp(2rem, 5vw, 3rem);
+  margin: 8px 0;
+  letter-spacing: 0.04em;
+}
+.ab-icon { font-size: 3rem; }
+.audiobook-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 20px;
+  padding-bottom: 40px;
+}
+.ab-listen {
+  display: block;
+  margin-top: 8px;
+  text-align: center;
+  font-size: 0.85rem;
+  padding: 8px;
+}
+.btn-follow-outline {
+  border: 1px solid #d1d5db;
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 16px;
+  cursor: pointer;
+  font: inherit;
+  margin-top: 6px;
+}
+.btn-follow-outline:hover {
+  border-color: #0d9488;
+  color: #0d9488;
+}

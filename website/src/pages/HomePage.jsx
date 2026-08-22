@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import BookCard from "../components/BookCard";
 import PhoneMockup from "../components/PhoneMockup";
 import Shelf from "../components/Shelf";
-import { getBootstrap } from "../api";
+import { getBootstrap, getPublicReadingLists, getToken, resolveAssetUrl, toggleReadingListFollow } from "../api";
 
 const GENRE_PILLS = [
   "Romance",
@@ -68,6 +68,8 @@ export default function HomePage() {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [readingLists, setReadingLists] = useState([]);
+  const [followMsg, setFollowMsg] = useState("");
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -75,8 +77,14 @@ export default function HomePage() {
     (async () => {
       setLoading(true);
       try {
-        const boot = await getBootstrap();
-        if (!cancelled) setData(boot);
+        const [boot, lists] = await Promise.all([
+          getBootstrap(),
+          getPublicReadingLists().catch(() => ({ items: [] })),
+        ]);
+        if (!cancelled) {
+          setData(boot);
+          setReadingLists(lists?.items || []);
+        }
       } catch (e) {
         if (!cancelled) setError(String(e.message || e));
       } finally {
@@ -155,30 +163,61 @@ export default function HomePage() {
         <div className="shelf-inner">
           <div className="shelf-header">
             <h2>Reading Lists</h2>
+            {followMsg ? <span className="meta">{followMsg}</span> : null}
           </div>
           <div className="shelf-track-wrap">
             <div className="shelf-track reading-list-track">
-              {[
-                { name: "Finished Reading", by: "PhoenixWerewolf", n: 13 },
-                { name: "Heart Breaking", by: "Jasmine N", n: 8 },
-                { name: "Mafia", by: "Anjola", n: 11 },
-                { name: "Update?", by: "abcya", n: 26 },
-                { name: "Mine", by: "Debbie Waters", n: 13 },
-                { name: "Fantasy", by: "Therese Simek", n: 10 },
-              ].map((rl, i) => (
-                <div key={rl.name} className="reading-list-card">
+              {(readingLists.length
+                ? readingLists
+                : [
+                    { id: null, name: "Finished Reading", story_count: 13, owner_name: "Community", covers: [] },
+                    { id: null, name: "Heart Breaking", story_count: 8, owner_name: "Community", covers: [] },
+                  ]
+              ).map((rl, i) => (
+                <div key={rl.id || rl.name} className="reading-list-card">
                   <div className="rl-covers-grid">
-                    {trending.slice(i % 4, (i % 4) + 4).map((b) => (
-                      <div key={`${rl.name}-${b.id}`} className="rl-thumb">
-                        <BookCard book={b} variant="mini" link={false} />
-                      </div>
-                    ))}
+                    {(rl.covers && rl.covers.length
+                      ? rl.covers
+                      : trending.slice(i % 4, (i % 4) + 4).map((b) => b.cover_path)
+                    )
+                      .slice(0, 4)
+                      .map((cp, j) => {
+                        const src = typeof cp === "string" ? resolveAssetUrl(cp) : "";
+                        return (
+                          <div key={j} className="rl-thumb">
+                            {src ? (
+                              <img src={src} alt="" className="book-cover" style={{ height: 68, width: "100%", objectFit: "cover", borderRadius: 3 }} />
+                            ) : (
+                              <div className="book-cover book-cover--fallback" style={{ height: 68, background: "#e5e7eb" }} />
+                            )}
+                          </div>
+                        );
+                      })}
                   </div>
                   <h3>{rl.name}</h3>
                   <p className="meta">
-                    {rl.n} stories · by {rl.by}
+                    {rl.story_count || 0} stories · by {rl.owner_name || "Community"}
                   </p>
-                  <button type="button" className="btn-follow-outline">
+                  <button
+                    type="button"
+                    className="btn-follow-outline"
+                    onClick={async () => {
+                      if (!rl.id) {
+                        setFollowMsg("List not in DB yet — restart backend seed");
+                        return;
+                      }
+                      if (!getToken()) {
+                        setFollowMsg("Sign in to follow lists");
+                        return;
+                      }
+                      try {
+                        const res = await toggleReadingListFollow(rl.id);
+                        setFollowMsg(res?.following ? `Following ${rl.name}` : `Unfollowed ${rl.name}`);
+                      } catch (e) {
+                        setFollowMsg(String(e.message || e));
+                      }
+                    }}
+                  >
                     Follow
                   </button>
                 </div>

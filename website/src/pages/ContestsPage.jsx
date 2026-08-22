@@ -1,94 +1,72 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import {
+  adminCreateContest,
+  adminDeleteContest,
+  getContests,
+  getToken,
+} from "../api";
 import { isGuestUser } from "../utils/guest";
 
-const STORAGE_KEY = "novelhub_contests_v1";
-
-const DEFAULTS = [
-  {
-    id: "1",
-    title: "Love in Full Color",
-    theme: "Every kind of love, every kind of story. Writing Contest 2026.",
-    deadline: "Open entry",
-    active: true,
-    neon: true,
-  },
-  {
-    id: "2",
-    title: "Dark Romance Challenge",
-    theme: "Forbidden love, tension, and second chances.",
-    deadline: "Open entry",
-    active: true,
-  },
-  {
-    id: "3",
-    title: "Myth Weaver",
-    theme: "Mythology-inspired romance or drama.",
-    deadline: "Open entry",
-    active: true,
-  },
-];
-
-function loadContests() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch {
-    /* ignore */
-  }
-  return DEFAULTS;
-}
-
 export default function ContestsPage({ user }) {
-  const [contests, setContests] = useState(DEFAULTS);
+  const [contests, setContests] = useState([]);
   const [adminMode, setAdminMode] = useState(false);
   const [form, setForm] = useState({ title: "", theme: "", deadline: "" });
+  const [error, setError] = useState("");
+  const canManage = user && !isGuestUser(user) && getToken();
 
-  // Any signed-in non-guest can manage local contest cards (shared DB contests API later)
-  const canManage = user && !isGuestUser(user);
-
-  useEffect(() => {
-    setContests(loadContests());
-  }, []);
-
-  function save(list) {
-    setContests(list);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  async function load() {
+    try {
+      const res = await getContests();
+      setContests(res?.items || []);
+    } catch (e) {
+      setError(String(e.message || e));
+    }
   }
 
-  function addContest(e) {
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function addContest(e) {
     e.preventDefault();
     if (!form.title.trim()) return;
-    const next = [
-      {
-        id: String(Date.now()),
+    try {
+      await adminCreateContest({
         title: form.title.trim(),
         theme: form.theme.trim(),
         deadline: form.deadline.trim() || "Open entry",
-        active: true,
-      },
-      ...contests,
-    ];
-    save(next);
-    setForm({ title: "", theme: "", deadline: "" });
+        is_active: true,
+        is_neon: false,
+      });
+      setForm({ title: "", theme: "", deadline: "" });
+      await load();
+    } catch (err) {
+      setError(String(err.message || err));
+    }
   }
 
-  function removeContest(id) {
-    save(contests.filter((c) => c.id !== id));
+  async function removeContest(id) {
+    try {
+      await adminDeleteContest(id);
+      await load();
+    } catch (err) {
+      setError(String(err.message || err));
+    }
   }
+
+  const neon = contests.find((c) => c.is_neon) || contests[0];
 
   return (
     <div className="full-bleed">
       <section className="contest-neon contest-neon--page">
         <div className="contest-neon-inner">
           <h1 className="neon-title">
-            LOVE IN
-            <br />
-            FULL COLOR
+            {(neon?.title || "LOVE IN FULL COLOR").toUpperCase().split(" ").slice(0, 3).join(" ")}
           </h1>
           <div className="neon-copy">
-            <p className="neon-kicker">WRITING CONTEST 2026</p>
-            <p>Every kind of love, every kind of story.</p>
+            <p className="neon-kicker">WRITING CONTEST</p>
+            <p>{neon?.theme || "Every kind of love, every kind of story."}</p>
             <Link className="btn btn-neon" to="/write">
               ENTER NOW
             </Link>
@@ -99,16 +77,15 @@ export default function ContestsPage({ user }) {
       <div className="full-bleed-inner page">
         <header className="page-header">
           <h2>Writing Contests</h2>
-          <p className="meta">
-            Enter via Write. Stories use the same MySQL database as the mobile app. Signed-in users
-            can manage contest cards on this device.
-          </p>
+          <p className="meta">Stored in MySQL — same database as mobile and admin.</p>
         </header>
+
+        {error && <div className="error-banner">{error}</div>}
 
         {canManage && (
           <div className="card-panel">
             <button type="button" className="btn" onClick={() => setAdminMode((v) => !v)}>
-              {adminMode ? "Close manager" : "Manage contests"}
+              {adminMode ? "Close manager" : "Manage contests (DB)"}
             </button>
             {adminMode && (
               <form className="write-form" style={{ marginTop: 16 }} onSubmit={addContest}>
@@ -160,6 +137,9 @@ export default function ContestsPage({ user }) {
               </div>
             </article>
           ))}
+          {!contests.length && (
+            <p className="meta">No contests yet. Restart backend to seed defaults, or add one above.</p>
+          )}
         </div>
       </div>
     </div>
