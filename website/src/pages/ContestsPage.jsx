@@ -7,13 +7,21 @@ const STORAGE_KEY = "novelhub_contests_v1";
 const DEFAULTS = [
   {
     id: "1",
+    title: "Love in Full Color",
+    theme: "Every kind of love, every kind of story. Writing Contest 2026.",
+    deadline: "Open entry",
+    active: true,
+    neon: true,
+  },
+  {
+    id: "2",
     title: "Dark Romance Challenge",
     theme: "Forbidden love, tension, and second chances.",
     deadline: "Open entry",
     active: true,
   },
   {
-    id: "2",
+    id: "3",
     title: "Myth Weaver",
     theme: "Mythology-inspired romance or drama.",
     deadline: "Open entry",
@@ -35,10 +43,9 @@ export default function ContestsPage({ user }) {
   const [contests, setContests] = useState(DEFAULTS);
   const [adminMode, setAdminMode] = useState(false);
   const [form, setForm] = useState({ title: "", theme: "", deadline: "" });
-  const isAdmin =
-    user &&
-    !isGuestUser(user) &&
-    (String(user.email || "").includes("admin") || user.is_admin || user.role === "admin");
+
+  // Any signed-in non-guest can manage local contest cards (shared DB contests API later)
+  const canManage = user && !isGuestUser(user);
 
   useEffect(() => {
     setContests(loadContests());
@@ -72,16 +79,33 @@ export default function ContestsPage({ user }) {
 
   return (
     <div className="full-bleed">
+      <section className="contest-neon contest-neon--page">
+        <div className="contest-neon-inner">
+          <h1 className="neon-title">
+            LOVE IN
+            <br />
+            FULL COLOR
+          </h1>
+          <div className="neon-copy">
+            <p className="neon-kicker">WRITING CONTEST 2026</p>
+            <p>Every kind of love, every kind of story.</p>
+            <Link className="btn btn-neon" to="/write">
+              ENTER NOW
+            </Link>
+          </div>
+        </div>
+      </section>
+
       <div className="full-bleed-inner page">
         <header className="page-header">
-          <h1>Writing Contests</h1>
+          <h2>Writing Contests</h2>
           <p className="meta">
-            Enter via Write. Stories live in the shared MySQL database. Admin can manage contest
-            cards here (local list until contests API is added to admin panel).
+            Enter via Write. Stories use the same MySQL database as the mobile app. Signed-in users
+            can manage contest cards on this device.
           </p>
         </header>
 
-        {isAdmin && (
+        {canManage && (
           <div className="card-panel">
             <button type="button" className="btn" onClick={() => setAdminMode((v) => !v)}>
               {adminMode ? "Close manager" : "Manage contests"}
@@ -128,7 +152,7 @@ export default function ContestsPage({ user }) {
                 <Link className="btn btn-primary" to="/write">
                   Enter via Write
                 </Link>
-                {adminMode && isAdmin && (
+                {adminMode && canManage && (
                   <button type="button" className="btn btn-danger" onClick={() => removeContest(c.id)}>
                     Delete
                   </button>

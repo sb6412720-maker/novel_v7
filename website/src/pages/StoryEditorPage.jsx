@@ -7,6 +7,7 @@ import {
   getBook,
   getBookChapters,
   getWriteStory,
+  resolveAssetUrl,
   updateChapter,
   updateStory,
 } from "../api";
@@ -22,6 +23,9 @@ const GENRES = [
   "Adventure",
   "Mystery",
   "Horror",
+  "Dark Romance",
+  "Contemporary Romance",
+  "LGBTQ+",
   "Other",
 ];
 
@@ -37,6 +41,7 @@ export default function StoryEditorPage({ user }) {
   const [loading, setLoading] = useState(true);
   const [savingStory, setSavingStory] = useState(false);
   const [savingChapter, setSavingChapter] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   const [meta, setMeta] = useState({
     title: "",
@@ -53,6 +58,7 @@ export default function StoryEditorPage({ user }) {
     content: "",
     chapter_number: 1,
   });
+  const [newChapterName, setNewChapterName] = useState("");
 
   async function reload() {
     setLoading(true);
@@ -104,7 +110,7 @@ export default function StoryEditorPage({ user }) {
   }
 
   async function onSaveStory(e) {
-    e.preventDefault();
+    e?.preventDefault?.();
     setSavingStory(true);
     setMsg("");
     setError("");
@@ -117,7 +123,8 @@ export default function StoryEditorPage({ user }) {
         status_text: meta.status_text,
         content_warnings: meta.content_warnings,
       });
-      setMsg("Story details saved");
+      setMsg("Story saved");
+      setShowSettings(false);
       await reload();
     } catch (err) {
       setError(String(err.message || err));
@@ -127,7 +134,7 @@ export default function StoryEditorPage({ user }) {
   }
 
   async function onSaveChapter(e) {
-    e.preventDefault();
+    e?.preventDefault?.();
     if (!activeChapterId) return;
     setSavingChapter(true);
     setMsg("");
@@ -148,25 +155,46 @@ export default function StoryEditorPage({ user }) {
     }
   }
 
+  async function onSubmitChapter() {
+    if (!activeChapterId) return;
+    setSavingChapter(true);
+    try {
+      await updateChapter(activeChapterId, {
+        title: chapterForm.title,
+        content: chapterForm.content,
+        chapter_number: Number(chapterForm.chapter_number) || 1,
+        submission_status: "published",
+      });
+      setMsg("Chapter submitted");
+      await reload();
+    } catch (err) {
+      setError(String(err.message || err));
+    } finally {
+      setSavingChapter(false);
+    }
+  }
+
   async function onAddChapter() {
     setSavingChapter(true);
     setError("");
     try {
       const nextNum =
         chapters.reduce((m, c) => Math.max(m, Number(c.chapter_number) || 0), 0) + 1;
+      const title = newChapterName.trim() || `Chapter ${nextNum}`;
       const res = await createChapter(storyId, {
-        title: `Chapter ${nextNum}`,
+        title,
         content: "",
         chapter_number: nextNum,
         submission_status: "draft",
       });
       const newId = res?.id || res?.chapter_id;
+      setNewChapterName("");
       await reload();
       if (newId) {
         setActiveChapterId(newId);
-        setChapterForm({ title: `Chapter ${nextNum}`, content: "", chapter_number: nextNum });
+        setChapterForm({ title, content: "", chapter_number: nextNum });
       }
-      setMsg("Chapter added");
+      setMsg("Chapter created");
     } catch (err) {
       setError(String(err.message || err));
     } finally {
@@ -192,7 +220,7 @@ export default function StoryEditorPage({ user }) {
     if (!window.confirm("Delete this entire story and its chapters?")) return;
     try {
       await deleteStory(storyId);
-      navigate("/write");
+      navigate("/manage-stories");
     } catch (err) {
       setError(String(err.message || err));
     }
@@ -203,7 +231,6 @@ export default function StoryEditorPage({ user }) {
       <div className="container page">
         <div className="guest-lock">
           <h3>Sign in to edit</h3>
-          <p>Use the same account as the mobile app.</p>
           <Link className="btn btn-primary" to="/login">
             Sign in
           </Link>
@@ -216,23 +243,41 @@ export default function StoryEditorPage({ user }) {
     return <div className="container page">Loading editor…</div>;
   }
 
+  const cover = resolveAssetUrl(story?.cover_path || "");
+
   return (
-    <div className="full-bleed editor-page">
-      <div className="full-bleed-inner editor-layout">
-        <div className="editor-top">
-          <Link to="/write" className="back-link">
-            ← Your stories
-          </Link>
+    <div className="inkitt-editor">
+      <div className="inkitt-editor-bar">
+        <Link to="/manage-stories" className="back-link">
+          ← Manage Stories
+        </Link>
+        <div className="inkitt-editor-bar-actions">
+          <button type="button" className="btn" onClick={() => setShowSettings((v) => !v)}>
+            Settings
+          </button>
           <Link className="btn" to={`/stories/${storyId}`}>
-            Public view
+            Preview
           </Link>
+          <button type="button" className="btn" onClick={onSaveChapter} disabled={savingChapter}>
+            💾 Save
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={onSubmitChapter}
+            disabled={savingChapter || !activeChapterId}
+          >
+            Submit Chapter
+          </button>
         </div>
+      </div>
 
-        {error && <div className="error-banner">{error}</div>}
-        {msg && <p className="meta save-msg">{msg}</p>}
+      {error && <div className="error-banner container">{error}</div>}
+      {msg && <p className="meta save-msg container">{msg}</p>}
 
-        <form className="write-form card-panel" onSubmit={onSaveStory}>
-          <h2>Story details</h2>
+      {showSettings && (
+        <form className="write-form card-panel container" onSubmit={onSaveStory}>
+          <h2>Story settings</h2>
           <div className="form-grid">
             <label>
               Title
@@ -281,95 +326,114 @@ export default function StoryEditorPage({ user }) {
               onChange={(e) => setMeta({ ...meta, description: e.target.value })}
             />
           </label>
-          <label>
-            Content warnings
-            <input
-              value={meta.content_warnings}
-              onChange={(e) => setMeta({ ...meta, content_warnings: e.target.value })}
-            />
-          </label>
           <div className="form-actions">
             <button type="button" className="btn btn-danger" onClick={onDeleteStory}>
               Delete story
             </button>
             <button type="submit" className="btn btn-primary" disabled={savingStory}>
-              {savingStory ? "Saving…" : "Save story"}
+              {savingStory ? "Saving…" : "Save settings"}
             </button>
           </div>
         </form>
+      )}
 
-        <div className="editor-chapters card-panel">
-          <div className="editor-chapters-head">
-            <h2>Chapters ({chapters.length})</h2>
-            <button type="button" className="btn btn-primary" onClick={onAddChapter} disabled={savingChapter}>
-              + Add chapter
-            </button>
-          </div>
-
-          <div className="editor-chapters-body">
-            <ul className="chapter-sidebar">
-              {chapters.map((c) => (
-                <li key={c.id}>
-                  <button
-                    type="button"
-                    className={String(c.id) === String(activeChapterId) ? "active" : ""}
-                    onClick={() => selectChapter(c)}
-                  >
-                    {c.chapter_number != null ? `${c.chapter_number}. ` : ""}
-                    {c.title || "Untitled"}
-                  </button>
-                </li>
-              ))}
-              {chapters.length === 0 && <li className="meta">No chapters — add one.</li>}
-            </ul>
-
-            {activeChapterId ? (
-              <form className="chapter-editor" onSubmit={onSaveChapter}>
-                <div className="form-grid">
-                  <label>
-                    Chapter number
-                    <input
-                      type="number"
-                      min={1}
-                      value={chapterForm.chapter_number}
-                      onChange={(e) =>
-                        setChapterForm({ ...chapterForm, chapter_number: e.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    Title
-                    <input
-                      value={chapterForm.title}
-                      onChange={(e) => setChapterForm({ ...chapterForm, title: e.target.value })}
-                      required
-                    />
-                  </label>
-                </div>
-                <label>
-                  Content
-                  <textarea
-                    className="chapter-content"
-                    rows={18}
-                    value={chapterForm.content}
-                    onChange={(e) => setChapterForm({ ...chapterForm, content: e.target.value })}
-                    placeholder="Write your chapter… Use blank lines between paragraphs."
-                  />
-                </label>
-                <div className="form-actions">
-                  <button type="button" className="btn btn-danger" onClick={onDeleteChapter}>
-                    Delete chapter
-                  </button>
-                  <button type="submit" className="btn btn-primary" disabled={savingChapter}>
-                    {savingChapter ? "Saving…" : "Save chapter"}
-                  </button>
-                </div>
-              </form>
+      <div className="inkitt-editor-grid">
+        <aside className="inkitt-editor-cover">
+          <div className="editor-cover-box">
+            {cover ? (
+              <img src={cover} alt="" />
             ) : (
-              <p className="meta">Select a chapter or add a new one.</p>
+              <div className="editor-cover-empty">
+                <span>{(meta.title || "?")[0]}</span>
+              </div>
             )}
           </div>
-        </div>
+          <button type="button" className="btn editor-cover-btn" disabled title="Cover upload via mobile/admin">
+            Edit Story Cover
+          </button>
+        </aside>
+
+        <main className="inkitt-editor-main">
+          <div className="editor-story-title-row">
+            <h1 className="editor-story-title">{meta.title || "UNTITLED STORY"}</h1>
+            <button type="button" className="linkish" onClick={() => setShowSettings(true)}>
+              Edit Title
+            </button>
+          </div>
+          {activeChapterId ? (
+            <form onSubmit={onSaveChapter}>
+              <h2 className="editor-chapter-title">
+                <input
+                  className="chapter-title-input"
+                  value={chapterForm.title}
+                  onChange={(e) => setChapterForm({ ...chapterForm, title: e.target.value })}
+                  placeholder="Chapter title"
+                />
+              </h2>
+              <div className="editor-toolbar" aria-hidden>
+                <span>B</span>
+                <span>I</span>
+                <span>¶</span>
+              </div>
+              <textarea
+                className="chapter-content inkitt-chapter-body"
+                rows={20}
+                value={chapterForm.content}
+                onChange={(e) => setChapterForm({ ...chapterForm, content: e.target.value })}
+                placeholder="Start writing here…"
+              />
+              <div className="form-actions">
+                <button type="button" className="btn btn-danger" onClick={onDeleteChapter}>
+                  Delete chapter
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={savingChapter}>
+                  {savingChapter ? "Saving…" : "Save chapter"}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <p className="meta">Select a chapter or create one.</p>
+          )}
+        </main>
+
+        <aside className="inkitt-editor-chapters">
+          <h3>CHAPTERS</h3>
+          <ul className="editor-ch-list">
+            {chapters.map((c) => (
+              <li key={c.id}>
+                <button
+                  type="button"
+                  className={String(c.id) === String(activeChapterId) ? "active" : ""}
+                  onClick={() => selectChapter(c)}
+                >
+                  <strong>
+                    {c.chapter_number != null ? `Chapter ${c.chapter_number}` : c.title}
+                  </strong>
+                  <span className="meta">{c.title}</span>
+                  <span className="ch-status">
+                    {(c.submission_status || "draft").toLowerCase() === "published"
+                      ? "Submitted"
+                      : "Not Submitted"}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <div className="create-ch-box">
+            <label>Create New Chapter:</label>
+            <input
+              value={newChapterName}
+              onChange={(e) => setNewChapterName(e.target.value)}
+              placeholder="Enter Chapter Name"
+            />
+            <button type="button" className="btn btn-primary" onClick={onAddChapter} disabled={savingChapter}>
+              + Create Chapter
+            </button>
+          </div>
+          <div className="upload-ms-note meta">
+            Upload Manuscript (Word .doc/.docx) — use mobile app or paste text for now.
+          </div>
+        </aside>
       </div>
     </div>
   );

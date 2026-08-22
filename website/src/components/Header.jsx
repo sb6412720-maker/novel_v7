@@ -95,6 +95,9 @@ export default function Header({ user, onLogout, onAuthSuccess }) {
                 <Link className="btn-text" to="/library">
                   Library
                 </Link>
+                <Link className="btn-text" to="/manage-stories">
+                  My Stories
+                </Link>
                 <span className="user-chip" title={user.email || ""}>
                   {user.display_name || user.email}
                 </span>

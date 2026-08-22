@@ -268,7 +268,7 @@ export function postUserWall(userId, body) {
 
 export function getActivityFeed(userId) {
   return request(`/api/users/${userId}/activity`).catch(() =>
-    request(`/api/activity?user_id=${userId}`).catch(() => ({ items: [] }))
+    request(`/api/users/${userId}/activity`).catch(() => ({ items: [] }))
   );
 }
 
