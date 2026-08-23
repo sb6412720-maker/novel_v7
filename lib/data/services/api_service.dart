@@ -356,10 +356,11 @@ class ApiService {
     String? idToken,
     String? accessToken,
   }) async {
+    // Cold start + Google tokeninfo can exceed 12s on Vercel.
     final response = await _post('/api/auth/google', {
       'id_token': idToken,
       'access_token': accessToken,
-    }, timeout: const Duration(seconds: 12));
+    }, timeout: const Duration(seconds: 45));
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception(_authErrorBody(response));
     }
