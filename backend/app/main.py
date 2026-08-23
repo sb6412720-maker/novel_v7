@@ -3054,8 +3054,8 @@ def get_public_book(book_id: int):
         rows = fetch_all(
             """
             SELECT b.id, b.user_id, b.title, b.author, b.description, b.genre, b.cover_path,
-                   b.accent_hex, b.status_text, b.rating, b.content_warnings, b.view_count,
-                   b.updated_at, b.created_at,
+                   b.accent_hex, b.status_text, b.rating, b.content_warnings,
+                   COALESCE(b.view_count, 0) AS view_count,
                    u.photo_url AS author_photo_url,
                    u.display_name AS author_display_name
             FROM books b
@@ -3292,6 +3292,14 @@ def _resolve_chapter_id(book_id: int, chapter_number: int) -> int | None:
         "SELECT id FROM chapters WHERE story_id=%s AND chapter_number=%s ORDER BY id LIMIT 1",
         (book_id, chapter_number),
     )
+    if not rows:
+        try:
+            rows = fetch_all(
+                "SELECT id FROM chapters WHERE book_id=%s AND chapter_number=%s ORDER BY id LIMIT 1",
+                (book_id, chapter_number),
+            )
+        except Exception:
+            rows = []
     if not rows:
         return None
     return int(rows[0]["id"])
@@ -3623,7 +3631,7 @@ def get_book_like(book_id: int, user: dict[str, Any] | None = Depends(optional_u
 def like_book(book_id: int, user: dict[str, Any] = Depends(require_user)):
     """One like per user; repeated calls stay idempotent."""
     _ensure_book_likes_table()
-    if USE_SQLITE:
+    if _live_use_sqlite():
         execute_write(
             "INSERT OR IGNORE INTO book_likes (user_id, book_id) VALUES (%s, %s)",
             (user["user_id"], book_id),
@@ -3673,7 +3681,7 @@ def follow_author(author_id: int, user: dict[str, Any] = Depends(require_user)):
             "following_count": _count_following(user["user_id"]),
             "self": True,
         }
-    if USE_SQLITE:
+    if _live_use_sqlite():
         execute_write(
             "INSERT OR IGNORE INTO author_follows (user_id, author_id) VALUES (%s, %s)",
             (user["user_id"], author_id),
