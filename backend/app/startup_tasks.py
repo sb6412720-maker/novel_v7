@@ -348,6 +348,13 @@ def _apply_runtime_patches() -> None:
 
 
 def run_startup_tasks() -> dict[str, Any]:
+    """Startup for serverless: finish in seconds when DB already has data.
+
+    Heavy migrations/seeds only run when the books table is empty.
+    Inkitt seed never runs unless ENABLE_INKITT_SEED=1.
+    """
+    import os as _os
+
     result: dict[str, Any] = {
         "initialized": False,
         "migrations": {},
@@ -356,9 +363,10 @@ def run_startup_tasks() -> dict[str, Any]:
         "tables_ensured": 0,
         "patches_applied": False,
         "db_mode": "sqlite" if USE_SQLITE else "mysql",
+        "fast_path": False,
     }
 
-    # Ensure MySQL is reachable when configured; otherwise fall back to SQLite.
+    # Probe MySQL once (or fall back to SQLite).
     try:
         from . import database as db_mod
         from . import db_runtime
@@ -370,14 +378,55 @@ def run_startup_tasks() -> dict[str, Any]:
     except Exception as probe_exc:
         LOGGER.warning("DB probe skipped: %s", probe_exc)
 
-    initialized = initialize_database_if_needed()
-    result["initialized"] = bool(initialized)
+    # ---- Fast path: DB already populated (production normal case) ----
+    book_count = 0
+    try:
+        conn = get_connection()
+        try:
+            book_count = _query_count(conn, "books")
+            result["counts"]["books"] = book_count
+        finally:
+            conn.close()
+    except Exception as count_exc:
+        LOGGER.warning("quick books count failed: %s", count_exc)
+        book_count = 0
 
-    migration_report = run_startup_migrations()
-    result["migrations"] = migration_report
+    if book_count > 0:
+        # Schema is already there. Only apply route/auth patches (in-memory, fast).
+        try:
+            _apply_runtime_patches()
+            result["patches_applied"] = True
+        except Exception as exc:
+            LOGGER.exception("Patch step failed: %s", exc)
+
+        result["fast_path"] = True
+        result["force_seed"] = {"skipped": True, "reason": "books_present", "books": book_count}
+        result["inkitt_seed"] = {"skipped": True, "reason": "disabled_on_startup"}
+        LOGGER.info(
+            "Startup FAST PATH (books=%s) — skipped migrations/seed/inkitt",
+            book_count,
+        )
+        LOGGER.info("Startup tasks finished: %s", result)
+        return result
+
+    # ---- Slow path: empty DB — full init once ----
+    LOGGER.warning("Books table empty — running full migrations + seed")
+
+    try:
+        initialized = initialize_database_if_needed()
+        result["initialized"] = bool(initialized)
+    except Exception as init_exc:
+        LOGGER.warning("initialize_database_if_needed: %s", init_exc)
+
+    try:
+        migration_report = run_startup_migrations()
+        result["migrations"] = migration_report
+    except Exception as mig_exc:
+        LOGGER.warning("run_startup_migrations: %s", mig_exc)
 
     try:
         from .database import force_seed_if_empty
+
         seed_report = force_seed_if_empty()
         result["force_seed"] = seed_report
         LOGGER.info("force_seed_if_empty: %s", seed_report)
@@ -411,16 +460,7 @@ def run_startup_tasks() -> dict[str, Any]:
 
     LOGGER.info("Startup tasks finished: %s", result)
 
-    # ---------------------------------------------------------------------------
-    # Inkitt catalog seed is DISABLED on startup for Vercel / serverless.
-    # Reason: ENUM section_name errors + 40+ inserts caused 300s timeouts and
-    # empty API responses. Baseline seed (force_seed_if_empty / migrations)
-    # already provides books when the DB is empty.
-    #
-    # To run Inkitt seed once manually (local or admin):
-    #   ENABLE_INKITT_SEED=1  plus a one-shot script, or POST /api/admin/... later.
-    # ---------------------------------------------------------------------------
-    import os as _os
+    # Inkitt only if explicitly enabled (never on Vercel by default)
     if _os.getenv("ENABLE_INKITT_SEED", "").strip().lower() in ("1", "true", "yes"):
         try:
             from .inkitt_seed import ensure_inkitt_catalog
@@ -484,6 +524,6 @@ def run_startup_tasks() -> dict[str, Any]:
             result["inkitt_seed_error"] = str(ink_exc)
     else:
         result["inkitt_seed"] = {"skipped": True, "reason": "disabled_on_startup"}
-        LOGGER.info("inkitt_seed skipped (disabled on startup; set ENABLE_INKITT_SEED=1 to run)")
+        LOGGER.info("inkitt_seed skipped (disabled on startup)")
 
     return result

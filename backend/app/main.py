@@ -1028,51 +1028,35 @@ def healthcheck():
 @app.on_event("startup")
 def startup_initialize_database():
     try:
-        # Delegate startup tasks (schema init, migrations, seeding, basic checks)
         from .startup_tasks import run_startup_tasks
-        from . import database as db_mod
 
-        # Auto-migrate auth columns (password_hash) on every boot
-        try:
-            _ensure_password_hash_column()
-        except Exception as col_exc:
-            LOGGER.warning("password_hash column ensure failed: %s", col_exc)
-
+        # password_hash column: only on slow path (empty DB). Fast path skips ALTERs.
         summary = run_startup_tasks()
         LOGGER.info("Startup tasks summary: %s", summary)
 
-        # Verify seed data is visible after dialect fallback
-        try:
-            books = fetch_all("SELECT COUNT(*) AS c FROM books")
-            cats = fetch_all("SELECT COUNT(*) AS c FROM categories")
-            chs = fetch_all("SELECT COUNT(*) AS c FROM chapters")
-            def _c(rows):
-                if not rows:
-                    return 0
-                r = rows[0]
-                if isinstance(r, dict):
-                    return int(r.get("c") or list(r.values())[0] or 0)
-                return int(r[0])
-            LOGGER.info(
-                "DB ready mode=%s books=%s categories=%s chapters=%s",
-                "sqlite" if _live_use_sqlite() else "mysql",
-                _c(books),
-                _c(cats),
-                _c(chs),
-            )
-            # If still empty, force one more migration/seed pass
-            if _c(books) == 0 or _c(cats) == 0:
-                LOGGER.warning("Seed data missing after startup — re-running migrations")
-                try:
-                    db_mod.run_startup_migrations()
-                except Exception as re_exc:
-                    LOGGER.exception("Re-seed failed: %s", re_exc)
-                books2 = fetch_all("SELECT COUNT(*) AS c FROM books")
-                LOGGER.info("After re-seed books=%s", _c(books2))
-        except Exception as count_exc:
-            LOGGER.exception("Post-startup count check failed: %s", count_exc)
+        # Extra counts / re-seed only when the DB looked empty
+        if not summary.get("fast_path"):
+            try:
+                _ensure_password_hash_column()
+            except Exception as col_exc:
+                LOGGER.warning("password_hash column ensure failed: %s", col_exc)
+            try:
+                books = fetch_all("SELECT COUNT(*) AS c FROM books")
+                def _c(rows):
+                    if not rows:
+                        return 0
+                    r = rows[0]
+                    if isinstance(r, dict):
+                        return int(r.get("c") or list(r.values())[0] or 0)
+                    return int(r[0])
+                LOGGER.info("DB ready books=%s", _c(books))
+            except Exception as count_exc:
+                LOGGER.exception("Post-startup count check failed: %s", count_exc)
 
-        _content_version_row()
+        try:
+            _content_version_row()
+        except Exception:
+            pass
     except DB_INIT_EXCEPTIONS as exc:
         LOGGER.exception("Automatic database initialization failed: %s", exc)
     except Exception as exc:
