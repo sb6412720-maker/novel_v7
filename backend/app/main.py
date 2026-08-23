@@ -54,6 +54,28 @@ app.add_middleware(
 )
 
 UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
+
+# --- Vercel path normalization ---
+# Some Vercel rewrite setups pass the function file path (e.g. /api/index.py)
+# as the ASGI path, which makes every real route 404. Restore sensible paths.
+@app.middleware("http")
+async def vercel_path_normalize(request, call_next):
+    path = request.scope.get("path") or ""
+    try:
+        LOGGER.info("ASGI path=%s", path)
+    except Exception:
+        pass
+    # Broken rewrite: entire URL becomes the function filename
+    if path in ("/api/index.py", "/api/index", "/api"):
+        path = "/"
+    elif path.startswith("/api/index.py"):
+        path = path[len("/api/index.py"):] or "/"
+    elif path.startswith("/api/index/"):
+        path = path[len("/api/index"):] or "/"
+    request.scope["path"] = path
+    return await call_next(request)
+
+
 app.mount("/uploads", StaticFiles(directory=UPLOAD_ROOT), name="uploads")
 
 
