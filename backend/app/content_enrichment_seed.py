@@ -40,7 +40,7 @@ def _execute(sql: str, params: tuple = ()):
     return execute_write(sql, params)
 
 
-def seed_chapters_for_empty_books(limit_books: int = 25, chapters_per_book: int = 3) -> dict[str, Any]:
+def seed_chapters_for_empty_books(limit_books: int = 12, chapters_per_book: int = 3) -> dict[str, Any]:
     """Insert sample chapters for published books that currently have zero chapters."""
     report: dict[str, Any] = {"books_touched": 0, "chapters_added": 0, "errors": 0}
     try:
@@ -135,7 +135,7 @@ def _ensure_seed_users() -> list[int]:
     return ids
 
 
-def seed_wall_posts(limit_authors: int = 12) -> dict[str, Any]:
+def seed_wall_posts(limit_authors: int = 8) -> dict[str, Any]:
     report = {"posts_added": 0, "errors": 0}
     try:
         _execute(
@@ -215,7 +215,7 @@ def seed_wall_posts(limit_authors: int = 12) -> dict[str, Any]:
     return report
 
 
-def seed_sample_reviews(limit_books: int = 20) -> dict[str, Any]:
+def seed_sample_reviews(limit_books: int = 12) -> dict[str, Any]:
     report = {"reviews_added": 0, "errors": 0}
     user_ids = _ensure_seed_users()
     if not user_ids:
@@ -280,7 +280,7 @@ def run_content_enrichment(force: bool = False) -> dict[str, Any]:
         chapter_count = 0
 
     # Always top up if fewer than 40 chapters total
-    if force or chapter_count < 40:
+    if force or chapter_count < 30:
         result["chapters"] = seed_chapters_for_empty_books(limit_books=30, chapters_per_book=3)
     else:
         result["chapters"] = {"skipped": True, "reason": "enough_chapters", "count": chapter_count}
@@ -291,7 +291,7 @@ def run_content_enrichment(force: bool = False) -> dict[str, Any]:
         result["wall"] = {"error": str(exc)}
 
     try:
-        result["reviews"] = seed_sample_reviews(limit_books=25)
+        result["reviews"] = seed_sample_reviews(limit_books=12)
     except Exception as exc:
         result["reviews"] = {"error": str(exc)}
 

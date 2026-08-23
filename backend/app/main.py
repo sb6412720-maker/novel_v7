@@ -1655,7 +1655,7 @@ async def upload_support_attachment(file: UploadFile = File(...)):
 
 
 @app.get("/api/bootstrap")
-def bootstrap():
+def bootstrap(user: dict[str, Any] | None = Depends(optional_user)):
     discover_tabs = [
         row["name"]
         for row in fetch_all(
@@ -1772,6 +1772,54 @@ def bootstrap():
     # Library entries are user-specific and loaded via GET /api/library after auth.
     # Bootstrap stays public (read-only discover content) so unauthenticated users can browse.
     library_payload: list[dict[str, Any]] = []
+    if user and user.get("user_id"):
+        try:
+            lib_rows = fetch_all(
+                """
+                SELECT le.id, le.book_id, le.reading_status, le.updated_text, le.chapters,
+                       le.primary_genre, le.secondary_genre, le.sort_order,
+                       b.title, b.author, b.cover_path, b.accent_hex, b.rating, b.genre,
+                       b.status_text, b.description, b.section_name, b.cta_label,
+                       COALESCE(b.primary_genre, b.genre) AS book_primary_genre,
+                       COALESCE(b.secondary_genre, '') AS book_secondary_genre,
+                       COALESCE(b.is_completed, 0) AS is_completed
+                FROM library_entries le
+                JOIN books b ON b.id = le.book_id
+                WHERE le.user_id = %s
+                ORDER BY le.sort_order ASC, le.id DESC
+                LIMIT 20
+                """,
+                (int(user["user_id"]),),
+            )
+            for row in lib_rows or []:
+                book_id = row.get("book_id") if isinstance(row, dict) else None
+                library_payload.append({
+                    "id": row.get("id"),
+                    "book_id": book_id,
+                    "reading_status": row.get("reading_status") or "Reading",
+                    "updated_text": row.get("updated_text") or "",
+                    "chapters": int(row.get("chapters") or 0),
+                    "primary_genre": row.get("primary_genre") or row.get("book_primary_genre") or "",
+                    "secondary_genre": row.get("secondary_genre") or "",
+                    "book": {
+                        "id": book_id,
+                        "title": row.get("title") or "",
+                        "author": row.get("author") or "",
+                        "cover_path": _normalize_cover_path(row.get("cover_path") or ""),
+                        "accent_hex": row.get("accent_hex") or "#581845",
+                        "rating": float(row.get("rating") or 0),
+                        "genre": row.get("genre") or "",
+                        "status_text": row.get("status_text") or "",
+                        "description": (row.get("description") or "")[:240],
+                        "section_name": row.get("section_name") or "featured",
+                        "cta_label": row.get("cta_label") or "Continue",
+                        "primary_genre": row.get("book_primary_genre") or row.get("genre") or "",
+                        "secondary_genre": row.get("book_secondary_genre") or "",
+                        "is_completed": bool(row.get("is_completed")),
+                    },
+                })
+        except Exception as lib_exc:
+            LOGGER.warning("bootstrap library_entries failed: %s", lib_exc)
 
     _ensure_default_write_screen()
     _ensure_default_profile()

@@ -52,7 +52,7 @@ class AppTheme {
       ),
       useMaterial3: true,
       scaffoldBackgroundColor: surface,
-      colorScheme: const ColorScheme.light(primary: brand, surface: surface),
+      colorScheme: const ColorScheme.light(primary: brand, secondary: accent, surface: surface),
       textTheme: textTheme,
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.white,
@@ -149,6 +149,7 @@ class AppTheme {
       scaffoldBackgroundColor: darkSurface,
       colorScheme: const ColorScheme.dark(
         primary: brand,
+        secondary: accent,
         surface: darkCard,
         onSurface: darkInk,
       ),
