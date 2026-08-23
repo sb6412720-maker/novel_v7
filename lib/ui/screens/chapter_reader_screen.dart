@@ -111,12 +111,14 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
         'book_id': bookId,
         'reading_status': completed ? 'Completed' : 'Reading',
         'updated_text': completed ? 'Finished' : 'Reading',
-        'chapters': _chapters.length,
+        'chapters': _chapters.isNotEmpty ? _chapters.length : 1,
         'primary_genre': '',
         'secondary_genre': '',
-        'sort_order': 0,
       });
-    } catch (_) {}
+    } catch (e) {
+      // Surface soft failure — silent catch caused "library not saving"
+      debugPrint('Library progress save failed: $e');
+    }
   }
 
   @override

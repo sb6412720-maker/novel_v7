@@ -2118,8 +2118,60 @@ def create_chat_message(
     return {"ok": True, "id": row_id}
 
 
+
+_LIBRARY_ENTRIES_TABLE_READY = False
+
+
+def _ensure_library_entries_table() -> None:
+    """Ensure library_entries exists with user_id + reading_status (MySQL/SQLite)."""
+    global _LIBRARY_ENTRIES_TABLE_READY
+    if _LIBRARY_ENTRIES_TABLE_READY:
+        return
+    try:
+        if _live_use_sqlite():
+            execute_write(
+                """
+                CREATE TABLE IF NOT EXISTS library_entries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    book_id INTEGER NOT NULL,
+                    reading_status TEXT DEFAULT 'Reading',
+                    updated_text TEXT DEFAULT '',
+                    chapters INTEGER DEFAULT 0,
+                    primary_genre TEXT DEFAULT '',
+                    secondary_genre TEXT DEFAULT '',
+                    sort_order INTEGER DEFAULT 999
+                )
+                """,
+                (),
+            )
+        else:
+            execute_write(
+                """
+                CREATE TABLE IF NOT EXISTS library_entries (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id INT NOT NULL,
+                    book_id INT NOT NULL,
+                    reading_status VARCHAR(64) DEFAULT 'Reading',
+                    updated_text VARCHAR(255) DEFAULT '',
+                    chapters INT DEFAULT 0,
+                    primary_genre VARCHAR(128) DEFAULT '',
+                    secondary_genre VARCHAR(128) DEFAULT '',
+                    sort_order INT DEFAULT 999,
+                    INDEX (user_id),
+                    INDEX (book_id)
+                )
+                """,
+                (),
+            )
+        _LIBRARY_ENTRIES_TABLE_READY = True
+    except Exception as exc:
+        LOGGER.warning("library_entries ensure failed: %s", exc)
+
+
 @app.get("/api/library")
 def get_library_entries(user: dict[str, Any] = Depends(require_user)):
+    _ensure_library_entries_table()
     rows = fetch_all(
         """
         SELECT le.id, le.reading_status, le.updated_text, le.chapters, le.primary_genre,
@@ -2167,6 +2219,7 @@ def create_library_entry(
     payload: LibraryCreateRequest,
     user: dict[str, Any] = Depends(require_user),
 ):
+    _ensure_library_entries_table()
     """Upsert one library row per (user, book). Never create duplicates."""
     uid = int(user["user_id"])
     bid = int(payload.book_id)
@@ -2188,16 +2241,8 @@ def create_library_entry(
                     )
                 except Exception:
                     pass
-        prev = str(_row_get(existing[0], "reading_status") or "").strip().lower()
+        # Always apply the requested status (user can toggle Ongoing <-> Completed)
         status_to_set = new_status
-        if prev in ("completed", "complete", "finished", "done", "history") and new_status.lower() not in (
-            "completed",
-            "complete",
-            "finished",
-            "done",
-            "history",
-        ):
-            status_to_set = _row_get(existing[0], "reading_status") or "Completed"
         execute_write(
             """
             UPDATE library_entries
@@ -3139,9 +3184,8 @@ def _ensure_chapter_comments_table() -> None:
     global _CHAPTER_COMMENTS_TABLE_READY
     if _CHAPTER_COMMENTS_TABLE_READY:
         return
-    """Create chapter_comments on SQLite/MySQL if missing; add paragraph_index."""
     try:
-        if USE_SQLITE:
+        if _live_use_sqlite():
             execute_write(
                 """
                 CREATE TABLE IF NOT EXISTS chapter_comments (
@@ -3322,6 +3366,7 @@ def create_chapter_comment(
         rows = fetch_all(
             """
             SELECT c.id, c.chapter_id, c.book_id, c.user_id, c.body, c.created_at,
+                   COALESCE(c.paragraph_index, -1) AS paragraph_index,
                    u.display_name, u.photo_url
             FROM chapter_comments c
             LEFT JOIN app_users u ON u.id = c.user_id

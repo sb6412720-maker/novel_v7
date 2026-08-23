@@ -69,8 +69,13 @@ class _LibraryScreenState extends State<LibraryScreen>
         _entries = rows.map(LibraryEntryModel.fromMap).toList();
         _loading = false;
       });
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not load library: $e')),
+        );
+      }
     }
   }
 
