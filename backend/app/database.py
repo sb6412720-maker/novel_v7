@@ -1909,6 +1909,7 @@ def get_connection():
     if mysql_connector is None:
         raise RuntimeError("mysql.connector is not installed; install mysql-connector-python to use MySQL mode")
 
+    timeout_s = int(os.getenv("MYSQL_CONNECT_TIMEOUT", "8"))
     return mysql_connector.connect(
         host=os.getenv("MYSQL_HOST", "127.0.0.1"),
         port=int(os.getenv("MYSQL_PORT", "3306")),
@@ -1916,10 +1917,8 @@ def get_connection():
         password=os.getenv("MYSQL_PASSWORD", ""),
         database=os.getenv("MYSQL_DATABASE", "novel_app_db_v2"),
         ssl_disabled=ssl_disabled,
-        # Use the pure-Python implementation. The bundled C extension
-        # (_mysql_connector.cp313-win_amd64.pyd) crashes with an access
-        # violation (0xC0000005) on this machine.
         use_pure=True,
+        connection_timeout=timeout_s,
     )
 
 
