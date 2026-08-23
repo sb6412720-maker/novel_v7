@@ -822,13 +822,17 @@ class ApiService {
     final response = await _post(
       '/api/books/$bookId/like',
       const <String, dynamic>{},
+      timeout: const Duration(seconds: 30),
     );
     _ensureSuccessResponse(response);
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> unlikeBook(int bookId) async {
-    final response = await _delete('/api/books/$bookId/like');
+    final response = await _delete(
+      '/api/books/$bookId/like',
+      timeout: const Duration(seconds: 30),
+    );
     _ensureSuccessResponse(response);
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
@@ -1005,7 +1009,7 @@ class ApiService {
     final response = await _post(
       '/api/write/stories',
       payload,
-      timeout: const Duration(seconds: 8),
+      timeout: const Duration(seconds: 45),
     );
     _ensureSuccessResponse(response);
     try {

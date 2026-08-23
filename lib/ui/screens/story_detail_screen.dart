@@ -670,14 +670,21 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                               });
                             } catch (e) {
                               if (!mounted) return;
+                              final msg = e.toString();
+                              final lower = msg.toLowerCase();
+                              String text;
+                              if (lower.contains('401') ||
+                                  lower.contains('missing user token') ||
+                                  lower.contains('unauthorized') ||
+                                  lower.contains('sign in')) {
+                                text = 'Sign in to like stories';
+                              } else if (lower.contains('timeout')) {
+                                text = 'Server busy — try like again in a moment';
+                              } else {
+                                text = 'Could not update like: ${msg.length > 80 ? msg.substring(0, 80) : msg}';
+                              }
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    e.toString().contains('401')
-                                        ? 'Sign in to like stories'
-                                        : 'Could not update like',
-                                  ),
-                                ),
+                                SnackBar(content: Text(text)),
                               );
                             } finally {
                               if (mounted) setState(() => _likeBusy = false);

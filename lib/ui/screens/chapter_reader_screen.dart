@@ -414,10 +414,18 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
         _liked = (res['liked'] as bool?) ?? !_liked;
         _likeCount = (res['likes_count'] as num?)?.toInt() ?? _likeCount;
       });
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
+      final msg = e.toString().toLowerCase();
+      final text = (msg.contains('401') ||
+              msg.contains('token') ||
+              msg.contains('unauthorized'))
+          ? 'Sign in to like. One like per account.'
+          : (msg.contains('timeout')
+              ? 'Server busy — try like again'
+              : 'Like failed: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sign in to like. One like per account.')),
+        SnackBar(content: Text(text)),
       );
     }
   }
