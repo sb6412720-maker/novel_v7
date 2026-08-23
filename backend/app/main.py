@@ -3131,7 +3131,14 @@ def create_book_review(
     return {"ok": True}
 
 
+_CHAPTER_COMMENTS_TABLE_READY = False
+
+
 def _ensure_chapter_comments_table() -> None:
+    """Memoized schema ensure — runs once per serverless instance."""
+    global _CHAPTER_COMMENTS_TABLE_READY
+    if _CHAPTER_COMMENTS_TABLE_READY:
+        return
     """Create chapter_comments on SQLite/MySQL if missing; add paragraph_index."""
     try:
         if USE_SQLITE:
@@ -3185,6 +3192,7 @@ def _ensure_chapter_comments_table() -> None:
     except Exception as exc:
         LOGGER.warning("chapter_comments ensure failed: %s", exc)
 
+    _CHAPTER_COMMENTS_TABLE_READY = True
 
 def _resolve_chapter_id(book_id: int, chapter_number: int) -> int | None:
     rows = fetch_all(
@@ -3359,7 +3367,14 @@ def list_comments_by_chapter_id(chapter_id: int):
         return {"items": []}
 
 
+_AUTHOR_FOLLOWS_TABLE_READY = False
+
+
 def _ensure_author_follows_table() -> None:
+    """Memoized schema ensure — runs once per serverless instance."""
+    global _AUTHOR_FOLLOWS_TABLE_READY
+    if _AUTHOR_FOLLOWS_TABLE_READY:
+        return
     """Ensure author_follows exists (SQLite + MySQL) and normalize legacy column names."""
     try:
         if USE_SQLITE:
@@ -3414,6 +3429,7 @@ def _ensure_author_follows_table() -> None:
     except Exception as exc:
         LOGGER.warning("author_follows column ensure failed: %s", exc)
 
+    _AUTHOR_FOLLOWS_TABLE_READY = True
 
 def _count_followers(author_id: int) -> int:
     try:
@@ -3448,7 +3464,14 @@ def _ensure_author_follows_columns() -> None:
 
 
 
+_BOOK_LIKES_TABLE_READY = False
+
+
 def _ensure_book_likes_table() -> None:
+    """Memoized schema ensure — runs once per serverless instance."""
+    global _BOOK_LIKES_TABLE_READY
+    if _BOOK_LIKES_TABLE_READY:
+        return
     try:
         if USE_SQLITE:
             execute_write(
@@ -3478,6 +3501,7 @@ def _ensure_book_likes_table() -> None:
             )
     except Exception as exc:
         LOGGER.warning("book_likes ensure failed: %s", exc)
+    _BOOK_LIKES_TABLE_READY = True
 
 
 @app.get("/api/books/{book_id}/like")

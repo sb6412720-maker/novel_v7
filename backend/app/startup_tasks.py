@@ -402,13 +402,27 @@ def run_startup_tasks() -> dict[str, Any]:
         result["fast_path"] = True
         result["force_seed"] = {"skipped": True, "reason": "books_present", "books": book_count}
         result["inkitt_seed"] = {"skipped": True, "reason": "disabled_on_startup"}
-        # Light content enrichment: chapters / wall / reviews when sparse
-        try:
-            from .content_enrichment_seed import run_content_enrichment
-            result["content_enrichment"] = run_content_enrichment(force=False)
-        except Exception as enrich_exc:
-            LOGGER.warning("content_enrichment skipped: %s", enrich_exc)
-            result["content_enrichment_error"] = str(enrich_exc)
+        # NEVER run enrichment on Vercel cold starts — it blocks the first request
+        # for minutes and causes 504 (Task timed out after 300 seconds).
+        # Enable only with RUN_CONTENT_ENRICHMENT=1 (local/admin jobs).
+        import os as _os
+        on_vercel = bool(_os.getenv("VERCEL") or _os.getenv("VERCEL_ENV"))
+        run_enrich = (_os.getenv("RUN_CONTENT_ENRICHMENT", "").strip().lower() in ("1", "true", "yes"))
+        if on_vercel and not run_enrich:
+            result["content_enrichment"] = {
+                "skipped": True,
+                "reason": "disabled_on_vercel_cold_start",
+            }
+        elif not run_enrich and on_vercel is False and _os.getenv("SKIP_CONTENT_ENRICHMENT", "1").strip().lower() in ("1", "true", "yes"):
+            # Default skip everywhere unless explicitly enabled
+            result["content_enrichment"] = {"skipped": True, "reason": "SKIP_CONTENT_ENRICHMENT"}
+        else:
+            try:
+                from .content_enrichment_seed import run_content_enrichment
+                result["content_enrichment"] = run_content_enrichment(force=False)
+            except Exception as enrich_exc:
+                LOGGER.warning("content_enrichment skipped: %s", enrich_exc)
+                result["content_enrichment_error"] = str(enrich_exc)
         LOGGER.info(
             "Startup FAST PATH (books=%s) — enrichment=%s",
             book_count,
