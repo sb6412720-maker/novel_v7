@@ -1,0 +1,21 @@
+[project]
+name = "novel-backend"
+version = "1.0.0"
+description = "Novel Mobile App FastAPI Backend"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "fastapi==0.115.12",
+    "uvicorn[standard]==0.34.2",
+    "python-multipart==0.0.6",
+    "mysql-connector-python==9.3.0",
+    "sqlalchemy==2.0.40",
+    "python-dotenv==1.1.0",
+    "pydantic==2.13.4",
+    "pydantic-settings==2.1.0",
+    "python-jose[cryptography]==3.3.0",
+    "passlib[bcrypt]==1.7.4",
+    "email-validator==2.2.0",
+]
+
+[tool.vercel]
+entrypoint = "app.main:app"
