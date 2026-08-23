@@ -28,47 +28,92 @@ class AppBootstrap {
   final List<AchievementGroupModel> achievements;
 
   factory AppBootstrap.fromMap(Map<String, dynamic> map) {
+    List<dynamic> _list(String key) {
+      final v = map[key];
+      if (v is List) return v;
+      return const <dynamic>[];
+    }
+
+    Map<String, dynamic> _map(String key) {
+      final v = map[key];
+      if (v is Map<String, dynamic>) return v;
+      if (v is Map) return Map<String, dynamic>.from(v);
+      return <String, dynamic>{};
+    }
+
+    final featuredRaw = _map('featured_book');
+    if (featuredRaw.isEmpty) {
+      featuredRaw.addAll(<String, dynamic>{
+        'id': 0,
+        'title': '',
+        'author': '',
+        'description': '',
+        'status_text': '',
+        'rating': 0,
+        'genre': '',
+        'cta': 'Read now',
+      });
+    }
+
     return AppBootstrap(
-      discoverTabs: List<String>.from(map['discover_tabs'] as List<dynamic>),
-      recentlyUpdated: (map['recently_updated'] as List<dynamic>)
-          .map((item) => BookCardModel.fromMap(item as Map<String, dynamic>))
-          .toList(),
-      recentlyCompleted: (map['recently_completed'] as List<dynamic>)
-          .map((item) => BookCardModel.fromMap(item as Map<String, dynamic>))
-          .toList(),
-      discoverBooks: (map['discover_books'] as List<dynamic>? ?? <dynamic>[])
-          .map((item) => BookCardModel.fromMap(item as Map<String, dynamic>))
-          .toList(),
-      featuredBook: BookDetailModel.fromMap(
-        map['featured_book'] as Map<String, dynamic>,
+      discoverTabs: List<String>.from(
+        _list('discover_tabs').map((e) => e.toString()),
       ),
-      exploreTopics: (map['explore_topics'] as List<dynamic>)
-          .map(
-            (item) => ExploreTopicModel.fromMap(item as Map<String, dynamic>),
-          )
+      recentlyUpdated: _list('recently_updated')
+          .whereType<Map>()
+          .map((item) => BookCardModel.fromMap(Map<String, dynamic>.from(item)))
           .toList(),
-      libraryEntries: (map['library_entries'] as List<dynamic>)
-          .map(
-            (item) => LibraryEntryModel.fromMap(item as Map<String, dynamic>),
-          )
+      recentlyCompleted: _list('recently_completed')
+          .whereType<Map>()
+          .map((item) => BookCardModel.fromMap(Map<String, dynamic>.from(item)))
           .toList(),
-      writeScreen: WriteScreenModel.fromMap(
-        map['write_screen'] as Map<String, dynamic>,
-      ),
-      notifications: (map['notifications'] as List<dynamic>)
-          .map(
-            (item) => NotificationModel.fromMap(item as Map<String, dynamic>),
-          )
+      discoverBooks: _list('discover_books')
+          .whereType<Map>()
+          .map((item) => BookCardModel.fromMap(Map<String, dynamic>.from(item)))
           .toList(),
-      menuSections: (map['menu_sections'] as List<dynamic>)
-          .map((item) => MenuSectionModel.fromMap(item as Map<String, dynamic>))
+      featuredBook: BookDetailModel.fromMap(featuredRaw),
+      exploreTopics: _list('explore_topics')
+          .whereType<Map>()
+          .map((item) => ExploreTopicModel.fromMap(Map<String, dynamic>.from(item)))
           .toList(),
-      profile: ProfileModel.fromMap(map['profile'] as Map<String, dynamic>),
-      achievements: (map['achievements'] as List<dynamic>)
-          .map(
-            (item) =>
-                AchievementGroupModel.fromMap(item as Map<String, dynamic>),
-          )
+      libraryEntries: _list('library_entries')
+          .whereType<Map>()
+          .map((item) => LibraryEntryModel.fromMap(Map<String, dynamic>.from(item)))
+          .toList(),
+      writeScreen: WriteScreenModel.fromMap(_map('write_screen').isEmpty
+          ? <String, dynamic>{
+              'manage_tabs': <String>['Manage Stories', 'Analytics'],
+              'story_tabs': <String>['Submitted', 'Drafts'],
+              'filter_label': 'All stories',
+              'sort_label': 'Recently Updated',
+              'empty_title': "You haven't submitted any story yet",
+              'empty_cta': 'Submit Stories',
+            }
+          : _map('write_screen')),
+      notifications: _list('notifications')
+          .whereType<Map>()
+          .map((item) => NotificationModel.fromMap(Map<String, dynamic>.from(item)))
+          .toList(),
+      menuSections: _list('menu_sections')
+          .whereType<Map>()
+          .map((item) => MenuSectionModel.fromMap(Map<String, dynamic>.from(item)))
+          .toList(),
+      profile: ProfileModel.fromMap(_map('profile').isEmpty
+          ? <String, dynamic>{
+              'display_name': 'Reader',
+              'username': '@reader',
+              'following': 0,
+              'followers': 0,
+              'blocked': 0,
+              'chapters_read': 0,
+              'social_karma': 0,
+              'day_streak': 0,
+              'reading_lists': <dynamic>[],
+            }
+          : _map('profile')),
+      achievements: _list('achievements')
+          .whereType<Map>()
+          .map((item) => AchievementGroupModel.fromMap(Map<String, dynamic>.from(item)))
           .toList(),
     );
   }

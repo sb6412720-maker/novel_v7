@@ -56,23 +56,56 @@ app.add_middleware(
 UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
 
 # --- Vercel path normalization ---
-# Some Vercel rewrite setups pass the function file path (e.g. /api/index.py)
-# as the ASGI path, which makes every real route 404. Restore sensible paths.
+# Rewrites to /api/index collapse the URL path to "/api/index". Recover the
+# real client path from ?__p=... (set by vercel.json) or proxy headers.
 @app.middleware("http")
 async def vercel_path_normalize(request, call_next):
+    from urllib.parse import parse_qs
+
     path = request.scope.get("path") or ""
+    headers = {
+        (k.decode("latin-1").lower() if isinstance(k, (bytes, bytearray)) else str(k).lower()):
+        (v.decode("latin-1") if isinstance(v, (bytes, bytearray)) else str(v))
+        for k, v in (request.scope.get("headers") or [])
+    }
+    qs_raw = request.scope.get("query_string") or b""
+    if isinstance(qs_raw, bytes):
+        qs_raw = qs_raw.decode("latin-1", errors="ignore")
+    qs = parse_qs(qs_raw, keep_blank_values=True)
+
+    recovered = None
+    if "__p" in qs and qs["__p"]:
+        recovered = qs["__p"][0] or "/"
+        # strip __p from query so endpoints do not see it
+        qs.pop("__p", None)
+        new_qs = "&".join(
+            f"{k}={v}" for k, vals in qs.items() for v in vals
+        ).encode("latin-1")
+        request.scope["query_string"] = new_qs
+    else:
+        for hdr in (
+            "x-forwarded-uri",
+            "x-original-uri",
+            "x-invoke-path",
+            "x-vercel-original-path",
+            "x-matched-path",
+            "x-rewrite-url",
+        ):
+            val = headers.get(hdr) or ""
+            if val and not val.rstrip("/").endswith("/api/index"):
+                recovered = val.split("?")[0] or "/"
+                break
+
+    if recovered:
+        if not recovered.startswith("/"):
+            recovered = "/" + recovered
+        path = recovered
+
+    request.scope["path"] = path
     try:
-        LOGGER.info("ASGI path=%s", path)
+        LOGGER.info("ASGI path=%s recovered=%s", path, recovered)
     except Exception:
         pass
-    # Broken rewrite: entire URL becomes the function filename
-    if path in ("/api/index.py", "/api/index", "/api"):
-        path = "/"
-    elif path.startswith("/api/index.py"):
-        path = path[len("/api/index.py"):] or "/"
-    elif path.startswith("/api/index/"):
-        path = path[len("/api/index"):] or "/"
-    request.scope["path"] = path
     return await call_next(request)
 
 
