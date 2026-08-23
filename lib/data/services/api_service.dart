@@ -17,12 +17,9 @@ class ApiService {
     _authToken = token;
   }
 
-  /// Release APK talks to this host unless --dart-define=API_BASE_URL=... is set.
-  /// IMPORTANT: HF Space bootstrap currently returns 500 → empty home screen.
-  /// Put your live Vercel (or Render) backend URL here, no trailing slash.
-  /// Example: https://novel-v7-xxxx.vercel.app
-  static const String _productionApiBaseUrl =
-      'https://REPLACE_WITH_YOUR_VERCEL_BACKEND_URL.vercel.app';
+  /// Production backend (Vercel). Override anytime with:
+  ///   --dart-define=API_BASE_URL=https://other-host.example
+  static const String _productionApiBaseUrl = 'https://novel-v7.vercel.app';
 
   static const String _overrideApiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
@@ -40,21 +37,15 @@ class ApiService {
         debugPrint(
           'ApiService: Android debug default base URL is $emulatorUrl.\n'
           'Physical device? pass --dart-define=API_BASE_URL=http://<PC_IP>:8000\n'
-          'Debug never falls back to production (avoids Google Not Found / empty Discover).',
+          'To hit production from debug: --dart-define=API_BASE_URL=https://novel-v7.vercel.app',
         );
         return emulatorUrl;
       }
       return 'http://127.0.0.1:8000';
     }
 
-    // Release build: must point at the same backend that has MySQL seed data.
-    final url = _productionApiBaseUrl.replaceAll(RegExp(r'/+$'), '');
-    assert(
-      !url.contains('REPLACE_WITH_YOUR'),
-      'Set _productionApiBaseUrl in api_service.dart to your Vercel backend URL, '
-      'or build with --dart-define=API_BASE_URL=https://your-backend.vercel.app',
-    );
-    return url;
+    // Release APK → Vercel backend
+    return _productionApiBaseUrl.replaceAll(RegExp(r'/+$'), '');
   }
 
   Map<String, String> get _authHeaders {
