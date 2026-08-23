@@ -1910,7 +1910,10 @@ def get_connection():
         raise RuntimeError("mysql.connector is not installed; install mysql-connector-python to use MySQL mode")
 
     timeout_s = int(os.getenv("MYSQL_CONNECT_TIMEOUT", "8"))
-    return mysql_connector.connect(
+    # Fail stuck queries before Vercel 300s hard kill
+    read_timeout_s = int(os.getenv("MYSQL_READ_TIMEOUT", "25"))
+    write_timeout_s = int(os.getenv("MYSQL_WRITE_TIMEOUT", "25"))
+    kwargs = dict(
         host=os.getenv("MYSQL_HOST", "127.0.0.1"),
         port=int(os.getenv("MYSQL_PORT", "3306")),
         user=os.getenv("MYSQL_USER", "root"),
@@ -1920,6 +1923,15 @@ def get_connection():
         use_pure=True,
         connection_timeout=timeout_s,
     )
+    # mysql-connector pure Python supports these; ignore if unsupported
+    try:
+        return mysql_connector.connect(
+            **kwargs,
+            read_timeout=read_timeout_s,
+            write_timeout=write_timeout_s,
+        )
+    except TypeError:
+        return mysql_connector.connect(**kwargs)
 
 
 def force_seed_if_empty() -> dict[str, int]:

@@ -589,26 +589,33 @@ def create_user_token(user_id: int) -> str:
 
 
 
+_WALL_POSTS_TABLE_READY = False
+
+
 def _ensure_wall_posts_table() -> None:
-    """Dedicated wall posts (profile Wall tab). Soft schema; never drops data."""
+    """Dedicated wall posts (profile Wall tab). Soft schema; never drops data.
+    Runs once per process — avoids DDL lock storms that cause 300s Vercel timeouts.
+    """
+    global _WALL_POSTS_TABLE_READY
+    if _WALL_POSTS_TABLE_READY:
+        return
     try:
-        execute_write(
-            """
-            CREATE TABLE IF NOT EXISTS wall_posts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                target_user_id INTEGER NOT NULL,
-                body TEXT NOT NULL,
-                image_path TEXT DEFAULT '',
-                likes_count INTEGER NOT NULL DEFAULT 0,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        if _live_use_sqlite():
+            execute_write(
+                """
+                CREATE TABLE IF NOT EXISTS wall_posts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    target_user_id INTEGER NOT NULL,
+                    body TEXT NOT NULL,
+                    image_path TEXT DEFAULT '',
+                    likes_count INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                )
+                """,
+                (),
             )
-            """,
-            (),
-        )
-    except Exception:
-        # MySQL / Postgres variants
-        try:
+        else:
             execute_write(
                 """
                 CREATE TABLE IF NOT EXISTS wall_posts (
@@ -623,8 +630,9 @@ def _ensure_wall_posts_table() -> None:
                 """,
                 (),
             )
-        except Exception:
-            pass
+        _WALL_POSTS_TABLE_READY = True
+    except Exception as exc:
+        LOGGER.warning("wall_posts ensure failed: %s", exc)
 
 
 def _as_bool_flag(v) -> bool:
@@ -4481,36 +4489,32 @@ def list_user_reviews(user_id: int):
 
 @app.get("/api/users/{user_id}/wall")
 def list_user_wall(user_id: int):
-    """Profile Wall: posts on this user's wall (real data from wall_posts)."""
+    """Profile Wall: posts on this user's wall (single JOIN — avoids N+1 / 504 timeouts)."""
     _ensure_wall_posts_table()
     try:
+        # One query with author join — never per-row SELECT (was timing out on Vercel 300s)
         rows = fetch_all(
             """
-            SELECT id, user_id, target_user_id, body, image_path, likes_count, created_at
-            FROM wall_posts
-            WHERE target_user_id=%s OR user_id=%s
-            ORDER BY id DESC
-            LIMIT 80
+            SELECT w.id, w.user_id, w.target_user_id, w.body, w.image_path,
+                   w.likes_count, w.created_at,
+                   u.display_name AS sender_name,
+                   u.photo_url AS sender_photo
+            FROM wall_posts w
+            LEFT JOIN app_users u ON u.id = w.user_id
+            WHERE w.target_user_id=%s OR w.user_id=%s
+            ORDER BY w.id DESC
+            LIMIT 40
             """,
             (user_id, user_id),
         )
-    except Exception:
+    except Exception as exc:
+        LOGGER.warning("list_user_wall query failed for %s: %s", user_id, exc)
         rows = []
     items = []
     for row in rows:
         uid = _row_get(row, "user_id")
-        uname = "User"
-        photo = ""
-        try:
-            urows = fetch_all(
-                "SELECT display_name, photo_url FROM app_users WHERE id=%s LIMIT 1",
-                (uid,),
-            )
-            if urows:
-                uname = _row_get(urows[0], "display_name") or uname
-                photo = _row_get(urows[0], "photo_url") or ""
-        except Exception:
-            pass
+        uname = (_row_get(row, "sender_name") or "User").strip() or "User"
+        photo = _row_get(row, "sender_photo") or ""
         items.append({
             "id": _row_get(row, "id"),
             "user_id": uid,
