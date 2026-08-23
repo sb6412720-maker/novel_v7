@@ -413,104 +413,110 @@ def run_startup_tasks() -> dict[str, Any]:
     
 
 
-    # Inkitt-style expanded catalog (idempotent by title) — no import from main (avoids circular import)
-    # Use ONE connection so Vercel cold starts stay under the function timeout.
+    # Inkitt-style catalog: NEVER block Vercel cold starts.
+    # If books already exist, skip entirely. Otherwise seed with ENUM-safe sections only,
+    # single connection, and hard time budget.
     try:
-        from .inkitt_seed import ensure_inkitt_catalog, INKITT_BOOKS
+        book_count = int(result.get("counts", {}).get("books") or 0)
+        if book_count <= 0:
+            # Try a live count in case counts map was empty
+            try:
+                cconn = get_connection()
+                ccur = cconn.cursor()
+                ccur.execute("SELECT COUNT(*) FROM books")
+                row = ccur.fetchone()
+                book_count = int(row[0] if not isinstance(row, dict) else list(row.values())[0])
+                ccur.close()
+                cconn.close()
+            except Exception:
+                book_count = 0
 
-        seed_conn = get_connection()
-        try:
-            # Guarantee section_name accepts 'trending' before inserts (MySQL ENUM fix).
-            if not USE_SQLITE:
-                cur = seed_conn.cursor()
+        # Always attempt one-shot ENUM->VARCHAR (fast; ignores if already VARCHAR)
+        if not USE_SQLITE:
+            try:
+                wconn = get_connection()
+                wcur = wconn.cursor()
                 try:
-                    cur.execute("SHOW COLUMNS FROM books LIKE 'section_name'")
-                    col = cur.fetchone()
-                    col_type = ""
-                    if col is not None:
-                        if isinstance(col, dict):
-                            col_type = str(col.get("Type") or col.get("type") or "")
-                        else:
-                            col_type = str(col[1]) if len(col) > 1 else ""
-                    if not col_type or "enum" in col_type.lower() or "varchar" not in col_type.lower():
-                        try:
-                            cur.execute(
-                                "ALTER TABLE books MODIFY COLUMN section_name VARCHAR(64) NOT NULL DEFAULT 'recently_updated'"
-                            )
-                            seed_conn.commit()
-                            LOGGER.info("Widened books.section_name to VARCHAR(64) for Inkitt sections")
-                        except Exception as alter_exc:
-                            LOGGER.warning("section_name widen skipped: %s", alter_exc)
+                    wcur.execute(
+                        "ALTER TABLE books MODIFY COLUMN section_name VARCHAR(64) NOT NULL DEFAULT 'recently_updated'"
+                    )
+                    wconn.commit()
+                    LOGGER.info("Ensured books.section_name is VARCHAR(64)")
+                except Exception as wexc:
+                    LOGGER.warning("section_name ensure: %s", wexc)
                 finally:
-                    cur.close()
+                    wcur.close()
+                    wconn.close()
+            except Exception as wexc2:
+                LOGGER.warning("section_name ensure connect: %s", wexc2)
 
-            def _fetch(q, p=None):
-                if USE_SQLITE:
+        if book_count > 0:
+            result["inkitt_seed"] = {
+                "books_added": 0,
+                "skipped": "books_already_present",
+                "book_count": book_count,
+            }
+            LOGGER.info("inkitt_seed skipped (books=%s) — keeping cold start fast", book_count)
+        else:
+            from .inkitt_seed import ensure_inkitt_catalog
+
+            seed_conn = get_connection()
+            try:
+                if not USE_SQLITE:
                     cur = seed_conn.cursor()
-                else:
                     try:
-                        cur = seed_conn.cursor(dictionary=True)
-                    except TypeError:
+                        # Always try to widen ENUM so future 'trending' values work
+                        cur.execute(
+                            "ALTER TABLE books MODIFY COLUMN section_name VARCHAR(64) NOT NULL DEFAULT 'recently_updated'"
+                        )
+                        seed_conn.commit()
+                        LOGGER.info("Forced books.section_name -> VARCHAR(64)")
+                    except Exception as alter_exc:
+                        LOGGER.warning("section_name widen (empty-db path): %s", alter_exc)
+                    finally:
+                        cur.close()
+
+                def _fetch(q, p=None):
+                    if USE_SQLITE:
                         cur = seed_conn.cursor()
-                try:
-                    qq = q.replace("%s", "?") if USE_SQLITE else q
-                    cur.execute(qq, p or ())
-                    rows = cur.fetchall()
-                    if not rows:
-                        return []
-                    if isinstance(rows[0], dict):
-                        return list(rows)
-                    cols = [d[0] for d in cur.description]
-                    return [dict(zip(cols, r)) for r in rows]
-                finally:
-                    cur.close()
+                    else:
+                        try:
+                            cur = seed_conn.cursor(dictionary=True)
+                        except TypeError:
+                            cur = seed_conn.cursor()
+                    try:
+                        qq = q.replace("%s", "?") if USE_SQLITE else q
+                        cur.execute(qq, p or ())
+                        rows = cur.fetchall()
+                        if not rows:
+                            return []
+                        if isinstance(rows[0], dict):
+                            return list(rows)
+                        cols = [d[0] for d in cur.description]
+                        return [dict(zip(cols, r)) for r in rows]
+                    finally:
+                        cur.close()
 
-            def _write(q, p=()):
-                cur = seed_conn.cursor()
-                try:
-                    qq = q.replace("%s", "?") if USE_SQLITE else q
-                    cur.execute(qq, p)
-                    seed_conn.commit()
-                    lid = getattr(cur, "lastrowid", None) or 0
-                    return lid, cur.rowcount
-                finally:
-                    cur.close()
+                def _write(q, p=()):
+                    cur = seed_conn.cursor()
+                    try:
+                        qq = q.replace("%s", "?") if USE_SQLITE else q
+                        cur.execute(qq, p)
+                        seed_conn.commit()
+                        lid = getattr(cur, "lastrowid", None) or 0
+                        return lid, cur.rowcount
+                    finally:
+                        cur.close()
 
-            # Skip heavy insert loop when catalog already present (idempotent fast path).
-            existing_titles = 0
-            try:
-                sample = _fetch(
-                    "SELECT COUNT(*) AS c FROM books WHERE title IN (%s)"
-                    % ",".join(["%s"] * min(5, len(INKITT_BOOKS))),
-                    tuple(t[0] for t in INKITT_BOOKS[:5]),
-                )
-                if sample:
-                    row = sample[0]
-                    existing_titles = int(row.get("c") if isinstance(row, dict) else row[0])
-            except Exception:
-                existing_titles = 0
-
-            if existing_titles >= 4:
-                result["inkitt_seed"] = {
-                    "books_added": 0,
-                    "covers_fixed": 0,
-                    "lists_added": 0,
-                    "contests_added": 0,
-                    "catalog_size": len(INKITT_BOOKS),
-                    "skipped": "already_seeded",
-                }
-                LOGGER.info("inkitt_seed skipped (already present): %s", result["inkitt_seed"])
-            else:
                 result["inkitt_seed"] = ensure_inkitt_catalog(_write, _fetch, USE_SQLITE)
-                LOGGER.info("inkitt_seed: %s", result["inkitt_seed"])
-        finally:
-            try:
-                seed_conn.close()
-            except Exception:
-                pass
+                LOGGER.info("inkitt_seed (empty db): %s", result["inkitt_seed"])
+            finally:
+                try:
+                    seed_conn.close()
+                except Exception:
+                    pass
     except Exception as ink_exc:
         LOGGER.warning("inkitt_seed failed: %s", ink_exc)
         result["inkitt_seed_error"] = str(ink_exc)
 
     return result
-

@@ -17,8 +17,12 @@ class ApiService {
     _authToken = token;
   }
 
+  /// Release APK talks to this host unless --dart-define=API_BASE_URL=... is set.
+  /// IMPORTANT: HF Space bootstrap currently returns 500 → empty home screen.
+  /// Put your live Vercel (or Render) backend URL here, no trailing slash.
+  /// Example: https://novel-v7-xxxx.vercel.app
   static const String _productionApiBaseUrl =
-      'https://lakmasachith-novel-app-backend.hf.space';
+      'https://REPLACE_WITH_YOUR_VERCEL_BACKEND_URL.vercel.app';
 
   static const String _overrideApiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
@@ -27,7 +31,7 @@ class ApiService {
 
   String get _baseUrl {
     if (_overrideApiBaseUrl.isNotEmpty) {
-      return _overrideApiBaseUrl;
+      return _overrideApiBaseUrl.replaceAll(RegExp(r'/+$'), '');
     }
 
     if (kDebugMode) {
@@ -43,9 +47,14 @@ class ApiService {
       return 'http://127.0.0.1:8000';
     }
 
-    // Release: HF Space is currently outdated (404 on /api/auth/google).
-    // Prefer --dart-define=API_BASE_URL=... until you redeploy the current backend.
-    return _productionApiBaseUrl;
+    // Release build: must point at the same backend that has MySQL seed data.
+    final url = _productionApiBaseUrl.replaceAll(RegExp(r'/+$'), '');
+    assert(
+      !url.contains('REPLACE_WITH_YOUR'),
+      'Set _productionApiBaseUrl in api_service.dart to your Vercel backend URL, '
+      'or build with --dart-define=API_BASE_URL=https://your-backend.vercel.app',
+    );
+    return url;
   }
 
   Map<String, String> get _authHeaders {
@@ -163,17 +172,30 @@ class ApiService {
   }
 
   Future<AppBootstrap> fetchBootstrap() async {
+    // Vercel cold start can take 10–40s after deploy; do not use a 5s timeout.
     try {
       final response = await _get(
         '/api/bootstrap',
-        timeout: const Duration(seconds: 5),
+        timeout: const Duration(seconds: 45),
       );
       if (response.statusCode == 200) {
-        return AppBootstrap.fromMap(
-          jsonDecode(response.body) as Map<String, dynamic>,
+        final map = jsonDecode(response.body) as Map<String, dynamic>;
+        debugPrint(
+          'bootstrap OK from $_baseUrl '
+          'recently_updated=${(map['recently_updated'] as List?)?.length ?? 0} '
+          'discover=${(map['discover_books'] as List?)?.length ?? 0}',
         );
+        return AppBootstrap.fromMap(map);
       }
-    } catch (_) {}
+      debugPrint(
+        'bootstrap HTTP ${response.statusCode} from $_baseUrl: '
+        '${response.body.length > 300 ? response.body.substring(0, 300) : response.body}',
+      );
+    } catch (e, st) {
+      debugPrint('bootstrap error from $_baseUrl: $e');
+      debugPrint('$st');
+    }
+    // Empty fallback = blank Discover. Prefer fixing API_BASE_URL over silent empty UI.
     return AppBootstrap.fromMap(_fallbackData);
   }
 

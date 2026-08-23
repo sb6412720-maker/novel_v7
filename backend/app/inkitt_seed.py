@@ -38,26 +38,26 @@ def _c(i: int) -> str:
 
 # title, author, description, cover, accent, section, status, rating, genre, secondary, sort, completed
 INKITT_BOOKS: list[tuple] = [
-    ("Rebuilding After Betrayal", "CosmicChaos", "After everything fell apart, she learns how to trust again.", _c(0), "#c45c6a", "trending", "Published", 4.9, "Contemporary Romance", "Drama", 1, 0),
-    ("The Easter Bunny", "Michele Dixon", "A single dad, a holiday miracle, and a second chance.", _c(1), "#e8a0b0", "trending", "Published", 4.7, "Contemporary Romance", "Love", 2, 0),
-    ("Buried Alive", "CosmicChaos", "Secrets buried for years surface when the past returns.", _c(2), "#6b4c7a", "trending", "Published", 4.7, "Contemporary Romance", "Suspense", 3, 0),
-    ("Marked By His Touch", "Ava Reed", "One touch and her carefully built walls begin to crack.", _c(3), "#1a1a2e", "trending", "Published", 4.5, "Contemporary Romance", "Sex", 4, 0),
-    ("The Boss Before Feelings", "Nensha Jennifer", "Office rules were simple—until he became more than her boss.", _c(4), "#2c3e50", "trending", "Published", 4.4, "Contemporary Romance", "Love", 5, 0),
-    ("Full Volume", "Anne-Marie", "Music, rivalry, and a love that refuses to stay quiet.", _c(5), "#3498db", "trending", "Published", 4.7, "Contemporary Romance", "Drama", 6, 0),
-    ("Hit and Run", "Uxcutc", "A chance collision that changes both of their lives.", _c(6), "#e67e22", "trending", "Published", 4.9, "Contemporary Romance", "Romantic Comedy", 7, 0),
-    ("If You'd Chosen Me", "AuthorAcacia", "What if she had said yes the first time?", _c(7), "#9b59b6", "trending", "Published", 4.8, "Contemporary Romance", "Love", 8, 0),
-    ("Married by Fate", "Alice", "An arranged marriage becomes something real.", _c(8), "#16a085", "trending", "Published", 4.9, "Contemporary Romance", "Drama", 9, 0),
-    ("What We Never Healed", "Ava Reed", "Two years later, fate brings them back together.", _c(9), "#8e44ad", "trending", "Published", 4.6, "Contemporary Romance", "Office Romance", 10, 1),
-    ("Half-Claimed", "Elle Harper Hayden", "The alpha's claim was only half the story.", _c(10), "#2c1654", "trending", "Published", 4.8, "Werewolves & Shifters", "Werewolves", 11, 0),
-    ("THE WOMAN HE BOUGHT", "The Secret Chapter", "He bought her contract. She stole his heart.", _c(11), "#1a1a1a", "trending", "Published", 4.2, "Dark Romance", "Ceo", 12, 0),
-    ("The Alpha's Exiled Mate", "Amal A. Usman", "Exiled from the pack, claimed by destiny.", _c(12), "#4a3728", "trending", "Published", 4.4, "Werewolves & Shifters", "Alpha", 13, 0),
-    ("Property of Sin", "Lizette Combrinck", "Steel & Sin MC. Book 1.", _c(13), "#c0392b", "trending", "Published", 4.2, "Thriller", "Forced Proximity", 14, 0),
-    ("Vampire's Pet", "Cannon", "She was never meant to be his pet.", _c(14), "#7b241c", "trending", "Published", 4.8, "Thriller", "Vampire", 15, 0),
-    ("His Accidental Billion-Dollar Bride", "Serena B. Vale", "One paperwork error. One very real marriage.", _c(15), "#1c2833", "trending", "Published", 4.7, "Thriller", "Love", 16, 0),
-    ("Poor Little Rich Girl", "topperjoslin", "Money couldn't buy the one thing she needed.", _c(16), "#5d6d7e", "trending", "Published", 4.9, "Thriller", "Drama", 17, 0),
-    ("My 21 Brothers", "I_Am_Weird69", "A family secret twenty-one brothers strong.", _c(17), "#f5b041", "trending", "Published", 4.7, "Thriller", "Family", 18, 0),
-    ("Furry Humans", "Jariah Weaver", "When the full moon rises, so does the truth.", _c(18), "#1b2631", "trending", "Published", 4.7, "Thriller", "Completed", 19, 1),
-    ("Unwanted Twin", "Ree", "The twin they tried to forget.", _c(19), "#17202a", "trending", "Published", 4.7, "Thriller", "Italian Mafia", 20, 0),
+    ("Rebuilding After Betrayal", "CosmicChaos", "After everything fell apart, she learns how to trust again.", _c(0), "#c45c6a", "featured", "Published", 4.9, "Contemporary Romance", "Drama", 1, 0),
+    ("The Easter Bunny", "Michele Dixon", "A single dad, a holiday miracle, and a second chance.", _c(1), "#e8a0b0", "featured", "Published", 4.7, "Contemporary Romance", "Love", 2, 0),
+    ("Buried Alive", "CosmicChaos", "Secrets buried for years surface when the past returns.", _c(2), "#6b4c7a", "featured", "Published", 4.7, "Contemporary Romance", "Suspense", 3, 0),
+    ("Marked By His Touch", "Ava Reed", "One touch and her carefully built walls begin to crack.", _c(3), "#1a1a2e", "featured", "Published", 4.5, "Contemporary Romance", "Sex", 4, 0),
+    ("The Boss Before Feelings", "Nensha Jennifer", "Office rules were simple—until he became more than her boss.", _c(4), "#2c3e50", "featured", "Published", 4.4, "Contemporary Romance", "Love", 5, 0),
+    ("Full Volume", "Anne-Marie", "Music, rivalry, and a love that refuses to stay quiet.", _c(5), "#3498db", "featured", "Published", 4.7, "Contemporary Romance", "Drama", 6, 0),
+    ("Hit and Run", "Uxcutc", "A chance collision that changes both of their lives.", _c(6), "#e67e22", "featured", "Published", 4.9, "Contemporary Romance", "Romantic Comedy", 7, 0),
+    ("If You'd Chosen Me", "AuthorAcacia", "What if she had said yes the first time?", _c(7), "#9b59b6", "featured", "Published", 4.8, "Contemporary Romance", "Love", 8, 0),
+    ("Married by Fate", "Alice", "An arranged marriage becomes something real.", _c(8), "#16a085", "featured", "Published", 4.9, "Contemporary Romance", "Drama", 9, 0),
+    ("What We Never Healed", "Ava Reed", "Two years later, fate brings them back together.", _c(9), "#8e44ad", "featured", "Published", 4.6, "Contemporary Romance", "Office Romance", 10, 1),
+    ("Half-Claimed", "Elle Harper Hayden", "The alpha's claim was only half the story.", _c(10), "#2c1654", "featured", "Published", 4.8, "Werewolves & Shifters", "Werewolves", 11, 0),
+    ("THE WOMAN HE BOUGHT", "The Secret Chapter", "He bought her contract. She stole his heart.", _c(11), "#1a1a1a", "featured", "Published", 4.2, "Dark Romance", "Ceo", 12, 0),
+    ("The Alpha's Exiled Mate", "Amal A. Usman", "Exiled from the pack, claimed by destiny.", _c(12), "#4a3728", "featured", "Published", 4.4, "Werewolves & Shifters", "Alpha", 13, 0),
+    ("Property of Sin", "Lizette Combrinck", "Steel & Sin MC. Book 1.", _c(13), "#c0392b", "featured", "Published", 4.2, "Thriller", "Forced Proximity", 14, 0),
+    ("Vampire's Pet", "Cannon", "She was never meant to be his pet.", _c(14), "#7b241c", "featured", "Published", 4.8, "Thriller", "Vampire", 15, 0),
+    ("His Accidental Billion-Dollar Bride", "Serena B. Vale", "One paperwork error. One very real marriage.", _c(15), "#1c2833", "featured", "Published", 4.7, "Thriller", "Love", 16, 0),
+    ("Poor Little Rich Girl", "topperjoslin", "Money couldn't buy the one thing she needed.", _c(16), "#5d6d7e", "featured", "Published", 4.9, "Thriller", "Drama", 17, 0),
+    ("My 21 Brothers", "I_Am_Weird69", "A family secret twenty-one brothers strong.", _c(17), "#f5b041", "featured", "Published", 4.7, "Thriller", "Family", 18, 0),
+    ("Furry Humans", "Jariah Weaver", "When the full moon rises, so does the truth.", _c(18), "#1b2631", "featured", "Published", 4.7, "Thriller", "Completed", 19, 1),
+    ("Unwanted Twin", "Ree", "The twin they tried to forget.", _c(19), "#17202a", "featured", "Published", 4.7, "Thriller", "Italian Mafia", 20, 0),
     ("A Lab Rat and her Alien", "Nova K", "Science never prepared her for him.", _c(0), "#1abc9c", "recently_updated", "Published", 4.6, "Sci-Fi", "Alien", 21, 0),
     ("A Different Species", "StarWriter", "Between two worlds, only one truth remains.", _c(1), "#2980b9", "recently_updated", "Published", 4.5, "Sci-Fi", "Romance", 22, 0),
     ("Love Beyond Stars", "GalaxyPen", "Light-years apart was never enough to stop them.", _c(2), "#8e44ad", "recently_updated", "Published", 4.8, "Sci-Fi", "Love", 23, 0),
@@ -77,7 +77,7 @@ INKITT_BOOKS: list[tuple] = [
     ("The Golden Cage", "Tara", "Luxury was the trap.", _c(16), "#1c2833", "featured", "Published", 5.0, "Thriller", "Stalker", 37, 0),
     ("Diary Of Nobody", "K. Haze", "Pages no one was meant to read.", _c(17), "#7D6A5A", "recently_completed", "Completed", 4.1, "Poetry", "Drama", 38, 1),
     ("Warrior Wolves, M.C.", "Lexi Melton", "Brothers by oath. Warriors by blood.", _c(18), "#4A4A62", "recently_completed", "Completed", 4.8, "Thriller", "MC", 39, 1),
-    ("Love in Full Color", "Contest Winner", "Every kind of love, every kind of story.", _c(19), "#ff00cc", "trending", "Published", 4.9, "Romance", "Contest", 40, 0),
+    ("Love in Full Color", "Contest Winner", "Every kind of love, every kind of story.", _c(19), "#ff00cc", "featured", "Published", 4.9, "Romance", "Contest", 40, 0),
 ]
 
 INKITT_READING_LISTS = [
@@ -103,6 +103,15 @@ def ensure_inkitt_catalog(execute_write, fetch_all, USE_SQLITE: bool) -> dict[st
     added = 0
     covers_fixed = 0
 
+    # Only values safe for legacy MySQL ENUM('featured','recently_updated','recently_completed')
+    _ALLOWED_SECTIONS = {"featured", "recently_updated", "recently_completed"}
+    _SECTION_MAP = {
+        "trending": "featured",
+        "featured": "featured",
+        "recently_updated": "recently_updated",
+        "recently_completed": "recently_completed",
+    }
+
     for (
         title,
         author,
@@ -117,6 +126,9 @@ def ensure_inkitt_catalog(execute_write, fetch_all, USE_SQLITE: bool) -> dict[st
         sort_order,
         is_completed,
     ) in INKITT_BOOKS:
+        section_name = _SECTION_MAP.get(str(section_name).strip().lower(), "recently_updated")
+        if section_name not in _ALLOWED_SECTIONS:
+            section_name = "recently_updated"
         try:
             rows = fetch_all("SELECT id, cover_path FROM books WHERE title=%s LIMIT 1", (title,))
             if rows:
