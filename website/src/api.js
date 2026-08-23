@@ -209,8 +209,24 @@ export function getTags() {
   return request("/api/tags").catch(() => ({ items: [] }));
 }
 
-export function getWriteStory(storyId) {
-  return request(`/api/write/stories/${storyId}`);
+export async function getWriteStory(storyId) {
+  const story = await request(`/api/write/stories/${storyId}`);
+  let chapters = [];
+  try {
+    const chRes = await request(`/api/write/stories/${storyId}/chapters`);
+    chapters = chRes?.items || chRes?.chapters || (Array.isArray(chRes) ? chRes : []);
+  } catch (_) {
+    chapters = [];
+  }
+  return {
+    ...(story && typeof story === "object" ? story : {}),
+    story: story,
+    chapters: Array.isArray(chapters) ? chapters : [],
+  };
+}
+
+export function getStoryChapters(storyId) {
+  return request(`/api/write/stories/${storyId}/chapters`);
 }
 
 export function createStory(payload = {}) {

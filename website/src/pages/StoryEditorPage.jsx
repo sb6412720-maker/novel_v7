@@ -97,6 +97,16 @@ export default function StoryEditorPage({ user }) {
     const s = res?.story || res?.item || res;
     let ch = res?.chapters || res?.items || [];
     if (!Array.isArray(ch)) ch = [];
+    // Normalize chapter fields from backend
+    ch = ch.map((c) => ({
+      ...c,
+      id: c.id,
+      title: c.title || `Chapter ${c.chapter_number || ""}`,
+      content: c.content || "",
+      notes: c.notes || "",
+      submission_status: c.submission_status || "draft",
+      chapter_number: c.chapter_number,
+    }));
     setStory(s);
     setStoryTitle(s?.title || "Untitled Story");
     setSettings((prev) => ({
@@ -113,7 +123,7 @@ export default function StoryEditorPage({ user }) {
 
     if (!ch.length) {
       try {
-        await createChapter(id, {
+        const created = await createChapter(id, {
           title: "Chapter 1",
           content: "",
           chapter_number: 1,
@@ -121,12 +131,29 @@ export default function StoryEditorPage({ user }) {
         });
         const res2 = await getWriteStory(id);
         ch = res2?.chapters || res2?.items || [];
+        if (!ch.length && (created?.id || created?.chapter_id)) {
+          ch = [{
+            id: created.id || created.chapter_id,
+            title: "Chapter 1",
+            content: "",
+            notes: "",
+            submission_status: "draft",
+            chapter_number: 1,
+          }];
+        }
       } catch (ce) {
         setMsg(String(ce.message || ce));
       }
     }
 
-    setChapters(Array.isArray(ch) ? ch : []);
+    ch = (Array.isArray(ch) ? ch : []).map((c) => ({
+      ...c,
+      title: c.title || `Chapter ${c.chapter_number || ""}`,
+      content: c.content || "",
+      notes: c.notes || "",
+      submission_status: c.submission_status || "draft",
+    }));
+    setChapters(ch);
     const prefer = activeId && ch.find((c) => String(c.id) === String(activeId));
     const pick = prefer || ch[0];
     if (pick) {
@@ -134,6 +161,10 @@ export default function StoryEditorPage({ user }) {
       setTitle(pick.title || "Chapter 1");
       setContent(pick.content || "");
       setNotes(pick.notes || localStorage.getItem(`nh_notes_${pick.id}`) || "");
+    } else {
+      setActiveId(null);
+      setTitle("");
+      setContent("");
     }
   }
 
@@ -244,8 +275,26 @@ export default function StoryEditorPage({ user }) {
         submission_status: "draft",
       });
       setNewChapterName("");
+      const id = res?.id || res?.chapter_id || res?.item?.id;
+      // Optimistic list update so UI shows immediately
+      if (id) {
+        setChapters((prev) => [
+          ...prev,
+          {
+            id,
+            title: name,
+            content: "",
+            notes: "",
+            submission_status: "draft",
+            chapter_number: chapters.length + 1,
+          },
+        ]);
+        setActiveId(id);
+        setTitle(name);
+        setContent("");
+        setNotes("");
+      }
       await load(storyId);
-      const id = res?.id || res?.chapter_id;
       if (id) setActiveId(id);
       setMsg("Chapter created");
     } catch (e) {
@@ -501,9 +550,9 @@ export default function StoryEditorPage({ user }) {
         <aside className="editor-left">
           <div className="editor-cover-box">
             {cover ? (
-              <img src={cover} alt="" />
+              <img src={cover} alt="Cover" />
             ) : (
-              <div className="editor-cover-empty" />
+              <div className="editor-cover-empty" aria-hidden="true" />
             )}
             <button
               type="button"
@@ -516,7 +565,7 @@ export default function StoryEditorPage({ user }) {
               ref={coverInputRef}
               type="file"
               accept="image/jpeg,image/png,image/webp,image/jpg"
-              hidden
+              style={{ display: "none" }}
               onChange={onCoverFile}
             />
           </div>

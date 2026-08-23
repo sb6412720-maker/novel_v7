@@ -4288,3 +4288,44 @@ img {
   margin: 0 0 12px;
   font-size: 1.5rem;
 }
+
+
+/* FORCE cover + chapters visible */
+.editor-inkitt .editor-cover-box {
+  display: block !important;
+  width: 160px !important;
+  margin-bottom: 16px !important;
+}
+.editor-inkitt .editor-cover-empty {
+  display: block !important;
+  height: 210px !important;
+  background: #e5e7eb !important;
+}
+.editor-inkitt .cover-edit-btn {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  width: 100% !important;
+  background: #6b7280 !important;
+  color: #fff !important;
+  border: none !important;
+  padding: 10px 6px !important;
+  cursor: pointer !important;
+  font-size: 0.8rem !important;
+  font-weight: 600 !important;
+}
+.editor-inkitt .editor-right {
+  display: block !important;
+  min-width: 260px;
+}
+.editor-inkitt .editor-chapter-list {
+  display: block !important;
+  list-style: none !important;
+  margin: 0 0 16px !important;
+  padding: 0 !important;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.editor-inkitt .editor-chapter-list li {
+  display: block !important;
+}
