@@ -811,6 +811,69 @@ def _public_image_path(filename: str) -> str:
     return f"/uploads/{filename}"
 
 
+def _ensure_media_table() -> None:
+    """Durable image storage in MySQL (Vercel local disk is ephemeral)."""
+    try:
+        if USE_SQLITE:
+            execute_write(
+                """
+                CREATE TABLE IF NOT EXISTS media_files (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    filename TEXT NOT NULL,
+                    content_type TEXT NOT NULL DEFAULT 'image/jpeg',
+                    data BLOB NOT NULL,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                )
+                """,
+                (),
+            )
+        else:
+            execute_write(
+                """
+                CREATE TABLE IF NOT EXISTS media_files (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    filename VARCHAR(255) NOT NULL,
+                    content_type VARCHAR(128) NOT NULL DEFAULT 'image/jpeg',
+                    data LONGBLOB NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """,
+                (),
+            )
+    except Exception as exc:
+        LOGGER.warning("media_files ensure failed: %s", exc)
+
+
+def _store_media_bytes(content: bytes, filename: str, content_type: str = "image/jpeg") -> str:
+    """Persist image bytes in DB; return public path /api/media/{id}."""
+    if not content:
+        raise HTTPException(status_code=400, detail="Empty image upload")
+    if len(content) > 8 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Image too large (max 8MB)")
+    _ensure_media_table()
+    # Also write local copy for local/dev StaticFiles
+    try:
+        UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
+        (UPLOAD_ROOT / filename).write_bytes(content)
+    except Exception as exc:
+        LOGGER.warning("local upload write failed (ok on Vercel): %s", exc)
+
+    media_id, _ = execute_write(
+        "INSERT INTO media_files (filename, content_type, data) VALUES (%s, %s, %s)",
+        (filename, content_type or "image/jpeg", content),
+    )
+    if not media_id:
+        # MySQL lastrowid recovery
+        rows = fetch_all("SELECT id FROM media_files WHERE filename=%s ORDER BY id DESC LIMIT 1", (filename,))
+        if rows:
+            media_id = rows[0]["id"] if isinstance(rows[0], dict) else rows[0][0]
+    if not media_id:
+        # Fallback path to local filename (works only until cold start)
+        return _public_image_path(filename)
+    return f"/api/media/{int(media_id)}"
+
+
+
 def _normalize_cover_path(path: str | None) -> str:
     if not path:
         return ""
@@ -1508,6 +1571,30 @@ def admin_session(_: dict[str, Any] = Depends(require_admin)):
     return {"ok": True, "username": ADMIN_USERNAME}
 
 
+@app.get("/api/media/{media_id}")
+def get_media_file(media_id: int):
+    """Serve image bytes stored in MySQL (survives Vercel cold starts)."""
+    from fastapi.responses import Response
+
+    _ensure_media_table()
+    rows = fetch_all(
+        "SELECT filename, content_type, data FROM media_files WHERE id=%s LIMIT 1",
+        (media_id,),
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail="Media not found")
+    row = rows[0]
+    data = row["data"] if isinstance(row, dict) else row[2]
+    ctype = (row["content_type"] if isinstance(row, dict) else row[1]) or "image/jpeg"
+    if isinstance(data, memoryview):
+        data = data.tobytes()
+    if isinstance(data, str):
+        data = data.encode("latin-1")
+    return Response(content=bytes(data), media_type=str(ctype), headers={
+        "Cache-Control": "public, max-age=86400",
+    })
+
+
 @app.get("/api/story-images")
 def list_story_images():
     return {"items": _available_story_images()}
@@ -1518,16 +1605,7 @@ async def upload_image(
     file: UploadFile = File(...),
     _: dict[str, Any] = Depends(require_admin),
 ):
-    extension = Path(file.filename or "upload").suffix.lower()
-    if extension not in {".jpg", ".jpeg", ".png", ".webp"}:
-        raise HTTPException(status_code=400, detail="Unsupported image format")
-
-    filename = f"{uuid4().hex}{extension}"
-    target_path = UPLOAD_ROOT / filename
-    content = await file.read()
-    target_path.write_bytes(content)
-    bump_content_version()
-    return {"path": _public_image_path(filename), "filename": filename}
+    return await _save_uploaded_image(file)
 
 
 async def _save_uploaded_image(file: UploadFile) -> dict[str, str]:
@@ -1536,10 +1614,16 @@ async def _save_uploaded_image(file: UploadFile) -> dict[str, str]:
         raise HTTPException(status_code=400, detail="Unsupported image format")
 
     filename = f"{uuid4().hex}{extension}"
-    target_path = UPLOAD_ROOT / filename
-    target_path.write_bytes(await file.read())
+    content = await file.read()
+    ctype = {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".webp": "image/webp",
+    }.get(extension, "image/jpeg")
+    path = _store_media_bytes(content, filename, ctype)
     bump_content_version()
-    return {"path": _public_image_path(filename), "filename": filename}
+    return {"path": path, "filename": filename, "url": path}
 
 
 @app.post("/api/write/upload-image")

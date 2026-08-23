@@ -19,7 +19,8 @@ class ApiService {
 
   /// Production backend (Vercel). Override anytime with:
   ///   --dart-define=API_BASE_URL=https://other-host.example
-  static const String _productionApiBaseUrl = 'https://novel-v7.vercel.app';
+  static const String _productionApiBaseUrl =
+      'https://novel-v7.vercel.app';
 
   static const String _overrideApiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
@@ -89,6 +90,10 @@ class ApiService {
     if (trimmed.isEmpty) return trimmed;
     if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
       return trimmed;
+    }
+    // Durable DB-backed media (survives Vercel cold starts)
+    if (trimmed.startsWith('/api/media/')) {
+      return '$_baseUrl$trimmed';
     }
     // Strip query/hash noise if present
     final clean = trimmed.split('?').first.split('#').first;
@@ -262,16 +267,22 @@ class ApiService {
     request.files.add(
       http.MultipartFile.fromBytes('file', bytes, filename: filename),
     );
-    try {
-      final streamed = await request.send().timeout(
-        const Duration(seconds: 15),
-      );
-      final response = await http.Response.fromStream(streamed);
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        return jsonDecode(response.body) as Map<String, dynamic>;
-      }
-    } catch (_) {}
-    return const <String, dynamic>{};
+    final streamed = await request.send().timeout(
+      const Duration(seconds: 45),
+    );
+    final response = await http.Response.fromStream(streamed);
+    if (response.statusCode == 401) {
+      throw Exception('Sign in required to upload a cover image');
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(_authErrorBody(response));
+    }
+    final map = jsonDecode(response.body) as Map<String, dynamic>;
+    final path = (map['path'] ?? map['url'] ?? '').toString();
+    if (path.isEmpty) {
+      throw Exception('Cover upload returned empty path');
+    }
+    return map;
   }
 
   Future<Map<String, dynamic>> uploadUserImage(
@@ -286,16 +297,17 @@ class ApiService {
     request.files.add(
       http.MultipartFile.fromBytes('file', bytes, filename: filename),
     );
-    try {
-      final streamed = await request.send().timeout(
-        const Duration(seconds: 15),
-      );
-      final response = await http.Response.fromStream(streamed);
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        return jsonDecode(response.body) as Map<String, dynamic>;
-      }
-    } catch (_) {}
-    return const <String, dynamic>{};
+    final streamed = await request.send().timeout(
+      const Duration(seconds: 45),
+    );
+    final response = await http.Response.fromStream(streamed);
+    if (response.statusCode == 401) {
+      throw Exception('Sign in required to upload a profile image');
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(_authErrorBody(response));
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> updateMe(Map<String, dynamic> payload) async {
