@@ -68,7 +68,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                 child: Row(
                   children: [
                     Text(
-                      'Inkitt',
+                      'Wingsaga',
                       style: TextStyle(
                         fontSize: 26,
                         fontWeight: FontWeight.w800,
@@ -139,6 +139,19 @@ class _DiscoverScreenState extends State<DiscoverScreen>
         shrinkWrap: true,
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 30),
         children: [
+          if (widget.data.libraryEntries.isNotEmpty) ...[
+            _DynamicStoryRail(
+              section: _DiscoverRailSection(
+                title: 'Continue Reading',
+                books: widget.data.libraryEntries
+                    .map((e) => e.book)
+                    .where((b) => b.id > 0)
+                    .toList(),
+              ),
+              apiService: widget.apiService,
+            ),
+            const SizedBox(height: 24),
+          ],
           if (showExploreLead) ...[
             _ExploreStoriesSection(
               books: sections.first.books,

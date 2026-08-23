@@ -2,12 +2,13 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  static const Color brand = Color(0xFF119C95);
-  static const Color ink = Color(0xFF131313);
+  static const Color brand = Color(0xFF581845);
+  static const Color accent = Color(0xFFE5A995);
+  static const Color ink = Color(0xFF231F20);
   static const Color muted = Color(0xFF767676);
   static const Color surface = Colors.white;
   static const Color border = Color(0xFFE8E8E8);
-  static const Color background = Color(0xFFF9FAFB);
+  static const Color background = Color(0xFFFAF8F5);
 
   static ThemeData get lightTheme {
     const textTheme = TextTheme(

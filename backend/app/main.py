@@ -2760,6 +2760,12 @@ def create_writer_story(
     payload: StoryCreateRequest,
     user: dict[str, Any] = Depends(require_user),
 ):
+    tags_clean = [str(t).strip().lstrip("#") for t in (payload.tags or []) if str(t).strip()]
+    if not tags_clean:
+        raise HTTPException(
+            status_code=400,
+            detail="At least one hashtag/tag is required to create a story",
+        )
     cover = _normalize_cover_path(payload.cover_path)
     warnings = (payload.content_warnings or "").strip()
     # Auto-publish by default (requirement): newly created stories go live unless explicitly Draft/Private

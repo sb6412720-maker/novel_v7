@@ -402,9 +402,17 @@ def run_startup_tasks() -> dict[str, Any]:
         result["fast_path"] = True
         result["force_seed"] = {"skipped": True, "reason": "books_present", "books": book_count}
         result["inkitt_seed"] = {"skipped": True, "reason": "disabled_on_startup"}
+        # Light content enrichment: chapters / wall / reviews when sparse
+        try:
+            from .content_enrichment_seed import run_content_enrichment
+            result["content_enrichment"] = run_content_enrichment(force=False)
+        except Exception as enrich_exc:
+            LOGGER.warning("content_enrichment skipped: %s", enrich_exc)
+            result["content_enrichment_error"] = str(enrich_exc)
         LOGGER.info(
-            "Startup FAST PATH (books=%s) — skipped migrations/seed/inkitt",
+            "Startup FAST PATH (books=%s) — enrichment=%s",
             book_count,
+            result.get("content_enrichment"),
         )
         LOGGER.info("Startup tasks finished: %s", result)
         return result
