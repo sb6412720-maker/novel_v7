@@ -91,7 +91,7 @@ class _ExploreStoriesSectionState extends State<_ExploreStoriesSection> {
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(viewportFraction: 0.32, initialPage: 0);
+    _pageController = PageController(viewportFraction: 0.36, initialPage: 0);
   }
 
   @override
@@ -179,7 +179,8 @@ class _ExploreStoriesSectionState extends State<_ExploreStoriesSection> {
           height: 168,
           child: PageView.builder(
             controller: _pageController,
-            padEnds: false,
+            // padEnds true so last 2 covers can slide fully into view and be tappable
+            padEnds: true,
             itemCount: widget.books.length,
             onPageChanged: (index) => setState(() => _activeIndex = index),
             itemBuilder: (context, index) {
@@ -252,7 +253,7 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
   void initState() {
     super.initState();
     // Slightly denser carousel (Inkitt-like card density)
-    _pageController = PageController(viewportFraction: 0.32, initialPage: 0);
+    _pageController = PageController(viewportFraction: 0.36, initialPage: 0);
   }
 
   @override
@@ -330,7 +331,7 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
             height: 168,
             child: PageView.builder(
               controller: _pageController,
-              padEnds: false,
+              padEnds: true,
               itemCount: widget.section.books.length,
               onPageChanged: (index) => setState(() => _activeIndex = index),
               itemBuilder: (context, index) {

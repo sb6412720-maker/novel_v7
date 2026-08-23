@@ -3030,32 +3030,66 @@ def get_writer_story(story_id: int):
 
 @app.get("/api/books/{book_id}")
 def get_public_book(book_id: int):
-    _ensure_book_view_count_column()
-    # Join author so client always gets avatar + stable author_user_id (Galatea story detail)
-    rows = fetch_all(
-        """
-        SELECT b.id, b.user_id, b.title, b.author, b.description, b.genre, b.cover_path,
-               b.accent_hex, b.status_text, b.rating, b.content_warnings, b.view_count,
-               b.updated_at, b.created_at,
-               u.photo_url AS author_photo_url,
-               u.display_name AS author_display_name
-        FROM books b
-        LEFT JOIN app_users u ON u.id = b.user_id
-        WHERE b.id=%s
-        """,
-        (book_id,),
-    )
+    """Public book detail — never 500; degrade gracefully if optional cols/joins fail."""
+    try:
+        _ensure_book_view_count_column()
+    except Exception:
+        pass
+    try:
+        rows = fetch_all(
+            """
+            SELECT b.id, b.user_id, b.title, b.author, b.description, b.genre, b.cover_path,
+                   b.accent_hex, b.status_text, b.rating, b.content_warnings, b.view_count,
+                   b.updated_at, b.created_at,
+                   u.photo_url AS author_photo_url,
+                   u.display_name AS author_display_name
+            FROM books b
+            LEFT JOIN app_users u ON u.id = b.user_id
+            WHERE b.id=%s
+            """,
+            (book_id,),
+        )
+    except Exception as exc:
+        LOGGER.warning("get_public_book join failed, fallback: %s", exc)
+        rows = fetch_all(
+            """
+            SELECT id, user_id, title, author, description, genre, cover_path,
+                   accent_hex, status_text, rating, content_warnings
+            FROM books WHERE id=%s
+            """,
+            (book_id,),
+        )
     if not rows:
         raise HTTPException(status_code=404, detail="Book not found")
     status = str(_row_get(rows[0], "status_text") or "").strip().lower()
     if status in ("draft", "unpublished", "private"):
         raise HTTPException(status_code=404, detail="Book not found")
-    # Count a view each time the public book page is opened
-    new_views = _increment_book_views(book_id)
-    data = _serialize_book(rows[0])
+    try:
+        new_views = _increment_book_views(book_id)
+    except Exception:
+        new_views = int(_row_get(rows[0], "view_count") or 0)
+    try:
+        data = _serialize_book(rows[0])
+    except Exception as ser_exc:
+        LOGGER.warning("serialize_book failed for %s: %s", book_id, ser_exc)
+        r = rows[0]
+        data = {
+            "id": _row_get(r, "id"),
+            "title": _row_get(r, "title") or "",
+            "author": _row_get(r, "author") or "",
+            "description": _row_get(r, "description") or "",
+            "genre": _row_get(r, "genre") or "",
+            "cover_path": _normalize_cover_path(_row_get(r, "cover_path") or ""),
+            "status_text": _row_get(r, "status_text") or "",
+            "rating": float(_row_get(r, "rating") or 0),
+            "content_warnings": _row_get(r, "content_warnings") or "",
+            "author_user_id": _row_get(r, "user_id"),
+            "tags": [],
+            "likes_count": 0,
+            "view_count": new_views,
+        }
     data["view_count"] = new_views
     data["views"] = new_views
-    # Prefer live display name when author string empty
     if not str(data.get("author") or "").strip():
         data["author"] = str(_row_get(rows[0], "author_display_name") or "").strip()
     return data
@@ -3616,7 +3650,14 @@ def unlike_book(book_id: int, user: dict[str, Any] = Depends(require_user)):
 def follow_author(author_id: int, user: dict[str, Any] = Depends(require_user)):
     _ensure_author_follows_table()
     if user["user_id"] == author_id:
-        raise HTTPException(status_code=400, detail="Cannot follow yourself")
+        # Soft no-op: self-follow is not an error (avoids red errors in the app)
+        return {
+            "ok": True,
+            "following": False,
+            "followers": _count_followers(author_id),
+            "following_count": _count_following(user["user_id"]),
+            "self": True,
+        }
     if USE_SQLITE:
         execute_write(
             "INSERT OR IGNORE INTO author_follows (user_id, author_id) VALUES (%s, %s)",

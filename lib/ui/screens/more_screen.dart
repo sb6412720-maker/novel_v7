@@ -29,7 +29,21 @@ class MoreScreen extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 20),
       children: [
-        _AccountCard(session: session, onSignOut: onSignOut),
+        _AccountCard(
+          session: session,
+          onSignOut: onSignOut,
+          onOpenProfile: () {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => ProfileScreen(
+                  profile: data.profile,
+                  apiService: apiService,
+                  achievements: data.achievements,
+                ),
+              ),
+            );
+          },
+        ),
         const SizedBox(height: 10),
         const _ThemeModeCard(),
         const SizedBox(height: 10),
@@ -126,15 +140,23 @@ class MoreScreen extends StatelessWidget {
 }
 
 class _AccountCard extends StatelessWidget {
-  const _AccountCard({required this.session, required this.onSignOut});
+  const _AccountCard({
+    required this.session,
+    required this.onSignOut,
+    this.onOpenProfile,
+  });
 
   final AuthSession session;
   final Future<void> Function() onSignOut;
+  final VoidCallback? onOpenProfile;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
+    return GestureDetector(
+      onTap: onOpenProfile,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
@@ -180,6 +202,7 @@ class _AccountCard extends StatelessWidget {
           TextButton(onPressed: onSignOut, child: const Text('Log out')),
         ],
       ),
+    ),
     );
   }
 }
@@ -204,7 +227,15 @@ class _Section extends StatelessWidget {
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
-          ...section.items.map((item) {
+          ...section.items.where((item) {
+            // Account card already opens profile — hide duplicate "My Profile" rows
+            final label = item.label.toLowerCase().trim();
+            final route = item.route.toLowerCase();
+            if (label.contains('profile') || route.contains('profile')) {
+              return false;
+            }
+            return true;
+          }).map((item) {
             return ListTile(
               dense: true,
               leading: Icon(

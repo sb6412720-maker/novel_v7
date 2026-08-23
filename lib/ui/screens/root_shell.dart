@@ -289,24 +289,13 @@ class _RootShellState extends State<RootShell> {
             ),
     ];
 
+    // IndexedStack keeps Discover/Library state alive when switching tabs
+    // (fixes empty Discover after leaving a story/comments).
     return Scaffold(
       body: SafeArea(
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 260),
-          transitionBuilder: (child, animation) {
-            final slide = Tween<Offset>(
-              begin: const Offset(0.06, 0),
-              end: Offset.zero,
-            ).animate(animation);
-            return FadeTransition(
-              opacity: animation,
-              child: SlideTransition(position: slide, child: child),
-            );
-          },
-          child: KeyedSubtree(
-            key: ValueKey<int>(_selectedIndex),
-            child: pages[_selectedIndex],
-          ),
+        child: IndexedStack(
+          index: _selectedIndex,
+          children: pages,
         ),
       ),
       bottomNavigationBar: NavigationBar(

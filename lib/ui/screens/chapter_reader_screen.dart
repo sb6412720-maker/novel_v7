@@ -824,6 +824,8 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
   }
 
   /// Split chapter content roughly in half for mid-chapter ad placement.
+  // ignore: unused_element
+
   List<String> _contentParts() {
     final text = _chapterContent.trim();
     if (text.isEmpty) return ['', ''];

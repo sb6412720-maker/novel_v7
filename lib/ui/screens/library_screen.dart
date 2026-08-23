@@ -52,6 +52,12 @@ class _LibraryScreenState extends State<LibraryScreen>
     _readingLists = [];
     _loadEntries();
     _loadLists();
+    // Retry after auth token settles (fixes empty library on first open after login)
+    Future<void>.delayed(const Duration(milliseconds: 600), () {
+      if (!mounted) return;
+      if (_entries.isEmpty) _loadEntries();
+      if (_readingLists.isEmpty) _loadLists();
+    });
   }
 
   @override

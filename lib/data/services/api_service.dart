@@ -686,7 +686,7 @@ class ApiService {
       '/api/books/$bookId/chapters/$chapterNumber/comments',
       {
         'body': body,
-        if (paragraphIndex != null) 'paragraph_index': paragraphIndex,
+        'paragraph_index': ?paragraphIndex,
       },
       timeout: const Duration(seconds: 8),
     );
