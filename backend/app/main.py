@@ -1458,6 +1458,7 @@ def get_me(user: dict[str, Any] = Depends(require_user)):
         "display_name": display_name,
         "username": username,
         "photo_url": _row_get(u, "photo_url") or "",
+        "avatar_url": _row_get(u, "photo_url") or "",
         "cover_url": _row_get(u, "cover_url") or "",
         "bio": _row_get(u, "bio") or "",
         "provider": _row_get(u, "provider") or "",
@@ -1515,6 +1516,7 @@ def get_user_profile(user_id: int):
         "display_name": display_name,
         "username": username,
         "photo_url": _row_get(u, "photo_url") or "",
+        "avatar_url": _row_get(u, "photo_url") or "",
         "cover_url": _row_get(u, "cover_url") or "",
         "bio": _row_get(u, "bio") or "",
         "provider": _row_get(u, "provider") or "",
@@ -2488,17 +2490,28 @@ def get_story_chapters(story_id: int):
         """,
         (story_id,),
     )
-    return {
-        "items": [
+    items = []
+    for row in rows:
+        title = str(_row_get(row, "title") or "").strip()
+        number = int(_row_get(row, "chapter_number") or 0)
+        # Avoid "Chapter 1 Chapter 1" when title is only the chapter label
+        lower_t = title.lower()
+        is_label_only = (not title) or (
+            lower_t.startswith("chapter")
+            and lower_t.replace("chapter", "").replace(" ", "").isdigit()
+        )
+        if is_label_only:
+            title = f"Chapter {number}" if number else (title or "Chapter")
+        items.append(
             {
                 **row,
+                "title": title,
                 "scheduled_for": _serialize_datetime(_row_get(row, "scheduled_for")),
                 "created_at": _serialize_datetime(_row_get(row, "created_at")),
                 "updated_at": _serialize_datetime(_row_get(row, "updated_at")),
             }
-            for row in rows
-        ]
-    }
+        )
+    return {"items": items}
 
 
 @app.get("/api/write/chapters/{chapter_id}/revisions")
@@ -2789,10 +2802,34 @@ def _serialize_book(row: Any) -> dict[str, Any]:
         view_count = int(_row_get(row, "view_count") or data.get("view_count") or 0)
     except Exception:
         view_count = 0
+    # Author photo: prefer join column, then nested keys
+    author_photo = (
+        _row_get(row, "author_photo_url")
+        or data.get("author_photo_url")
+        or data.get("photo_url")
+        or ""
+    )
+    if author_photo:
+        author_photo = _normalize_cover_path(str(author_photo))
+    warnings = str(
+        _row_get(row, "content_warnings")
+        or data.get("content_warnings")
+        or data.get("content_warning")
+        or ""
+    ).strip()
+    last_updated = (
+        _serialize_datetime(_row_get(row, "updated_at"))
+        if _row_get(row, "updated_at") is not None
+        else str(data.get("last_updated") or data.get("updated_at") or "")
+    )
     return {
         **data,
         "cover_path": _normalize_cover_path(_row_get(row, "cover_path")),
-        "author_user_id": _row_get(row, "user_id"),
+        "author_user_id": _row_get(row, "user_id") or data.get("author_user_id"),
+        "author_photo_url": author_photo or "",
+        "content_warnings": warnings,
+        "content_warning": warnings,  # alias for clients
+        "last_updated": last_updated,
         "tags": _story_tags_for_book(book_id),
         "likes_count": live_likes,
         "likes": live_likes,  # alias used by some clients
@@ -2941,11 +2978,17 @@ def get_writer_story(story_id: int):
 @app.get("/api/books/{book_id}")
 def get_public_book(book_id: int):
     _ensure_book_view_count_column()
+    # Join author so client always gets avatar + stable author_user_id (Galatea story detail)
     rows = fetch_all(
         """
-        SELECT id, user_id, title, author, description, genre, cover_path, accent_hex,
-               status_text, rating, content_warnings, view_count
-        FROM books WHERE id=%s
+        SELECT b.id, b.user_id, b.title, b.author, b.description, b.genre, b.cover_path,
+               b.accent_hex, b.status_text, b.rating, b.content_warnings, b.view_count,
+               b.updated_at, b.created_at,
+               u.photo_url AS author_photo_url,
+               u.display_name AS author_display_name
+        FROM books b
+        LEFT JOIN app_users u ON u.id = b.user_id
+        WHERE b.id=%s
         """,
         (book_id,),
     )
@@ -2959,6 +3002,9 @@ def get_public_book(book_id: int):
     data = _serialize_book(rows[0])
     data["view_count"] = new_views
     data["views"] = new_views
+    # Prefer live display name when author string empty
+    if not str(data.get("author") or "").strip():
+        data["author"] = str(_row_get(rows[0], "author_display_name") or "").strip()
     return data
 
 
