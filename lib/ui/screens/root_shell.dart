@@ -42,7 +42,7 @@ class _RootShellState extends State<RootShell> {
     super.initState();
     _bootstrapApp();
     _syncTimer = Timer.periodic(
-      const Duration(seconds: 30),
+      const Duration(seconds: 60),
       (_) => _pollContentVersion(),
     );
   }

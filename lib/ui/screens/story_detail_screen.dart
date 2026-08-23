@@ -1127,19 +1127,17 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                   final number =
                       (chapter['chapter_number'] as num?)?.toInt() ??
                           index + 1;
-                  // Avoid "Chapter 1 Chapter 1" when title already says Chapter N
+                  // Inkitt-style: never show "Chapter 1 Chapter 1"
                   String displayTitle;
-                  final lower = rawTitle.toLowerCase();
-                  if (rawTitle.isEmpty) {
-                    displayTitle = 'Chapter $number';
-                  } else if (lower == 'chapter $number' ||
-                      lower == 'chapter$number' ||
-                      RegExp(r'^chapter\s*\d+$').hasMatch(lower)) {
+                  final lower = rawTitle.toLowerCase().trim();
+                  final chapterOnly = RegExp(r'^chapter\s*\d+$');
+                  if (rawTitle.isEmpty || chapterOnly.hasMatch(lower)) {
                     displayTitle = 'Chapter $number';
                   } else if (lower.startsWith('chapter ')) {
+                    // Title already includes Chapter prefix — use as-is
                     displayTitle = rawTitle;
                   } else {
-                    displayTitle = 'Chapter $number  $rawTitle';
+                    displayTitle = 'Chapter $number · $rawTitle';
                   }
                   return ListTile(
                     contentPadding:
