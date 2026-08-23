@@ -387,7 +387,7 @@ export async function uploadWriteImage(file) {
   form.append("file", file);
   const headers = {};
   if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}/api/write/upload-image`, {
+  const res = await fetch(`${API_BASE_URL}/api/write/upload-image`, {
     method: "POST",
     headers,
     body: form,
@@ -396,9 +396,11 @@ export async function uploadWriteImage(file) {
     let msg = `Upload failed (${res.status})`;
     try {
       const j = await res.json();
-      msg = j.detail || j.message || msg;
+      if (typeof j.detail === "string") msg = j.detail;
+      else if (j.message) msg = j.message;
+      else if (j.detail) msg = JSON.stringify(j.detail);
     } catch (_) {}
-    throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+    throw new Error(msg);
   }
   return res.json();
 }

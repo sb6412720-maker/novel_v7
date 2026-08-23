@@ -218,9 +218,13 @@ export default function StoryEditorPage({ user }) {
     setMsg("Uploading cover…");
     try {
       const up = await uploadWriteImage(file);
-      const path = up?.path || up?.filename;
-      if (!path) throw new Error("No path returned");
+      let path = up?.path || up?.url || up?.cover_path || up?.filename;
+      if (!path) throw new Error("No path returned from upload");
+      if (!String(path).startsWith("/") && !String(path).startsWith("http")) {
+        path = `/uploads/${path}`;
+      }
       await updateStory(storyId, { cover_path: path });
+      setStory((s) => (s ? { ...s, cover_path: path } : s));
       setMsg("Cover updated");
       await load(storyId);
     } catch (err) {
@@ -265,11 +269,17 @@ export default function StoryEditorPage({ user }) {
     }
   }
 
-  async function removeChapter(c) {
-    if (!window.confirm(`Delete “${c.title}”?`)) return;
+    async function removeChapter(c) {
+    if (!window.confirm(`Delete "${c.title || "chapter"}"?`)) return;
     try {
       await deleteChapter(c.id);
+      if (String(activeId) === String(c.id)) {
+        setActiveId(null);
+        setTitle("");
+        setContent("");
+      }
       await load(storyId);
+      setMsg("Chapter deleted");
     } catch (e) {
       setMsg(String(e.message || e));
     }
