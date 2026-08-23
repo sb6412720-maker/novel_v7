@@ -186,13 +186,24 @@ class _ProfileScreenState extends State<ProfileScreen>
       _asInt(_userProfile?['day_streak'] ?? widget.profile.dayStreak);
 
   String get _avatarUrl {
-    final p = _s(_userProfile?['avatar_url'] ?? _userProfile?['photo_url']);
+    final p = _s(
+      _userProfile?['avatar_url'] ??
+          _userProfile?['photo_url'] ??
+          _userProfile?['photoUrl'] ??
+          _userProfile?['avatar'] ??
+          widget.profile.photoUrl,
+    );
     if (p.isEmpty) return '';
     return widget.apiService.resolveAssetUrl(p);
   }
 
   String get _coverUrl {
-    final p = _s(_userProfile?['cover_url'] ?? _userProfile?['banner_url']);
+    final p = _s(
+      _userProfile?['cover_url'] ??
+          _userProfile?['banner_url'] ??
+          _userProfile?['coverUrl'] ??
+          widget.profile.coverUrl,
+    );
     if (p.isEmpty) return '';
     return widget.apiService.resolveAssetUrl(p);
   }
@@ -646,20 +657,50 @@ class _ProfileScreenState extends State<ProfileScreen>
             ],
           ),
           const SizedBox(height: 14),
-          // Follow / Edit button
-          OutlinedButton(
-            onPressed: _isOwnProfile ? _editProfile : _toggleFollow,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFF1A1A1A),
-              side: const BorderSide(color: Color(0xFFD0D5DD)),
-              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 10),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          // Follow / Edit button — solid green Follow (video), outlined otherwise
+          if (_isOwnProfile)
+            OutlinedButton(
+              onPressed: _editProfile,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF1A1A1A),
+                side: const BorderSide(color: Color(0xFFD0D5DD)),
+                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              ),
+              child: const Text(
+                'Edit profile',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            )
+          else if (_isFollowing)
+            OutlinedButton(
+              onPressed: _toggleFollow,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF1A1A1A),
+                side: const BorderSide(color: Color(0xFFD0D5DD)),
+                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              ),
+              child: const Text(
+                'Following',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            )
+          else
+            ElevatedButton(
+              onPressed: _toggleFollow,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: brand,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              ),
+              child: const Text(
+                'Follow',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
             ),
-            child: Text(
-              _isOwnProfile ? 'Edit profile' : (_isFollowing ? 'Following' : 'Follow'),
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-          ),
           const SizedBox(height: 8),
         ],
       ),

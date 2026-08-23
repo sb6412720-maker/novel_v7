@@ -41,6 +41,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
   List<Map<String, dynamic>> _authorStories = const [];
   List<Map<String, dynamic>> _youMayAlsoLike = const [];
   String? _authorPhotoUrl;
+  String _contentWarningsExtra = '';
 
   @override
   void initState() {
@@ -72,6 +73,15 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
               .toString();
           if (photo.isNotEmpty) {
             _authorPhotoUrl = photo;
+          }
+          final cw = (detail['content_warnings'] ??
+                  detail['content_warning'] ??
+                  detail['contentWarnings'] ??
+                  '')
+              .toString()
+              .trim();
+          if (cw.isNotEmpty) {
+            _contentWarningsExtra = cw;
           }
         });
       }
@@ -739,8 +749,9 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
             ),
           ),
 
-          // Content Warnings (Inkitt-style — shown when present)
-          if (_book.contentWarnings.trim().isNotEmpty)
+          // Content Warnings (video: show when present on book)
+          if (_book.contentWarnings.trim().isNotEmpty ||
+              _contentWarningsExtra.trim().isNotEmpty)
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
@@ -755,9 +766,13 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      _book.contentWarnings.trim().toLowerCase().startsWith('this story')
-                          ? _book.contentWarnings.trim()
-                          : 'This story contains themes of: ${_book.contentWarnings.trim()}',
+                      () {
+                        final w = _book.contentWarnings.trim().isNotEmpty
+                            ? _book.contentWarnings.trim()
+                            : _contentWarningsExtra.trim();
+                        if (w.toLowerCase().startsWith('this story')) return w;
+                        return 'This story contains themes of: $w';
+                      }(),
                       style: TextStyle(
                         fontSize: 14,
                         height: 1.4,
@@ -862,7 +877,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
               ),
             ),
 
-          // Author + Follow
+          // Author + Follow (avatar/name tappable → profile; solid green Follow)
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
@@ -878,63 +893,153 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                   const SizedBox(height: 10),
                   Row(
                     children: [
-                      CircleAvatar(
-                        radius: 22,
-                        backgroundColor: Colors.grey.shade300,
-                        backgroundImage: (_authorPhotoUrl != null &&
-                                _authorPhotoUrl!.isNotEmpty)
-                            ? NetworkImage(
-                                widget.apiService.resolveAssetUrl(
-                                  _authorPhotoUrl!,
+                      GestureDetector(
+                        onTap: () {
+                          final aid = _book.authorUserId;
+                          if (aid == null || aid <= 0) return;
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => ProfileScreen(
+                                apiService: widget.apiService,
+                                viewingUserId: aid,
+                                achievements: const [],
+                                profile: ProfileModel(
+                                  id: aid,
+                                  displayName: _book.author.isNotEmpty
+                                      ? _book.author
+                                      : 'Author',
+                                  username: _book.author
+                                      .toLowerCase()
+                                      .replaceAll(' ', ''),
+                                  photoUrl: _authorPhotoUrl ?? '',
+                                  coverUrl: '',
+                                  following: 0,
+                                  followers: 0,
+                                  blocked: 0,
+                                  chaptersRead: 0,
+                                  socialKarma: 0,
+                                  dayStreak: 0,
+                                  readingLists: const [],
                                 ),
-                              )
-                            : null,
-                        child: (_authorPhotoUrl == null ||
-                                _authorPhotoUrl!.isEmpty)
-                            ? Text(
-                                _book.author.isNotEmpty
-                                    ? _book.author[0].toUpperCase()
-                                    : 'A',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.black87,
-                                ),
-                              )
-                            : null,
+                              ),
+                            ),
+                          );
+                        },
+                        child: CircleAvatar(
+                          radius: 22,
+                          backgroundColor: Colors.grey.shade300,
+                          backgroundImage: (_authorPhotoUrl != null &&
+                                  _authorPhotoUrl!.isNotEmpty)
+                              ? NetworkImage(
+                                  widget.apiService.resolveAssetUrl(
+                                    _authorPhotoUrl!,
+                                  ),
+                                )
+                              : null,
+                          child: (_authorPhotoUrl == null ||
+                                  _authorPhotoUrl!.isEmpty)
+                              ? Text(
+                                  _book.author.isNotEmpty
+                                      ? _book.author[0].toUpperCase()
+                                      : 'A',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.black87,
+                                  ),
+                                )
+                              : null,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: Text(
-                          _book.author.isEmpty ? 'Unknown author' : _book.author,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 15,
+                        child: GestureDetector(
+                          onTap: () {
+                            final aid = _book.authorUserId;
+                            if (aid == null || aid <= 0) return;
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => ProfileScreen(
+                                  apiService: widget.apiService,
+                                  viewingUserId: aid,
+                                  achievements: const [],
+                                  profile: ProfileModel(
+                                    id: aid,
+                                    displayName: _book.author.isNotEmpty
+                                        ? _book.author
+                                        : 'Author',
+                                    username: _book.author
+                                        .toLowerCase()
+                                        .replaceAll(' ', ''),
+                                    photoUrl: _authorPhotoUrl ?? '',
+                                    coverUrl: '',
+                                    following: 0,
+                                    followers: 0,
+                                    blocked: 0,
+                                    chaptersRead: 0,
+                                    socialKarma: 0,
+                                    dayStreak: 0,
+                                    readingLists: const [],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                          child: Text(
+                            _book.author.isEmpty
+                                ? 'Unknown author'
+                                : _book.author,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 15,
+                            ),
                           ),
                         ),
                       ),
                       if (_book.authorUserId != null)
                         SizedBox(
                           height: 36,
-                          child: OutlinedButton(
-                            onPressed: _loadingFollow ? null : _toggleFollow,
-                            style: OutlinedButton.styleFrom(
-                              side: BorderSide(
-                                color: _isFollowing
-                                    ? Colors.grey.shade400
-                                    : const Color(0xFF00C853),
-                              ),
-                              foregroundColor: _isFollowing
-                                  ? Colors.black54
-                                  : const Color(0xFF00C853),
-                              backgroundColor: _isFollowing
-                                  ? Colors.grey.shade100
-                                  : const Color(0xFFE8F8EF),
-                            ),
-                            child: Text(
-                              _isFollowing ? 'Following' : 'Follow',
-                              style: const TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                          ),
+                          child: _isFollowing
+                              ? OutlinedButton(
+                                  onPressed:
+                                      _loadingFollow ? null : _toggleFollow,
+                                  style: OutlinedButton.styleFrom(
+                                    side: BorderSide(
+                                      color: Colors.grey.shade400,
+                                    ),
+                                    foregroundColor: Colors.black54,
+                                    backgroundColor: Colors.grey.shade100,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'Following',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                )
+                              : ElevatedButton(
+                                  onPressed:
+                                      _loadingFollow ? null : _toggleFollow,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF00C853),
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 18,
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'Follow',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
                         ),
                     ],
                   ),
@@ -1127,14 +1232,25 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                   final number =
                       (chapter['chapter_number'] as num?)?.toInt() ??
                           index + 1;
-                  // Inkitt-style: never show "Chapter 1 Chapter 1"
+                  // Never show "Chapter 1 Chapter 1" (video / Galatea)
                   String displayTitle;
                   final lower = rawTitle.toLowerCase().trim();
+                  // Strip leading "Chapter N" / "Chapter N:" / "Chapter N -"
+                  final stripPrefix = RegExp(
+                    r'^chapter\s*\d+\s*[:.\-–—]?\s*',
+                    caseSensitive: false,
+                  );
+                  final stripped = rawTitle.replaceFirst(stripPrefix, '').trim();
                   final chapterOnly = RegExp(r'^chapter\s*\d+$');
                   if (rawTitle.isEmpty || chapterOnly.hasMatch(lower)) {
                     displayTitle = 'Chapter $number';
+                  } else if (stripped.isEmpty) {
+                    displayTitle = 'Chapter $number';
+                  } else if (lower.startsWith('chapter ') &&
+                      stripped.toLowerCase() != lower) {
+                    // Had "Chapter N Something" → show Chapter N · Something
+                    displayTitle = 'Chapter $number · $stripped';
                   } else if (lower.startsWith('chapter ')) {
-                    // Title already includes Chapter prefix — use as-is
                     displayTitle = rawTitle;
                   } else {
                     displayTitle = 'Chapter $number · $rawTitle';
