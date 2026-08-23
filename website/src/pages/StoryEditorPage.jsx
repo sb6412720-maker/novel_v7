@@ -548,12 +548,14 @@ export default function StoryEditorPage({ user }) {
     <div className="editor-inkitt">
       <div className="editor-grid">
         <aside className="editor-left">
-          <div className="editor-cover-box">
-            {cover ? (
-              <img src={cover} alt="Cover" />
-            ) : (
-              <div className="editor-cover-empty" aria-hidden="true" />
-            )}
+          <div className="editor-cover-wrap">
+            <div className="editor-cover-box">
+              {cover ? (
+                <img src={cover} alt="Cover" />
+              ) : (
+                <div className="editor-cover-empty" aria-hidden="true" />
+              )}
+            </div>
             <button
               type="button"
               className="cover-edit-btn"

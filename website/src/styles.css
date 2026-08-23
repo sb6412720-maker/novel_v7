@@ -4329,3 +4329,64 @@ img {
 .editor-inkitt .editor-chapter-list li {
   display: block !important;
 }
+
+
+/* === Cover: button must NEVER be clipped (Inkitt layout) === */
+.editor-inkitt .editor-cover-wrap,
+.editor-cover-wrap {
+  width: 160px !important;
+  max-width: 100%;
+  margin-bottom: 16px !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+.editor-inkitt .editor-cover-box,
+.editor-cover-box {
+  width: 160px !important;
+  height: auto !important;
+  max-height: none !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 0 !important;
+  overflow: hidden !important;
+  background: #fff !important;
+  margin-bottom: 0 !important;
+}
+.editor-inkitt .editor-cover-empty,
+.editor-cover-empty {
+  width: 100% !important;
+  height: 210px !important;
+  min-height: 210px !important;
+  background: #f5f5f5 !important;
+  display: block !important;
+}
+.editor-inkitt .editor-cover-box img,
+.editor-cover-box img {
+  display: block !important;
+  width: 160px !important;
+  height: 210px !important;
+  object-fit: cover !important;
+}
+.editor-inkitt .cover-edit-btn,
+.cover-edit-btn {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  width: 160px !important;
+  margin: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: #7a7a7a !important;
+  color: #ffffff !important;
+  padding: 11px 8px !important;
+  cursor: pointer !important;
+  font-size: 0.82rem !important;
+  font-weight: 600 !important;
+  text-align: center !important;
+  line-height: 1.2 !important;
+  z-index: 5 !important;
+  position: relative !important;
+}
+.editor-inkitt .cover-edit-btn:hover,
+.cover-edit-btn:hover {
+  background: #5f5f5f !important;
+}
