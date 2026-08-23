@@ -163,29 +163,43 @@ class ApiService {
   }
 
   Future<AppBootstrap> fetchBootstrap() async {
-    // Vercel cold start can take 10–40s after deploy; do not use a 5s timeout.
-    try {
-      final response = await _get(
-        '/api/bootstrap',
-        timeout: const Duration(seconds: 45),
-      );
-      if (response.statusCode == 200) {
-        final map = jsonDecode(response.body) as Map<String, dynamic>;
-        debugPrint(
-          'bootstrap OK from $_baseUrl '
-          'recently_updated=${(map['recently_updated'] as List?)?.length ?? 0} '
-          'discover=${(map['discover_books'] as List?)?.length ?? 0}',
+    // Vercel cold start can exceed 45s once; retry once after warm-up.
+    Object? lastError;
+    for (var attempt = 1; attempt <= 2; attempt++) {
+      try {
+        final response = await _get(
+          '/api/bootstrap',
+          timeout: const Duration(seconds: 55),
         );
-        return AppBootstrap.fromMap(map);
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          final decoded = jsonDecode(response.body);
+          if (decoded is Map<String, dynamic>) {
+            final boot = AppBootstrap.fromMap(decoded);
+            debugPrint(
+              'bootstrap OK from $_baseUrl '
+              'recently_updated=${boot.recentlyUpdated.length} '
+              'discover=${boot.discoverBooks.length}',
+            );
+            return boot;
+          }
+        }
+        debugPrint(
+          'bootstrap HTTP ${response.statusCode} from $_baseUrl: '
+          '${response.body.length > 300 ? response.body.substring(0, 300) : response.body}',
+        );
+        lastError = 'HTTP ${response.statusCode}';
+      } catch (e, st) {
+        lastError = e;
+        debugPrint('bootstrap error (attempt $attempt) from $_baseUrl: $e');
+        if (attempt == 1) {
+          debugPrint('retrying bootstrap after cold-start...');
+          await Future<void>.delayed(const Duration(seconds: 2));
+          continue;
+        }
+        debugPrint('$st');
       }
-      debugPrint(
-        'bootstrap HTTP ${response.statusCode} from $_baseUrl: '
-        '${response.body.length > 300 ? response.body.substring(0, 300) : response.body}',
-      );
-    } catch (e, st) {
-      debugPrint('bootstrap error from $_baseUrl: $e');
-      debugPrint('$st');
     }
+    debugPrint('bootstrap giving up: $lastError');
     // Empty fallback = blank Discover. Prefer fixing API_BASE_URL over silent empty UI.
     return AppBootstrap.fromMap(_fallbackData);
   }
