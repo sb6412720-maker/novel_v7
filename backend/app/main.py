@@ -4395,13 +4395,15 @@ def list_user_stories(user_id: int):
 
 @app.get("/api/users/{user_id}/reading-lists")
 def list_user_reading_lists(user_id: int):
-    """Public reading lists for a user profile."""
+    """Public reading lists for a user profile.
+    Note: reading_lists table has no is_public column in production — do not select it.
+    """
     rows = fetch_all(
         """
-        SELECT id, name, story_count, cover_path, is_public
+        SELECT id, name, story_count, cover_path, sort_order
         FROM reading_lists
-        WHERE user_id=%s AND (is_public IS NULL OR is_public=1 OR is_public=TRUE)
-        ORDER BY id DESC
+        WHERE user_id=%s
+        ORDER BY sort_order, id DESC
         LIMIT 50
         """,
         (user_id,),
