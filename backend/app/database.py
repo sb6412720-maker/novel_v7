@@ -1171,7 +1171,7 @@ def _run_startup_migrations_sqlite(connection) -> dict[str, int]:
         result["columns_added"] += 1
 
     if not _sqlite_column_exists(cursor, "books", "content_warnings"):
-        cursor.execute("ALTER TABLE books ADD COLUMN content_warnings TEXT NOT NULL DEFAULT ''")
+        cursor.execute("ALTER TABLE books ADD COLUMN content_warnings TEXT")
         result["columns_added"] += 1
 
     cursor.execute("UPDATE books SET primary_genre = genre WHERE primary_genre = '' OR primary_genre IS NULL")
@@ -1635,14 +1635,28 @@ def run_startup_migrations() -> dict[str, int]:
         "primary_genre": "ALTER TABLE books ADD COLUMN primary_genre VARCHAR(80) NOT NULL DEFAULT ''",
         "secondary_genre": "ALTER TABLE books ADD COLUMN secondary_genre VARCHAR(80) NOT NULL DEFAULT ''",
         "is_completed": "ALTER TABLE books ADD COLUMN is_completed TINYINT(1) NOT NULL DEFAULT 0",
-        "content_warnings": "ALTER TABLE books ADD COLUMN content_warnings TEXT NOT NULL DEFAULT ''",
+        "content_warnings": "ALTER TABLE books ADD COLUMN content_warnings VARCHAR(2000) NULL",
     }
 
     for column, alter_sql in book_columns.items():
-        cursor.execute(f"SHOW COLUMNS FROM books LIKE '{column}'")
-        if cursor.fetchone() is None:
-            cursor.execute(alter_sql)
-            result["columns_added"] += 1
+        try:
+            cursor.execute(f"SHOW COLUMNS FROM books LIKE '{column}'")
+            if cursor.fetchone() is None:
+                cursor.execute(alter_sql)
+                result["columns_added"] += 1
+        except Exception as col_exc:
+            # MySQL may reject TEXT DEFAULT; retry without default
+            try:
+                if "content_warnings" in column:
+                    cursor.execute(
+                        "ALTER TABLE books ADD COLUMN content_warnings VARCHAR(2000) NULL"
+                    )
+                    result["columns_added"] += 1
+                else:
+                    raise col_exc
+            except Exception:
+                # Column may already exist or engine difference — non-fatal
+                pass
 
     cursor.execute(
         "UPDATE books SET primary_genre = genre WHERE (primary_genre = '' OR primary_genre IS NULL)"
