@@ -29,6 +29,9 @@ class DiscoverScreen extends StatefulWidget {
 
 class _DiscoverScreenState extends State<DiscoverScreen>
     with SingleTickerProviderStateMixin {
+  bool _isValidBook(BookCardModel b) =>
+      b.id > 0 && b.title.trim().isNotEmpty;
+
   late final TabController _tabController;
   late final List<String> _tabs;
   int _selectedTabIndex = 0;
@@ -207,20 +210,20 @@ class _DiscoverScreenState extends State<DiscoverScreen>
   }
 
   List<BookCardModel> _booksForDiscover() {
-    if (widget.data.discoverBooks.isNotEmpty) {
-      return widget.data.discoverBooks;
-    }
-
     final seen = <int>{};
     final merged = <BookCardModel>[];
-    for (final book in [
-      ...widget.data.recentlyUpdated,
-      ...widget.data.recentlyCompleted,
-    ]) {
-      if (!seen.contains(book.id)) {
-        seen.add(book.id);
-        merged.add(book);
-      }
+    final source = widget.data.discoverBooks.isNotEmpty
+        ? widget.data.discoverBooks
+        : [
+            ...widget.data.recentlyUpdated,
+            ...widget.data.recentlyCompleted,
+          ];
+    for (final book in source) {
+      // Drop blanks that caused empty slots in the story slider
+      if (!_isValidBook(book)) continue;
+      if (seen.contains(book.id)) continue;
+      seen.add(book.id);
+      merged.add(book);
     }
     return merged;
   }

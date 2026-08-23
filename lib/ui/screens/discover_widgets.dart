@@ -177,29 +177,30 @@ class _ExploreStoriesSectionState extends State<_ExploreStoriesSection> {
         const SizedBox(height: 8),
         SizedBox(
           height: 168,
-          child: PageView.builder(
-            controller: _pageController,
-            // padEnds true so last 2 covers can slide fully into view and be tappable
-            padEnds: true,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
             itemCount: widget.books.length,
-            onPageChanged: (index) => setState(() => _activeIndex = index),
             itemBuilder: (context, index) {
               final item = widget.books[index];
+              if (item.id <= 0) return const SizedBox.shrink();
               final isActive = index == _activeIndex;
-              return AnimatedScale(
-                scale: isActive ? 1.08 : 0.9,
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeOutCubic,
-                child: AnimatedOpacity(
-                  opacity: isActive ? 1.0 : 0.55,
-                  duration: const Duration(milliseconds: 200),
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 6, left: 4),
-                    child: GestureDetector(
-                      onTap: () => _openBook(item),
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() => _activeIndex = index);
+                    _openBook(item);
+                  },
+                  child: AnimatedScale(
+                    scale: isActive ? 1.06 : 0.94,
+                    duration: const Duration(milliseconds: 180),
+                    child: AnimatedOpacity(
+                      opacity: isActive ? 1.0 : 0.7,
+                      duration: const Duration(milliseconds: 180),
                       child: _StoryCard(
                         book: item,
-                        width: 88,
+                        width: 92,
                         apiService: widget.apiService,
                       ),
                     ),
@@ -329,54 +330,48 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
         else
           SizedBox(
             height: 168,
-            child: PageView.builder(
-              controller: _pageController,
-              padEnds: true,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
               itemCount: widget.section.books.length,
-              onPageChanged: (index) => setState(() => _activeIndex = index),
               itemBuilder: (context, index) {
                 final item = widget.section.books[index];
+                if (item.id <= 0) return const SizedBox.shrink();
                 final isActive = index == _activeIndex;
-                return AnimatedScale(
-                  scale: isActive ? 1.08 : 0.9,
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeOutCubic,
-                  child: AnimatedOpacity(
-                    opacity: isActive ? 1.0 : 0.5,
-                    duration: const Duration(milliseconds: 200),
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 6, left: 4),
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => StoryDetailScreen(
-                                apiService: widget.apiService,
-                                book: BookDetailModel(
-                                  id: item.id,
-                                  title: item.title,
-                                  author: item.author,
-                                  description: item.description,
-                                  statusText: item.statusText,
-                                  rating: item.rating,
-                                  genre: item.primaryGenre,
-                                  cta: item.cta,
-                                  coverPath: item.coverPath,
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                        child: ImageFiltered(
-                          imageFilter: ui.ImageFilter.blur(
-                            sigmaX: isActive ? 0 : 1.8,
-                            sigmaY: isActive ? 0 : 1.8,
-                          ),
-                          child: _StoryCard(
-                            book: item,
-                            width: 88,
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() => _activeIndex = index);
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => StoryDetailScreen(
                             apiService: widget.apiService,
+                            book: BookDetailModel(
+                              id: item.id,
+                              title: item.title,
+                              author: item.author,
+                              description: item.description,
+                              statusText: item.statusText,
+                              rating: item.rating,
+                              genre: item.primaryGenre,
+                              cta: item.cta,
+                              coverPath: item.coverPath,
+                            ),
                           ),
+                        ),
+                      );
+                    },
+                    child: AnimatedScale(
+                      scale: isActive ? 1.06 : 0.94,
+                      duration: const Duration(milliseconds: 180),
+                      child: AnimatedOpacity(
+                        opacity: isActive ? 1.0 : 0.75,
+                        duration: const Duration(milliseconds: 180),
+                        child: _StoryCard(
+                          book: item,
+                          width: 92,
+                          apiService: widget.apiService,
                         ),
                       ),
                     ),

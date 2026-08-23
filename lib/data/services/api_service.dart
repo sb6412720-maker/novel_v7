@@ -13,6 +13,9 @@ class ApiService {
 
   String? get authTokenForPersistence => _authToken;
 
+  /// Last successful bootstrap — survive sleep / failed refresh (never show empty app).
+  static AppBootstrap? _cachedBootstrap;
+
   void setAuthToken(String? token) {
     _authToken = token;
   }
@@ -180,6 +183,11 @@ class ApiService {
           final decoded = jsonDecode(response.body);
           if (decoded is Map<String, dynamic>) {
             final boot = AppBootstrap.fromMap(decoded);
+            // Only cache non-empty home data so we never "stick" on blank shell
+            if (boot.discoverBooks.isNotEmpty ||
+                boot.recentlyUpdated.isNotEmpty) {
+              _cachedBootstrap = boot;
+            }
             debugPrint(
               'bootstrap OK from $_baseUrl '
               'recently_updated=${boot.recentlyUpdated.length} '
@@ -205,7 +213,11 @@ class ApiService {
       }
     }
     debugPrint('bootstrap giving up: $lastError');
-    // Empty fallback = blank Discover. Prefer fixing API_BASE_URL over silent empty UI.
+    // Prefer last good data over empty fallback (fixes blank app after sleep/comments)
+    if (_cachedBootstrap != null) {
+      debugPrint('bootstrap: returning cached home data');
+      return _cachedBootstrap!;
+    }
     return AppBootstrap.fromMap(_fallbackData);
   }
 

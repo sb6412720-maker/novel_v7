@@ -24,7 +24,7 @@ class RootShell extends StatefulWidget {
   State<RootShell> createState() => _RootShellState();
 }
 
-class _RootShellState extends State<RootShell> {
+class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   final ApiService _apiService = ApiService();
   late final AuthService _authService = AuthService(apiService: _apiService);
   int _selectedIndex = 1; // Discover by default for read-only visitors
@@ -40,6 +40,7 @@ class _RootShellState extends State<RootShell> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _bootstrapApp();
     _syncTimer = Timer.periodic(
       const Duration(seconds: 60),
@@ -49,8 +50,30 @@ class _RootShellState extends State<RootShell> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _syncTimer?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // After phone sleep: soft-refresh WITHOUT clearing existing UI
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_softRefresh());
+    }
+  }
+
+  /// Background refresh — never set _bootstrap to null / empty loading shell.
+  Future<void> _softRefresh() async {
+    try {
+      final version = await _apiService.fetchContentVersion();
+      if (!mounted) return;
+      if (version.isNotEmpty && version != _contentVersion) {
+        await _loadBootstrap(showLoading: false);
+      }
+    } catch (_) {
+      // keep current screen data
+    }
   }
 
   Future<void> _bootstrapApp() async {
@@ -84,15 +107,23 @@ class _RootShellState extends State<RootShell> {
     }
   }
 
-  Future<void> _loadBootstrap() async {
-    if (mounted) setState(() => _loading = true);
+  Future<void> _loadBootstrap({bool showLoading = true}) async {
+    final isFirst = _bootstrap == null;
+    if (mounted && showLoading && isFirst) {
+      setState(() => _loading = true);
+    }
     try {
       final bootstrap = await _apiService.fetchBootstrap();
       final version = await _apiService.fetchContentVersion();
       if (!mounted) return;
+      // Never replace a full home with an empty shell
+      final hasData = bootstrap.discoverBooks.isNotEmpty ||
+          bootstrap.recentlyUpdated.isNotEmpty;
       setState(() {
-        _bootstrap = bootstrap;
-        _contentVersion = version;
+        if (hasData || _bootstrap == null) {
+          _bootstrap = bootstrap;
+        }
+        if (version.isNotEmpty) _contentVersion = version;
         _loading = false;
       });
     } catch (_) {
@@ -106,7 +137,7 @@ class _RootShellState extends State<RootShell> {
     if (!mounted || latestVersion.isEmpty || latestVersion == _contentVersion) {
       return;
     }
-    await _loadBootstrap();
+    await _loadBootstrap(showLoading: false);
   }
 
   Future<void> _continueLogin(

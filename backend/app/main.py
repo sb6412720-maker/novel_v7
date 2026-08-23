@@ -1664,8 +1664,20 @@ async def upload_support_attachment(file: UploadFile = File(...)):
     return {"path": _public_image_path(filename), "filename": filename}
 
 
+_BOOTSTRAP_CACHE: dict[str, Any] | None = None
+_BOOTSTRAP_CACHE_AT: float = 0.0
+_BOOTSTRAP_CACHE_TTL = 45.0  # seconds — keeps home fast after cold start
+
+
 @app.get("/api/bootstrap")
 def bootstrap(user: dict[str, Any] | None = Depends(optional_user)):
+    global _BOOTSTRAP_CACHE, _BOOTSTRAP_CACHE_AT
+    import time as _time
+    # Public catalog is same for all users; personal bits loaded via /api/library & /api/me
+    now = _time.time()
+    if _BOOTSTRAP_CACHE is not None and (now - _BOOTSTRAP_CACHE_AT) < _BOOTSTRAP_CACHE_TTL:
+        return _BOOTSTRAP_CACHE
+
     discover_tabs = [
         row["name"]
         for row in fetch_all(
@@ -1929,11 +1941,11 @@ def bootstrap(user: dict[str, Any] | None = Depends(optional_user)):
         for group_name, items in achievement_map.items()
     ]
 
-    return {
+    payload = {
         "discover_tabs": discover_tabs,
         "recently_updated": recently_updated,
         "recently_completed": recently_completed,
-        "discover_books": [_card(book) for book in books],
+        "discover_books": [_card(book) for book in books if str(book.get("title") or "").strip()],
         "featured_book": featured_book,
         "explore_topics": explore_topics,
         "library_entries": library_payload,
@@ -1943,6 +1955,9 @@ def bootstrap(user: dict[str, Any] | None = Depends(optional_user)):
         "profile": profile_payload,
         "achievements": achievements,
     }
+    _BOOTSTRAP_CACHE = payload
+    _BOOTSTRAP_CACHE_AT = _time.time()
+    return payload
 
 
 @app.get("/api/search")
