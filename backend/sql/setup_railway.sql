@@ -14,7 +14,7 @@ CREATE TABLE books (
     description TEXT NOT NULL,
     cover_path VARCHAR(255) NOT NULL DEFAULT '',
     accent_hex VARCHAR(20) NOT NULL DEFAULT '#808080',
-    section_name ENUM('featured', 'recently_updated', 'recently_completed') NOT NULL,
+    section_name VARCHAR(64) NOT NULL DEFAULT 'recently_updated',
     status_text VARCHAR(60) NOT NULL DEFAULT '',
     rating DECIMAL(3,1) NOT NULL DEFAULT 0,
     genre VARCHAR(80) NOT NULL DEFAULT '',

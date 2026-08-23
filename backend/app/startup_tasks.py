@@ -194,6 +194,25 @@ def _ensure_mysql_extra_tables(connection) -> int:
         except Exception as rev_exc:
             LOGGER.warning("book_reviews comment/body patch skipped: %s", rev_exc)
 
+        # Widen books.section_name so values like 'trending' are allowed (was ENUM).
+        try:
+            cursor.execute("SHOW COLUMNS FROM books LIKE 'section_name'")
+            col = cursor.fetchone()
+            col_type = ""
+            if col is not None:
+                if isinstance(col, dict):
+                    col_type = str(col.get("Type") or col.get("type") or "")
+                else:
+                    col_type = str(col[1]) if len(col) > 1 else ""
+            if col_type and "enum" in col_type.lower():
+                cursor.execute(
+                    "ALTER TABLE books MODIFY COLUMN section_name VARCHAR(64) NOT NULL DEFAULT 'recently_updated'"
+                )
+                added += 1
+                LOGGER.info("Migrated books.section_name ENUM -> VARCHAR(64)")
+        except Exception as sec_exc:
+            LOGGER.warning("section_name migration skipped: %s", sec_exc)
+
         connection.commit()
     except Exception as exc:
         LOGGER.warning("ensure_mysql_extra_tables failed: %s", exc)
@@ -395,45 +414,100 @@ def run_startup_tasks() -> dict[str, Any]:
 
 
     # Inkitt-style expanded catalog (idempotent by title) — no import from main (avoids circular import)
+    # Use ONE connection so Vercel cold starts stay under the function timeout.
     try:
-        from .inkitt_seed import ensure_inkitt_catalog
+        from .inkitt_seed import ensure_inkitt_catalog, INKITT_BOOKS
 
-        def _fetch(q, p=None):
-            conn = get_connection()
-            if USE_SQLITE:
-                cur = conn.cursor()
-            else:
+        seed_conn = get_connection()
+        try:
+            # Guarantee section_name accepts 'trending' before inserts (MySQL ENUM fix).
+            if not USE_SQLITE:
+                cur = seed_conn.cursor()
                 try:
-                    cur = conn.cursor(dictionary=True)
-                except TypeError:
-                    cur = conn.cursor()
-            try:
-                qq = q.replace("%s", "?") if USE_SQLITE else q
-                cur.execute(qq, p or ())
-                rows = cur.fetchall()
-                if not rows:
-                    return []
-                if isinstance(rows[0], dict):
-                    return list(rows)
-                cols = [d[0] for d in cur.description]
-                return [dict(zip(cols, r)) for r in rows]
-            finally:
-                cur.close()
+                    cur.execute("SHOW COLUMNS FROM books LIKE 'section_name'")
+                    col = cur.fetchone()
+                    col_type = ""
+                    if col is not None:
+                        if isinstance(col, dict):
+                            col_type = str(col.get("Type") or col.get("type") or "")
+                        else:
+                            col_type = str(col[1]) if len(col) > 1 else ""
+                    if not col_type or "enum" in col_type.lower() or "varchar" not in col_type.lower():
+                        try:
+                            cur.execute(
+                                "ALTER TABLE books MODIFY COLUMN section_name VARCHAR(64) NOT NULL DEFAULT 'recently_updated'"
+                            )
+                            seed_conn.commit()
+                            LOGGER.info("Widened books.section_name to VARCHAR(64) for Inkitt sections")
+                        except Exception as alter_exc:
+                            LOGGER.warning("section_name widen skipped: %s", alter_exc)
+                finally:
+                    cur.close()
 
-        def _write(q, p=()):
-            conn = get_connection()
-            cur = conn.cursor()
-            try:
-                qq = q.replace("%s", "?") if USE_SQLITE else q
-                cur.execute(qq, p)
-                conn.commit()
-                lid = getattr(cur, "lastrowid", None) or 0
-                return lid, cur.rowcount
-            finally:
-                cur.close()
+            def _fetch(q, p=None):
+                if USE_SQLITE:
+                    cur = seed_conn.cursor()
+                else:
+                    try:
+                        cur = seed_conn.cursor(dictionary=True)
+                    except TypeError:
+                        cur = seed_conn.cursor()
+                try:
+                    qq = q.replace("%s", "?") if USE_SQLITE else q
+                    cur.execute(qq, p or ())
+                    rows = cur.fetchall()
+                    if not rows:
+                        return []
+                    if isinstance(rows[0], dict):
+                        return list(rows)
+                    cols = [d[0] for d in cur.description]
+                    return [dict(zip(cols, r)) for r in rows]
+                finally:
+                    cur.close()
 
-        result["inkitt_seed"] = ensure_inkitt_catalog(_write, _fetch, USE_SQLITE)
-        LOGGER.info("inkitt_seed: %s", result["inkitt_seed"])
+            def _write(q, p=()):
+                cur = seed_conn.cursor()
+                try:
+                    qq = q.replace("%s", "?") if USE_SQLITE else q
+                    cur.execute(qq, p)
+                    seed_conn.commit()
+                    lid = getattr(cur, "lastrowid", None) or 0
+                    return lid, cur.rowcount
+                finally:
+                    cur.close()
+
+            # Skip heavy insert loop when catalog already present (idempotent fast path).
+            existing_titles = 0
+            try:
+                sample = _fetch(
+                    "SELECT COUNT(*) AS c FROM books WHERE title IN (%s)"
+                    % ",".join(["%s"] * min(5, len(INKITT_BOOKS))),
+                    tuple(t[0] for t in INKITT_BOOKS[:5]),
+                )
+                if sample:
+                    row = sample[0]
+                    existing_titles = int(row.get("c") if isinstance(row, dict) else row[0])
+            except Exception:
+                existing_titles = 0
+
+            if existing_titles >= 4:
+                result["inkitt_seed"] = {
+                    "books_added": 0,
+                    "covers_fixed": 0,
+                    "lists_added": 0,
+                    "contests_added": 0,
+                    "catalog_size": len(INKITT_BOOKS),
+                    "skipped": "already_seeded",
+                }
+                LOGGER.info("inkitt_seed skipped (already present): %s", result["inkitt_seed"])
+            else:
+                result["inkitt_seed"] = ensure_inkitt_catalog(_write, _fetch, USE_SQLITE)
+                LOGGER.info("inkitt_seed: %s", result["inkitt_seed"])
+        finally:
+            try:
+                seed_conn.close()
+            except Exception:
+                pass
     except Exception as ink_exc:
         LOGGER.warning("inkitt_seed failed: %s", ink_exc)
         result["inkitt_seed_error"] = str(ink_exc)

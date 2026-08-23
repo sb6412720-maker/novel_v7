@@ -1658,6 +1658,32 @@ def run_startup_migrations() -> dict[str, int]:
                 # Column may already exist or engine difference — non-fatal
                 pass
 
+    # section_name was ENUM('featured','recently_updated','recently_completed') which
+    # rejects Inkitt values like 'trending'. Widen to VARCHAR so seed + home feed work.
+    try:
+        cursor.execute("SHOW COLUMNS FROM books LIKE 'section_name'")
+        col = cursor.fetchone()
+        col_type = ""
+        if col is not None:
+            if isinstance(col, dict):
+                col_type = str(col.get("Type") or col.get("type") or "")
+            else:
+                # MySQL SHOW COLUMNS: Field, Type, Null, Key, Default, Extra
+                col_type = str(col[1]) if len(col) > 1 else ""
+        if col_type and "enum" in col_type.lower():
+            cursor.execute(
+                "ALTER TABLE books MODIFY COLUMN section_name VARCHAR(64) NOT NULL DEFAULT 'recently_updated'"
+            )
+            result["columns_added"] += 1
+    except Exception:
+        try:
+            cursor.execute(
+                "ALTER TABLE books MODIFY COLUMN section_name VARCHAR(64) NOT NULL DEFAULT 'recently_updated'"
+            )
+            result["columns_added"] += 1
+        except Exception:
+            pass
+
     cursor.execute(
         "UPDATE books SET primary_genre = genre WHERE (primary_genre = '' OR primary_genre IS NULL)"
     )

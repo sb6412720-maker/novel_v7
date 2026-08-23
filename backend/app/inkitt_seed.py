@@ -137,30 +137,46 @@ def ensure_inkitt_catalog(execute_write, fetch_all, USE_SQLITE: bool) -> dict[st
                     )
                     covers_fixed += 1
                 continue
-            execute_write(
-                """
+            params = (
+                title,
+                author,
+                description,
+                cover_path,
+                accent_hex,
+                section_name,
+                status_text,
+                float(rating),
+                primary_genre,
+                primary_genre,
+                secondary_genre,
+                "Read now",
+                int(sort_order),
+                int(is_completed),
+            )
+            insert_sql = """
                 INSERT INTO books (
                     title, author, description, cover_path, accent_hex, section_name, status_text,
                     rating, genre, primary_genre, secondary_genre, cta_label, sort_order, is_completed
                 ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                """,
-                (
-                    title,
-                    author,
-                    description,
-                    cover_path,
-                    accent_hex,
-                    section_name,
-                    status_text,
-                    float(rating),
-                    primary_genre,
-                    primary_genre,
-                    secondary_genre,
-                    "Read now",
-                    int(sort_order),
-                    int(is_completed),
-                ),
-            )
+                """
+            try:
+                execute_write(insert_sql, params)
+            except Exception as ins_exc:
+                # Legacy MySQL ENUM may still reject 'trending' until migration lands.
+                msg = str(ins_exc).lower()
+                if "section_name" in msg or "1265" in msg or "truncated" in msg or "data truncated" in msg:
+                    fallback = {
+                        "trending": "featured",
+                        "recently_updated": "recently_updated",
+                        "recently_completed": "recently_completed",
+                        "featured": "featured",
+                    }.get(str(section_name), "recently_updated")
+                    params2 = list(params)
+                    params2[5] = fallback
+                    execute_write(insert_sql, tuple(params2))
+                    LOGGER.info("inkitt seed book %s used section fallback %s", title, fallback)
+                else:
+                    raise
             added += 1
         except Exception as exc:
             LOGGER.warning("inkitt seed book failed %s: %s", title, exc)
