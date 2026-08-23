@@ -410,54 +410,19 @@ def run_startup_tasks() -> dict[str, Any]:
         LOGGER.exception("Patch step failed: %s", exc)
 
     LOGGER.info("Startup tasks finished: %s", result)
-    
 
-
-    # Inkitt-style catalog: NEVER block Vercel cold starts.
-    # If books already exist, skip entirely. Otherwise seed with ENUM-safe sections only,
-    # single connection, and hard time budget.
-    try:
-        book_count = int(result.get("counts", {}).get("books") or 0)
-        if book_count <= 0:
-            # Try a live count in case counts map was empty
-            try:
-                cconn = get_connection()
-                ccur = cconn.cursor()
-                ccur.execute("SELECT COUNT(*) FROM books")
-                row = ccur.fetchone()
-                book_count = int(row[0] if not isinstance(row, dict) else list(row.values())[0])
-                ccur.close()
-                cconn.close()
-            except Exception:
-                book_count = 0
-
-        # Always attempt one-shot ENUM->VARCHAR (fast; ignores if already VARCHAR)
-        if not USE_SQLITE:
-            try:
-                wconn = get_connection()
-                wcur = wconn.cursor()
-                try:
-                    wcur.execute(
-                        "ALTER TABLE books MODIFY COLUMN section_name VARCHAR(64) NOT NULL DEFAULT 'recently_updated'"
-                    )
-                    wconn.commit()
-                    LOGGER.info("Ensured books.section_name is VARCHAR(64)")
-                except Exception as wexc:
-                    LOGGER.warning("section_name ensure: %s", wexc)
-                finally:
-                    wcur.close()
-                    wconn.close()
-            except Exception as wexc2:
-                LOGGER.warning("section_name ensure connect: %s", wexc2)
-
-        if book_count > 0:
-            result["inkitt_seed"] = {
-                "books_added": 0,
-                "skipped": "books_already_present",
-                "book_count": book_count,
-            }
-            LOGGER.info("inkitt_seed skipped (books=%s) — keeping cold start fast", book_count)
-        else:
+    # ---------------------------------------------------------------------------
+    # Inkitt catalog seed is DISABLED on startup for Vercel / serverless.
+    # Reason: ENUM section_name errors + 40+ inserts caused 300s timeouts and
+    # empty API responses. Baseline seed (force_seed_if_empty / migrations)
+    # already provides books when the DB is empty.
+    #
+    # To run Inkitt seed once manually (local or admin):
+    #   ENABLE_INKITT_SEED=1  plus a one-shot script, or POST /api/admin/... later.
+    # ---------------------------------------------------------------------------
+    import os as _os
+    if _os.getenv("ENABLE_INKITT_SEED", "").strip().lower() in ("1", "true", "yes"):
+        try:
             from .inkitt_seed import ensure_inkitt_catalog
 
             seed_conn = get_connection()
@@ -465,14 +430,13 @@ def run_startup_tasks() -> dict[str, Any]:
                 if not USE_SQLITE:
                     cur = seed_conn.cursor()
                     try:
-                        # Always try to widen ENUM so future 'trending' values work
                         cur.execute(
-                            "ALTER TABLE books MODIFY COLUMN section_name VARCHAR(64) NOT NULL DEFAULT 'recently_updated'"
+                            "ALTER TABLE books MODIFY COLUMN section_name "
+                            "VARCHAR(64) NOT NULL DEFAULT 'recently_updated'"
                         )
                         seed_conn.commit()
-                        LOGGER.info("Forced books.section_name -> VARCHAR(64)")
                     except Exception as alter_exc:
-                        LOGGER.warning("section_name widen (empty-db path): %s", alter_exc)
+                        LOGGER.warning("section_name widen: %s", alter_exc)
                     finally:
                         cur.close()
 
@@ -509,14 +473,17 @@ def run_startup_tasks() -> dict[str, Any]:
                         cur.close()
 
                 result["inkitt_seed"] = ensure_inkitt_catalog(_write, _fetch, USE_SQLITE)
-                LOGGER.info("inkitt_seed (empty db): %s", result["inkitt_seed"])
+                LOGGER.info("inkitt_seed (ENABLE_INKITT_SEED): %s", result["inkitt_seed"])
             finally:
                 try:
                     seed_conn.close()
                 except Exception:
                     pass
-    except Exception as ink_exc:
-        LOGGER.warning("inkitt_seed failed: %s", ink_exc)
-        result["inkitt_seed_error"] = str(ink_exc)
+        except Exception as ink_exc:
+            LOGGER.warning("inkitt_seed failed: %s", ink_exc)
+            result["inkitt_seed_error"] = str(ink_exc)
+    else:
+        result["inkitt_seed"] = {"skipped": True, "reason": "disabled_on_startup"}
+        LOGGER.info("inkitt_seed skipped (disabled on startup; set ENABLE_INKITT_SEED=1 to run)")
 
     return result
