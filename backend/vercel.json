@@ -3,8 +3,12 @@
   "framework": "fastapi",
   "rewrites": [
     {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
       "source": "/(.*)",
-      "destination": "/"
+      "destination": "/$1"
     }
   ]
 }
