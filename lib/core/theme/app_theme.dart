@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 class AppTheme {
@@ -42,6 +43,12 @@ class AppTheme {
     );
 
     return ThemeData(
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        },
+      ),
       useMaterial3: true,
       scaffoldBackgroundColor: surface,
       colorScheme: const ColorScheme.light(primary: brand, surface: surface),
@@ -130,6 +137,12 @@ class AppTheme {
     );
 
     return ThemeData(
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        },
+      ),
       useMaterial3: true,
       brightness: Brightness.dark,
       scaffoldBackgroundColor: darkSurface,

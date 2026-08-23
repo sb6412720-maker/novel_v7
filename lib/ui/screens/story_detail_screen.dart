@@ -1122,23 +1122,30 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
                   final chapter = _chapters[index];
-                  final title =
-                      chapter['title'] as String? ?? 'Untitled chapter';
+                  final rawTitle =
+                      (chapter['title'] as String? ?? '').trim();
                   final number =
                       (chapter['chapter_number'] as num?)?.toInt() ??
                           index + 1;
+                  // Avoid "Chapter 1 Chapter 1" when title already says Chapter N
+                  String displayTitle;
+                  final lower = rawTitle.toLowerCase();
+                  if (rawTitle.isEmpty) {
+                    displayTitle = 'Chapter $number';
+                  } else if (lower == 'chapter $number' ||
+                      lower == 'chapter$number' ||
+                      RegExp(r'^chapter\s*\d+$').hasMatch(lower)) {
+                    displayTitle = 'Chapter $number';
+                  } else if (lower.startsWith('chapter ')) {
+                    displayTitle = rawTitle;
+                  } else {
+                    displayTitle = 'Chapter $number  $rawTitle';
+                  }
                   return ListTile(
                     contentPadding:
                         const EdgeInsets.symmetric(horizontal: 20),
-                    leading: Text(
-                      '$number',
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
                     title: Text(
-                      title,
+                      displayTitle,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
