@@ -46,6 +46,25 @@ export default function StoryEditorPage({ user }) {
   const [audioView, setAudioView] = useState(
     search.get("entry") === "audiobook" || window.location.pathname.includes("/audiobook")
   );
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState("details");
+  const [settings, setSettings] = useState({
+    work_type: "original",
+    work_status: "",
+    series: "standalone",
+    summary: "",
+    story_notes: "",
+    genre: "Romance",
+    genre2: "",
+    tags: "",
+    age_rating: "13+",
+    content_warnings: "",
+    ai_assisted: "original",
+    availability: "web_app",
+    language: "English",
+    inline_comments: true,
+    expand_languages: true,
+  });
   const [scheduleForm, setScheduleForm] = useState({
     name: "",
     interval: "Weekly",
@@ -80,6 +99,17 @@ export default function StoryEditorPage({ user }) {
     if (!Array.isArray(ch)) ch = [];
     setStory(s);
     setStoryTitle(s?.title || "Untitled Story");
+    setSettings((prev) => ({
+      ...prev,
+      summary: s?.description || "",
+      genre: s?.genre || s?.primary_genre || prev.genre || "Romance",
+      content_warnings: s?.content_warnings || "",
+      work_status: s?.status_text || prev.work_status || "",
+      story_notes: localStorage.getItem(`nh_story_notes_${id}`) || prev.story_notes || "",
+      age_rating: localStorage.getItem(`nh_age_${id}`) || prev.age_rating,
+      work_type: localStorage.getItem(`nh_work_type_${id}`) || prev.work_type,
+      tags: localStorage.getItem(`nh_tags_${id}`) || prev.tags,
+    }));
 
     if (!ch.length) {
       try {
@@ -366,6 +396,45 @@ export default function StoryEditorPage({ user }) {
     return st.includes("publish") || st === "submitted";
   }
 
+
+  async function saveSettings() {
+    if (!storyId) return;
+    try {
+      await updateStory(storyId, {
+        description: (settings.summary || "").slice(0, 1400),
+        genre: settings.genre || "Romance",
+        content_warnings: settings.content_warnings || "",
+        status_text: settings.work_status || undefined,
+        tags: settings.tags
+          ? String(settings.tags)
+              .split(",")
+              .map((t) => t.trim())
+              .filter(Boolean)
+          : [],
+      });
+      localStorage.setItem(`nh_story_notes_${storyId}`, settings.story_notes || "");
+      localStorage.setItem(`nh_age_${storyId}`, settings.age_rating || "13+");
+      localStorage.setItem(`nh_work_type_${storyId}`, settings.work_type || "original");
+      localStorage.setItem(`nh_tags_${storyId}`, settings.tags || "");
+      localStorage.setItem(
+        `nh_settings_${storyId}`,
+        JSON.stringify({
+          series: settings.series,
+          ai_assisted: settings.ai_assisted,
+          availability: settings.availability,
+          language: settings.language,
+          inline_comments: settings.inline_comments,
+          expand_languages: settings.expand_languages,
+        })
+      );
+      setMsg("Story settings saved");
+      setSettingsOpen(false);
+      await load(storyId);
+    } catch (e) {
+      setMsg(String(e.message || e));
+    }
+  }
+
   if (guest) {
     return (
       <div className="container page">
@@ -442,7 +511,7 @@ export default function StoryEditorPage({ user }) {
             />
           </div>
           <div className="editor-left-links">
-            <button type="button" className="linkish">
+            <button type="button" className="linkish" onClick={() => setSettingsOpen(true)}>
               Settings
             </button>
             <Link className="linkish" to={`/stories/${storyId}`}>
@@ -804,6 +873,133 @@ export default function StoryEditorPage({ user }) {
           </div>
         </div>
       )}
+
+      {settingsOpen && (
+        <div className="settings-drawer-backdrop" onClick={() => setSettingsOpen(false)}>
+          <div className="settings-drawer" onClick={(e) => e.stopPropagation()}>
+            <div className="settings-drawer-head">
+              <h2>Story Settings</h2>
+              <button type="button" className="auth-close" onClick={() => setSettingsOpen(false)}>×</button>
+            </div>
+            <div className="settings-drawer-body">
+              <nav className="settings-nav">
+                {[
+                  ["details", "Story Details"],
+                  ["genres", "Genres and Tags"],
+                  ["warnings", "Content Warnings"],
+                  ["publish", "Publishing and Contests"],
+                ].map(([id, label]) => (
+                  <button key={id} type="button" className={settingsTab === id ? "active" : ""} onClick={() => setSettingsTab(id)}>
+                    {label}
+                  </button>
+                ))}
+              </nav>
+              <div className="settings-panel">
+                {settingsTab === "details" && (
+                  <section>
+                    <h3>Story Details</h3>
+                    <div className="settings-toggle-row">
+                      <button type="button" className={settings.work_type === "original" ? "on" : ""} onClick={() => setSettings({ ...settings, work_type: "original" })}>Original</button>
+                      <button type="button" className={settings.work_type === "fanfiction" ? "on" : ""} onClick={() => setSettings({ ...settings, work_type: "fanfiction" })}>Fanfiction</button>
+                    </div>
+                    <label className="form-label">Work Status
+                      <select value={settings.work_status} onChange={(e) => setSettings({ ...settings, work_status: e.target.value })}>
+                        <option value="">Nothing selected</option>
+                        <option value="Ongoing">Ongoing</option>
+                        <option value="Complete">Complete</option>
+                        <option value="Hiatus">Hiatus</option>
+                        <option value="Draft">Draft</option>
+                      </select>
+                    </label>
+                    <div className="form-label">Series Placement</div>
+                    <label className="radio-row"><input type="radio" checked={settings.series === "standalone"} onChange={() => setSettings({ ...settings, series: "standalone" })} /> Standalone story</label>
+                    <label className="radio-row"><input type="radio" checked={settings.series === "series"} onChange={() => setSettings({ ...settings, series: "series" })} /> Part of a series</label>
+                    <label className="form-label">Summary (max. 1400 characters)
+                      <textarea value={settings.summary} maxLength={1400} rows={4} placeholder="Hook readers with a teaser that captures your story's vibe—short, punchy, and impossible to ignore." onChange={(e) => setSettings({ ...settings, summary: e.target.value })} />
+                    </label>
+                    <label className="form-label">Story Notes
+                      <textarea value={settings.story_notes} rows={3} placeholder="Share a note to set the tone..." onChange={(e) => setSettings({ ...settings, story_notes: e.target.value })} />
+                    </label>
+                  </section>
+                )}
+                {settingsTab === "genres" && (
+                  <section>
+                    <h3>Genres and Tags</h3>
+                    <label className="form-label">Genre
+                      <select value={settings.genre} onChange={(e) => setSettings({ ...settings, genre: e.target.value })}>
+                        <option value="">Nothing selected</option>
+                        {["Romance","Fantasy","Thriller","Young Adult","Sci-Fi","Drama","Adventure","Mystery","Horror","Werewolves","Contemporary Romance","Other"].map((g) => (
+                          <option key={g} value={g}>{g}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <p className="meta">0/4 sub-genres selected — choose up to 4 across all genres.</p>
+                    <label className="form-label">Tags (comma-separated)
+                      <input value={settings.tags} placeholder="Alpha, Boss, Second Chance" onChange={(e) => setSettings({ ...settings, tags: e.target.value })} />
+                    </label>
+                    <div className="form-label">Age Rating</div>
+                    {[
+                      ["13+", "Kids (13+)", "May contain some violence, minor coarse language, and minor suggestive adult themes."],
+                      ["16+", "Teenager (16+)", "May contain non-explicit suggestive adult themes, references to some violence, or coarse language."],
+                      ["18+", "Adults (18+)", "May contain explicit language and adult themes."],
+                    ].map(([val, label, hint]) => (
+                      <label key={val} className="radio-card">
+                        <input type="radio" checked={settings.age_rating === val} onChange={() => setSettings({ ...settings, age_rating: val })} />
+                        <span><strong>{label}</strong><span className="meta">{hint}</span></span>
+                      </label>
+                    ))}
+                  </section>
+                )}
+                {settingsTab === "warnings" && (
+                  <section>
+                    <h3>Content Warnings</h3>
+                    <label className="form-label">Trigger Warnings
+                      <select value={settings.content_warnings} onChange={(e) => setSettings({ ...settings, content_warnings: e.target.value })}>
+                        <option value="">No warnings selected</option>
+                        <option value="Violence">Violence</option>
+                        <option value="Abuse">Abuse</option>
+                        <option value="Sexual content">Sexual content</option>
+                        <option value="Death">Death</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </label>
+                    <div className="form-label">AI Assisted</div>
+                    <label className="radio-row"><input type="radio" checked={settings.ai_assisted === "ai"} onChange={() => setSettings({ ...settings, ai_assisted: "ai" })} /> AI participated in the storytelling</label>
+                    <label className="radio-row"><input type="radio" checked={settings.ai_assisted === "original"} onChange={() => setSettings({ ...settings, ai_assisted: "original" })} /> This is fully original content</label>
+                  </section>
+                )}
+                {settingsTab === "publish" && (
+                  <section>
+                    <h3>Publishing and Contests</h3>
+                    <div className="form-label">Story Availability</div>
+                    <label className="radio-row"><input type="radio" checked={settings.availability === "web_app"} onChange={() => setSettings({ ...settings, availability: "web_app" })} /> Website and App</label>
+                    <label className="radio-row"><input type="radio" checked={settings.availability === "app"} onChange={() => setSettings({ ...settings, availability: "app" })} /> App only</label>
+                    <label className="form-label">Story Language
+                      <select value={settings.language} onChange={(e) => setSettings({ ...settings, language: e.target.value })}>
+                        <option>English</option><option>Spanish</option><option>French</option><option>German</option>
+                      </select>
+                    </label>
+                    <div className="form-label">Inline Commenting</div>
+                    <label className="radio-row"><input type="radio" checked={!settings.inline_comments} onChange={() => setSettings({ ...settings, inline_comments: false })} /> Turn off paragraph-level comments and reactions</label>
+                    <label className="radio-row"><input type="radio" checked={!!settings.inline_comments} onChange={() => setSettings({ ...settings, inline_comments: true })} /> Turn on paragraph-level reactions and feedback</label>
+                    <label className="form-label">Participate in contest
+                      <select disabled><option>You must publish your story before you can participate!</option></select>
+                    </label>
+                    <div className="form-label">Expand my readership in other languages</div>
+                    <label className="radio-row"><input type="radio" checked={!!settings.expand_languages} onChange={() => setSettings({ ...settings, expand_languages: true })} /> Yes</label>
+                    <label className="radio-row"><input type="radio" checked={!settings.expand_languages} onChange={() => setSettings({ ...settings, expand_languages: false })} /> No</label>
+                  </section>
+                )}
+              </div>
+            </div>
+            <div className="settings-drawer-foot">
+              <button type="button" className="btn" onClick={() => setSettingsOpen(false)}>Close</button>
+              <button type="button" className="btn btn-primary" onClick={saveSettings}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
