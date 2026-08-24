@@ -91,7 +91,7 @@ class _ExploreStoriesSectionState extends State<_ExploreStoriesSection> {
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(viewportFraction: 0.42, initialPage: 0);
+    _pageController = PageController(viewportFraction: 0.38, initialPage: 0);
   }
 
   @override
@@ -179,7 +179,7 @@ class _ExploreStoriesSectionState extends State<_ExploreStoriesSection> {
         ),
         const SizedBox(height: 8),
         SizedBox(
-          height: 180,
+          height: 210,
           child: PageView.builder(
             controller: _pageController,
             padEnds: true,
@@ -189,7 +189,7 @@ class _ExploreStoriesSectionState extends State<_ExploreStoriesSection> {
               final item = _validBooks[index];
               final isActive = index == _activeIndex;
               return AnimatedScale(
-                scale: isActive ? 1.12 : 0.82,
+                scale: isActive ? 1.08 : 0.88,
                 duration: const Duration(milliseconds: 220),
                 curve: Curves.easeOutCubic,
                 child: AnimatedOpacity(
@@ -210,7 +210,7 @@ class _ExploreStoriesSectionState extends State<_ExploreStoriesSection> {
                     child: Center(
                       child: _StoryCard(
                         book: item,
-                        width: isActive ? 100 : 88,
+                        width: isActive ? 128 : 108,
                         apiService: widget.apiService,
                       ),
                     ),
@@ -264,7 +264,7 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
   void initState() {
     super.initState();
     // Slightly denser carousel (Inkitt-like card density)
-    _pageController = PageController(viewportFraction: 0.42, initialPage: 0);
+    _pageController = PageController(viewportFraction: 0.38, initialPage: 0);
   }
 
   @override
@@ -342,7 +342,7 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
           )
         else
           SizedBox(
-            height: 168,
+            height: 200,
             child: PageView.builder(
               controller: _pageController,
               padEnds: true,
@@ -353,7 +353,7 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
                 final item = valid[index];
                 final isActive = index == _activeIndex;
                 return AnimatedScale(
-                  scale: isActive ? 1.12 : 0.82,
+                  scale: isActive ? 1.08 : 0.88,
                   duration: const Duration(milliseconds: 220),
                   curve: Curves.easeOutCubic,
                   child: AnimatedOpacity(
@@ -391,7 +391,7 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
                       child: Center(
                         child: _StoryCard(
                           book: item,
-                          width: isActive ? 100 : 88,
+                          width: isActive ? 128 : 108,
                           apiService: widget.apiService,
                         ),
                       ),
@@ -633,16 +633,16 @@ class _StoryCardState extends State<_StoryCard> {
     final coverUrl = widget.book.coverPath.isEmpty
         ? null
         : widget.apiService.resolveAssetUrl(widget.book.coverPath);
-    final compact = widget.width <= 100;
+    final compact = widget.width <= 140;
 
     if (compact) {
       return GestureDetector(
         onTap: _openDetail,
         child: SizedBox(
           width: widget.width,
-          height: 120,
+          height: 160,
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(10),
             child: coverUrl == null
                 ? ColoredBox(
                     color: color.withValues(alpha: 0.15),
@@ -652,7 +652,7 @@ class _StoryCardState extends State<_StoryCard> {
                     coverUrl,
                     fit: BoxFit.cover,
                     width: widget.width,
-                    height: 120,
+                    height: 160,
                     errorBuilder: (context, error, stackTrace) => ColoredBox(
                       color: color.withValues(alpha: 0.15),
                       child: const Center(child: Icon(Icons.menu_book, size: 28)),
@@ -813,7 +813,7 @@ class _AuthorsStripState extends State<_AuthorsStrip> {
         ),
         const SizedBox(height: 10),
         SizedBox(
-          height: 108,
+          height: 124,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: authors.length,
@@ -924,15 +924,30 @@ class _AuthorsStripState extends State<_AuthorsStrip> {
                   ),
                   const SizedBox(height: 8),
                   SizedBox(
-                    width: 64,
-                    child: Text(
-                      author,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodySmall?.copyWith(fontSize: 11),
+                    width: 72,
+                    child: Column(
+                      children: [
+                        Text(
+                          author,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                        Text(
+                          book.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                fontSize: 9,
+                                color: AppTheme.muted,
+                              ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -1035,6 +1050,190 @@ class _GenrePillRow extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+
+
+/// Horizontal "Browse genres" carousel (video-style genre cards).
+class _BrowseGenresSection extends StatelessWidget {
+  const _BrowseGenresSection({
+    required this.books,
+    required this.topics,
+    required this.apiService,
+    this.onOpenExplore,
+  });
+
+  final List<BookCardModel> books;
+  final List<ExploreTopicModel> topics;
+  final ApiService apiService;
+  final VoidCallback? onOpenExplore;
+
+  static const _palette = <Color>[
+    Color(0xFFE14FA0),
+    Color(0xFF8B5CF6),
+    Color(0xFF00A88E),
+    Color(0xFFF0B357),
+    Color(0xFF5B9BD5),
+    Color(0xFFE85D4C),
+    Color(0xFF9B59B6),
+    Color(0xFF2ECC71),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final genres = <String>[];
+    final seen = <String>{};
+    for (final b in books) {
+      for (final g in [b.primaryGenre, b.secondaryGenre]) {
+        final s = g.trim();
+        if (s.isEmpty) continue;
+        final key = s.toLowerCase();
+        if (seen.contains(key)) continue;
+        seen.add(key);
+        genres.add(s);
+        if (genres.length >= 12) break;
+      }
+      if (genres.length >= 12) break;
+    }
+    for (final t in topics) {
+      final s = t.name.trim();
+      if (s.isEmpty) continue;
+      final key = s.toLowerCase();
+      if (seen.contains(key)) continue;
+      seen.add(key);
+      genres.add(s);
+      if (genres.length >= 12) break;
+    }
+    if (genres.isEmpty) return const SizedBox.shrink();
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Browse genres',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 17,
+                      letterSpacing: -0.2,
+                      color: isDark ? Colors.white : null,
+                    ),
+              ),
+            ),
+            if (onOpenExplore != null)
+              TextButton(
+                onPressed: onOpenExplore,
+                style: TextButton.styleFrom(
+                  foregroundColor: AppTheme.brand,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  minimumSize: const Size(0, 32),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text(
+                  'See all',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 92,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: genres.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            itemBuilder: (context, index) {
+              final label = genres[index];
+              final color = _palette[index % _palette.length];
+              return GestureDetector(
+                onTap: () async {
+                  var tagged = await apiService.fetchBooksByTag(label);
+                  if (tagged.isEmpty) {
+                    tagged = books
+                        .where((b) {
+                          final g = label.toLowerCase();
+                          return b.primaryGenre.toLowerCase().contains(g) ||
+                              b.secondaryGenre.toLowerCase().contains(g);
+                        })
+                        .map((b) => {
+                              'id': b.id,
+                              'title': b.title,
+                              'author': b.author,
+                              'description': b.description,
+                              'status_text': b.statusText,
+                              'rating': b.rating,
+                              'genre': b.primaryGenre,
+                              'primary_genre': b.primaryGenre,
+                              'cover_path': b.coverPath,
+                              'cta_label': b.cta,
+                              'author_user_id': b.authorUserId,
+                            })
+                        .toList();
+                  }
+                  if (!context.mounted) return;
+                  await Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => _GenreBooksScreen(
+                        genre: label,
+                        books: tagged,
+                        apiService: apiService,
+                        onExploreMore: onOpenExplore,
+                      ),
+                    ),
+                  );
+                },
+                child: Container(
+                  width: 120,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        color.withValues(alpha: 0.85),
+                        color.withValues(alpha: 0.55),
+                      ],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withValues(alpha: 0.25),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.auto_stories_rounded, color: Colors.white.withValues(alpha: 0.95), size: 22),
+                      const Spacer(),
+                      Text(
+                        label,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          height: 1.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }

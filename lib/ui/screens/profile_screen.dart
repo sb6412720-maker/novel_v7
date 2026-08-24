@@ -289,7 +289,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               left: 20,
               right: 20,
               top: 20,
-              bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 28,
             ),
             child: SingleChildScrollView(
               child: Column(
@@ -349,26 +349,44 @@ class _ProfileScreenState extends State<ProfileScreen>
                     ],
                   ),
                   const SizedBox(height: 12),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: brand, foregroundColor: Colors.white),
-                    onPressed: () async {
-                      try {
-                        await widget.apiService.updateMe({
-                          'display_name': nameCtrl.text.trim(),
-                          'bio': bioCtrl.text.trim(),
-                          if (photoUrl.isNotEmpty) 'photo_url': photoUrl,
-                          if (coverUrl.isNotEmpty) 'cover_url': coverUrl,
-                        });
-                        if (ctx.mounted) Navigator.pop(ctx);
-                        await _loadAll();
-                      } catch (e) {
-                        if (ctx.mounted) {
-                          ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('$e')));
-                        }
-                      }
-                    },
-                    child: const Text('Save'),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: brand,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: uploading
+                          ? null
+                          : () async {
+                              try {
+                                await widget.apiService.updateMe({
+                                  'display_name': nameCtrl.text.trim(),
+                                  'bio': bioCtrl.text.trim(),
+                                  if (photoUrl.isNotEmpty) 'photo_url': photoUrl,
+                                  if (coverUrl.isNotEmpty) 'cover_url': coverUrl,
+                                });
+                                if (ctx.mounted) Navigator.pop(ctx);
+                                await _loadAll();
+                              } catch (e) {
+                                if (ctx.mounted) {
+                                  ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('$e')));
+                                }
+                              }
+                            },
+                      child: uploading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Text('Save', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                    ),
                   ),
+                  const SizedBox(height: 12),
                 ],
               ),
             ),

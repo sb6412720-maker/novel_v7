@@ -251,6 +251,22 @@ class _DiscoverScreenState extends State<DiscoverScreen>
               if (i == 2) ...[
                 _AuthorsStrip(books: allBooks, apiService: widget.apiService),
                 const SizedBox(height: 24),
+                _BrowseGenresSection(
+                  books: allBooks,
+                  topics: widget.data.exploreTopics,
+                  apiService: widget.apiService,
+                  onOpenExplore: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ExploreScreen(
+                          topics: widget.data.exploreTopics,
+                          apiService: widget.apiService,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 24),
               ],
             ],
           ],
@@ -421,6 +437,8 @@ class _SearchScreenState extends State<SearchScreen> {
   double _minRating = 0;
   bool _loading = false;
   List<Map<String, dynamic>> _results = <Map<String, dynamic>>[];
+  /// Wattpad-style filter chip: title | tag | profile
+  String _searchScope = 'title';
 
   Future<void> _runSearch() async {
     setState(() => _loading = true);
@@ -501,54 +519,101 @@ class _SearchScreenState extends State<SearchScreen> {
           ),
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView.separated(
-              padding: const EdgeInsets.all(12),
-              itemCount: _results.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 8),
-              itemBuilder: (context, index) {
-                final item = _results[index];
-                return ListTile(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    side: const BorderSide(color: Color(0xFFE8E8E8)),
-                  ),
-                  onTap: () {
-                    final id = (item['id'] as num?)?.toInt();
-                    if (id == null) return;
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => StoryDetailScreen(
-                          apiService: widget.apiService,
-                          book: BookDetailModel.fromMap(item),
-                        ),
+      body: Column(
+        children: [
+          // Wattpad-style scope chips
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+            child: Row(
+              children: [
+                for (final entry in const [
+                  {'id': 'title', 'label': 'Title'},
+                  {'id': 'tag', 'label': 'Tag'},
+                  {'id': 'profile', 'label': 'Profile'},
+                ]) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(entry['label']!),
+                      selected: _searchScope == entry['id'],
+                      onSelected: (_) {
+                        setState(() => _searchScope = entry['id']!);
+                        _runSearch();
+                      },
+                      selectedColor: const Color(0xFF00A88E).withValues(alpha: 0.18),
+                      labelStyle: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: _searchScope == entry['id']
+                            ? const Color(0xFF00A88E)
+                            : null,
                       ),
-                    );
-                  },
-                  leading: SizedBox(
-                    width: 40,
-                    height: 56,
-                    child: (item['cover_path']?.toString() ?? '').isNotEmpty
-                        ? Image.network(
-                            widget.apiService.resolveAssetUrl(
-                              item['cover_path'].toString(),
-                            ),
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) =>
-                                const ColoredBox(color: Color(0xFFE4E4E4)),
-                          )
-                        : const ColoredBox(color: Color(0xFFE4E4E4)),
+                    ),
                   ),
-                  title: Text(item['title']?.toString() ?? ''),
-                  subtitle: Text(item['author']?.toString() ?? ''),
-                  trailing: Text(
-                    (item['rating'] ?? '').toString(),
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                );
-              },
+                ],
+              ],
             ),
+          ),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _results.isEmpty
+                    ? Center(
+                        child: Text(
+                          _searchQuery.isEmpty
+                              ? 'Search stories, tags or people'
+                              : 'No results',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      )
+                    : ListView.separated(
+                        padding: const EdgeInsets.all(12),
+                        itemCount: _results.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          final item = _results[index];
+                          return ListTile(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              side: const BorderSide(color: Color(0xFFE8E8E8)),
+                            ),
+                            onTap: () {
+                              final id = (item['id'] as num?)?.toInt();
+                              if (id == null) return;
+                              Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => StoryDetailScreen(
+                                    apiService: widget.apiService,
+                                    book: BookDetailModel.fromMap(item),
+                                  ),
+                                ),
+                              );
+                            },
+                            leading: SizedBox(
+                              width: 40,
+                              height: 56,
+                              child: (item['cover_path']?.toString() ?? '').isNotEmpty
+                                  ? Image.network(
+                                      widget.apiService.resolveAssetUrl(
+                                        item['cover_path'].toString(),
+                                      ),
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, _, _) =>
+                                          const ColoredBox(color: Color(0xFFE4E4E4)),
+                                    )
+                                  : const ColoredBox(color: Color(0xFFE4E4E4)),
+                            ),
+                            title: Text(item['title']?.toString() ?? ''),
+                            subtitle: Text(item['author']?.toString() ?? ''),
+                            trailing: Text(
+                              (item['rating'] ?? '').toString(),
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          );
+                        },
+                      ),
+          ),
+        ],
+      ),
     );
   }
 }

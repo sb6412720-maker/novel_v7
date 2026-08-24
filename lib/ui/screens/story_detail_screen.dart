@@ -546,23 +546,13 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
               child: Column(
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.local_florist,
-                          size: 18, color: Color(0xFFE85D4C)),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          _book.title,
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            height: 1.2,
-                          ),
-                        ),
-                      ),
-                    ],
+                  Text(
+                    _book.title,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      height: 1.2,
+                    ),
                   ),
                   if (_book.author.isNotEmpty) ...[
                     const SizedBox(height: 6),
