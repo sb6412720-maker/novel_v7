@@ -525,7 +525,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                                 Image.network(
                                   widget.apiService.resolveAssetUrl(_coverPath),
                                   fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => const Center(
+                                  errorBuilder: (_, _, _) => const Center(
                                     child: Icon(Icons.image_outlined, size: 40, color: _textLo),
                                   ),
                                 ),

@@ -1890,8 +1890,6 @@ def run_startup_migrations() -> dict[str, int]:
     cursor.close()
     connection.close()
     return result
-
-
 def get_connection():
     if USE_SQLITE:
         SQLITE_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -1903,14 +1901,11 @@ def get_connection():
         connection.execute("PRAGMA foreign_keys = ON")
         return connection
 
-    # Use SSL by default for cloud MySQL (Railway uses caching_sha2_password over secure transport).
-    # Set MYSQL_SSL_DISABLED=true only for local/non-SSL setups.
     ssl_disabled = os.getenv("MYSQL_SSL_DISABLED", "false").lower() == "true"
     if mysql_connector is None:
         raise RuntimeError("mysql.connector is not installed; install mysql-connector-python to use MySQL mode")
 
     timeout_s = int(os.getenv("MYSQL_CONNECT_TIMEOUT", "8"))
-    # Fail stuck queries before Vercel 300s hard kill
     read_timeout_s = int(os.getenv("MYSQL_READ_TIMEOUT", "25"))
     write_timeout_s = int(os.getenv("MYSQL_WRITE_TIMEOUT", "25"))
     kwargs = dict(
@@ -1922,17 +1917,26 @@ def get_connection():
         ssl_disabled=ssl_disabled,
         use_pure=True,
         connection_timeout=timeout_s,
+        autocommit=True,
     )
-    # mysql-connector pure Python supports these; ignore if unsupported
-    try:
-        return mysql_connector.connect(
-            **kwargs,
-            read_timeout=read_timeout_s,
-            write_timeout=write_timeout_s,
-        )
-    except TypeError:
-        return mysql_connector.connect(**kwargs)
 
+    last_exc = None
+    for attempt in range(3):
+        try:
+            try:
+                conn = mysql_connector.connect(
+                    **kwargs,
+                    read_timeout=read_timeout_s,
+                    write_timeout=write_timeout_s,
+                )
+            except TypeError:
+                conn = mysql_connector.connect(**kwargs)
+            return conn
+        except Exception as exc:
+            last_exc = exc
+            import time as _t
+            _t.sleep(0.4 * (attempt + 1))
+    raise last_exc
 
 def force_seed_if_empty() -> dict[str, int]:
     """Guarantee baseline categories/books/chapters exist (idempotent)."""

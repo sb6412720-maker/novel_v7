@@ -960,8 +960,7 @@ class _GenrePillRow extends StatelessWidget {
     required this.topics,
     required this.books,
     required this.apiService,
-    this.onOpenExplore,
-  });
+  }) : onOpenExplore = null;
 
   final List<ExploreTopicModel> topics;
   final List<BookCardModel> books;
@@ -1125,7 +1124,7 @@ class _ContinueReadingSection extends StatelessWidget {
                             ? Image.network(
                                 apiService.resolveAssetUrl(b.coverPath),
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => ColoredBox(
+                                errorBuilder: (_, _, _) => ColoredBox(
                                   color: Colors.grey.shade300,
                                   child: const Icon(Icons.menu_book),
                                 ),
@@ -1277,7 +1276,7 @@ class _BrowseGenresSection extends StatelessWidget {
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: genres.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            separatorBuilder: (_, _) => const SizedBox(width: 10),
             itemBuilder: (context, index) {
               final label = genres[index];
               final color = _palette[index % _palette.length];
