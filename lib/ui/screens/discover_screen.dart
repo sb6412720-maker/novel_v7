@@ -442,11 +442,107 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Future<void> _runSearch() async {
     setState(() => _loading = true);
-    final rows = await widget.apiService.searchStories(
-      query: _searchQuery,
-      genre: _genre,
-      minRating: _minRating,
-    );
+    final q = _searchQuery.trim();
+    List<Map<String, dynamic>> rows = <Map<String, dynamic>>[];
+    try {
+      if (_searchScope == 'tag') {
+        if (q.isEmpty) {
+          // Show available tags as results when query is empty
+          final tags = await widget.apiService.fetchTags();
+          rows = tags
+              .map((e) {
+                final name = (e['name'] ?? e['tag'] ?? e['label'] ?? '').toString();
+                return <String, dynamic>{
+                  '_kind': 'tag',
+                  'id': e['id'] ?? name.hashCode,
+                  'title': name.startsWith('#') ? name : '#$name',
+                  'author': 'Hashtag',
+                  'cover_path': '',
+                  'rating': '',
+                  'tag_name': name.replaceFirst('#', ''),
+                };
+              })
+              .where((m) => (m['title'] as String).length > 1)
+              .toList();
+        } else {
+          final tagged = await widget.apiService.fetchBooksByTag(q);
+          if (tagged.isNotEmpty) {
+            rows = tagged
+                .map((e) => <String, dynamic>{...Map<String, dynamic>.from(e), '_kind': 'book'})
+                .toList();
+          } else {
+            // Fallback: story search filtered later + tag list match
+            final tags = await widget.apiService.fetchTags(query: q);
+            rows = tags
+                .map((e) {
+                  final name = (e['name'] ?? e['tag'] ?? e['label'] ?? '').toString();
+                  return <String, dynamic>{
+                    '_kind': 'tag',
+                    'id': e['id'] ?? name.hashCode,
+                    'title': name.startsWith('#') ? name : '#$name',
+                    'author': 'Hashtag',
+                    'cover_path': '',
+                    'rating': '',
+                    'tag_name': name.replaceFirst('#', ''),
+                  };
+                })
+                .toList();
+            if (rows.isEmpty) {
+              final stories = await widget.apiService.searchStories(
+                query: q,
+                genre: _genre,
+                minRating: _minRating,
+              );
+              rows = stories
+                  .map((e) => <String, dynamic>{...Map<String, dynamic>.from(e), '_kind': 'book'})
+                  .toList();
+            }
+          }
+        }
+      } else if (_searchScope == 'profile') {
+        final stories = await widget.apiService.searchStories(
+          query: q,
+          genre: '',
+          minRating: 0,
+        );
+        // Dedupe by author → people rows
+        final seen = <String>{};
+        for (final s in stories) {
+          final author = (s['author'] ?? s['display_name'] ?? '').toString().trim();
+          if (author.isEmpty) continue;
+          final key = author.toLowerCase();
+          if (seen.contains(key)) continue;
+          if (q.isNotEmpty && !key.contains(q.toLowerCase())) continue;
+          seen.add(key);
+          final uid = (s['author_user_id'] ?? s['user_id'] ?? s['author_id']);
+          rows.add(<String, dynamic>{
+            '_kind': 'profile',
+            'id': uid ?? author.hashCode,
+            'title': author,
+            'author': (s['username'] ?? '').toString().isNotEmpty
+                ? '@${s['username']}'
+                : 'Author',
+            'cover_path': (s['author_photo'] ?? s['photo_url'] ?? s['avatar_url'] ?? '').toString(),
+            'rating': '',
+            'author_user_id': uid,
+            'photo_url': (s['author_photo'] ?? s['photo_url'] ?? s['avatar_url'] ?? '').toString(),
+          });
+          if (rows.length >= 30) break;
+        }
+      } else {
+        // title (default)
+        final stories = await widget.apiService.searchStories(
+          query: q,
+          genre: _genre,
+          minRating: _minRating,
+        );
+        rows = stories
+            .map((e) => <String, dynamic>{...Map<String, dynamic>.from(e), '_kind': 'book'})
+            .toList();
+      }
+    } catch (_) {
+      rows = <Map<String, dynamic>>[];
+    }
     if (!mounted) return;
     setState(() {
       _results = rows;
@@ -571,12 +667,103 @@ class _SearchScreenState extends State<SearchScreen> {
                         separatorBuilder: (_, _) => const SizedBox(height: 8),
                         itemBuilder: (context, index) {
                           final item = _results[index];
+                          final kind = (item['_kind'] ?? 'book').toString();
+                          final cover = (item['cover_path'] ?? item['photo_url'] ?? '').toString();
+                          Widget leading;
+                          if (kind == 'profile') {
+                            leading = CircleAvatar(
+                              radius: 22,
+                              backgroundColor: const Color(0xFFE8EEF9),
+                              backgroundImage: cover.isNotEmpty
+                                  ? NetworkImage(widget.apiService.resolveAssetUrl(cover))
+                                  : null,
+                              child: cover.isEmpty
+                                  ? Text(
+                                      ((item['title'] ?? '?').toString().isNotEmpty
+                                              ? item['title'].toString()[0]
+                                              : '?')
+                                          .toUpperCase(),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF00A88E),
+                                      ),
+                                    )
+                                  : null,
+                            );
+                          } else if (kind == 'tag') {
+                            leading = const CircleAvatar(
+                              radius: 22,
+                              backgroundColor: Color(0xFFE8EEF9),
+                              child: Icon(Icons.tag, color: Color(0xFF00A88E)),
+                            );
+                          } else {
+                            leading = SizedBox(
+                              width: 40,
+                              height: 56,
+                              child: cover.isNotEmpty
+                                  ? Image.network(
+                                      widget.apiService.resolveAssetUrl(cover),
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, _, _) =>
+                                          const ColoredBox(color: Color(0xFFE4E4E4)),
+                                    )
+                                  : const ColoredBox(color: Color(0xFFE4E4E4)),
+                            );
+                          }
                           return ListTile(
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
                               side: const BorderSide(color: Color(0xFFE8E8E8)),
                             ),
-                            onTap: () {
+                            onTap: () async {
+                              if (kind == 'tag') {
+                                final tag = (item['tag_name'] ?? item['title'] ?? '')
+                                    .toString()
+                                    .replaceFirst('#', '');
+                                if (tag.isEmpty) return;
+                                final books = await widget.apiService.fetchBooksByTag(tag);
+                                if (!context.mounted) return;
+                                await Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => _GenreBooksScreen(
+                                      genre: tag,
+                                      books: books,
+                                      apiService: widget.apiService,
+                                    ),
+                                  ),
+                                );
+                                return;
+                              }
+                              if (kind == 'profile') {
+                                final uid = (item['author_user_id'] as num?)?.toInt() ??
+                                    (item['id'] as num?)?.toInt();
+                                if (uid == null || uid <= 0) return;
+                                final name = (item['title'] ?? 'Author').toString();
+                                Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => ProfileScreen(
+                                      apiService: widget.apiService,
+                                      viewingUserId: uid,
+                                      achievements: const [],
+                                      profile: ProfileModel(
+                                        id: uid,
+                                        displayName: name,
+                                        username: name.toLowerCase().replaceAll(' ', ''),
+                                        photoUrl: cover,
+                                        coverUrl: '',
+                                        following: 0,
+                                        followers: 0,
+                                        blocked: 0,
+                                        chaptersRead: 0,
+                                        socialKarma: 0,
+                                        dayStreak: 0,
+                                        readingLists: const [],
+                                      ),
+                                    ),
+                                  ),
+                                );
+                                return;
+                              }
                               final id = (item['id'] as num?)?.toInt();
                               if (id == null) return;
                               Navigator.of(context).push(
@@ -588,26 +775,20 @@ class _SearchScreenState extends State<SearchScreen> {
                                 ),
                               );
                             },
-                            leading: SizedBox(
-                              width: 40,
-                              height: 56,
-                              child: (item['cover_path']?.toString() ?? '').isNotEmpty
-                                  ? Image.network(
-                                      widget.apiService.resolveAssetUrl(
-                                        item['cover_path'].toString(),
-                                      ),
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, _, _) =>
-                                          const ColoredBox(color: Color(0xFFE4E4E4)),
-                                    )
-                                  : const ColoredBox(color: Color(0xFFE4E4E4)),
-                            ),
+                            leading: leading,
                             title: Text(item['title']?.toString() ?? ''),
                             subtitle: Text(item['author']?.toString() ?? ''),
-                            trailing: Text(
-                              (item['rating'] ?? '').toString(),
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
+                            trailing: kind == 'book'
+                                ? Text(
+                                    (item['rating'] ?? '').toString(),
+                                    style: Theme.of(context).textTheme.bodySmall,
+                                  )
+                                : Icon(
+                                    kind == 'profile'
+                                        ? Icons.person_outline
+                                        : Icons.chevron_right,
+                                    color: Colors.grey,
+                                  ),
                           );
                         },
                       ),
