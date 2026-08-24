@@ -97,8 +97,58 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                       tooltip: 'More',
                       icon: Icon(Icons.more_vert, size: 24, color: fg),
                       onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Discover options')),
+                        showModalBottomSheet<void>(
+                          context: context,
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                          ),
+                          builder: (ctx) {
+                            return SafeArea(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    width: 40,
+                                    height: 4,
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade300,
+                                      borderRadius: BorderRadius.circular(2),
+                                    ),
+                                  ),
+                                  ListTile(
+                                    leading: const Icon(Icons.support_agent_outlined),
+                                    title: const Text('Contact support'),
+                                    onTap: () {
+                                      Navigator.pop(ctx);
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Open More tab → Support to contact us'),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  ListTile(
+                                    leading: const Icon(Icons.switch_account_outlined),
+                                    title: const Text('Change account'),
+                                    onTap: () {
+                                      Navigator.pop(ctx);
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Open More tab → Account to switch or sign out'),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  ListTile(
+                                    title: const Text('Cancel', textAlign: TextAlign.center),
+                                    onTap: () => Navigator.pop(ctx),
+                                  ),
+                                  const SizedBox(height: 8),
+                                ],
+                              ),
+                            );
+                          },
                         );
                       },
                     ),

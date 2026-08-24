@@ -28,20 +28,20 @@ class AppBootstrap {
   final List<AchievementGroupModel> achievements;
 
   factory AppBootstrap.fromMap(Map<String, dynamic> map) {
-    List<dynamic> _list(String key) {
+    List<dynamic> list(String key) {
       final v = map[key];
       if (v is List) return v;
       return const <dynamic>[];
     }
 
-    Map<String, dynamic> _map(String key) {
+    Map<String, dynamic> map(String key) {
       final v = map[key];
       if (v is Map<String, dynamic>) return v;
       if (v is Map) return Map<String, dynamic>.from(v);
       return <String, dynamic>{};
     }
 
-    final featuredRaw = _map('featured_book');
+    final featuredRaw = map('featured_book');
     if (featuredRaw.isEmpty) {
       featuredRaw.addAll(<String, dynamic>{
         'id': 0,
@@ -57,30 +57,30 @@ class AppBootstrap {
 
     return AppBootstrap(
       discoverTabs: List<String>.from(
-        _list('discover_tabs').map((e) => e.toString()),
+        list('discover_tabs').map((e) => e.toString()),
       ),
-      recentlyUpdated: _list('recently_updated')
+      recentlyUpdated: list('recently_updated')
           .whereType<Map>()
           .map((item) => BookCardModel.fromMap(Map<String, dynamic>.from(item)))
           .toList(),
-      recentlyCompleted: _list('recently_completed')
+      recentlyCompleted: list('recently_completed')
           .whereType<Map>()
           .map((item) => BookCardModel.fromMap(Map<String, dynamic>.from(item)))
           .toList(),
-      discoverBooks: _list('discover_books')
+      discoverBooks: list('discover_books')
           .whereType<Map>()
           .map((item) => BookCardModel.fromMap(Map<String, dynamic>.from(item)))
           .toList(),
       featuredBook: BookDetailModel.fromMap(featuredRaw),
-      exploreTopics: _list('explore_topics')
+      exploreTopics: list('explore_topics')
           .whereType<Map>()
           .map((item) => ExploreTopicModel.fromMap(Map<String, dynamic>.from(item)))
           .toList(),
-      libraryEntries: _list('library_entries')
+      libraryEntries: list('library_entries')
           .whereType<Map>()
           .map((item) => LibraryEntryModel.fromMap(Map<String, dynamic>.from(item)))
           .toList(),
-      writeScreen: WriteScreenModel.fromMap(_map('write_screen').isEmpty
+      writeScreen: WriteScreenModel.fromMap(map('write_screen').isEmpty
           ? <String, dynamic>{
               'manage_tabs': <String>['Manage Stories', 'Analytics'],
               'story_tabs': <String>['Submitted', 'Drafts'],
@@ -89,16 +89,16 @@ class AppBootstrap {
               'empty_title': "You haven't submitted any story yet",
               'empty_cta': 'Submit Stories',
             }
-          : _map('write_screen')),
-      notifications: _list('notifications')
+          : map('write_screen')),
+      notifications: list('notifications')
           .whereType<Map>()
           .map((item) => NotificationModel.fromMap(Map<String, dynamic>.from(item)))
           .toList(),
-      menuSections: _list('menu_sections')
+      menuSections: list('menu_sections')
           .whereType<Map>()
           .map((item) => MenuSectionModel.fromMap(Map<String, dynamic>.from(item)))
           .toList(),
-      profile: ProfileModel.fromMap(_map('profile').isEmpty
+      profile: ProfileModel.fromMap(map('profile').isEmpty
           ? <String, dynamic>{
               'display_name': 'Reader',
               'username': '@reader',
@@ -110,8 +110,8 @@ class AppBootstrap {
               'day_streak': 0,
               'reading_lists': <dynamic>[],
             }
-          : _map('profile')),
-      achievements: _list('achievements')
+          : map('profile')),
+      achievements: list('achievements')
           .whereType<Map>()
           .map((item) => AchievementGroupModel.fromMap(Map<String, dynamic>.from(item)))
           .toList(),
