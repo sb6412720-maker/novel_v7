@@ -45,12 +45,28 @@ GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 # e.g. GOOGLE_CLIENT_IDS=android-client-id,web-client-id
 GOOGLE_CLIENT_IDS = [s.strip() for s in os.getenv("GOOGLE_CLIENT_IDS", GOOGLE_CLIENT_ID).split(",") if s.strip()]
 
+# CORS: explicit origins required when allow_credentials=True (browsers reject "*")
+# Extra hosts: set Vercel env CORS_ORIGINS=https://host1,https://host2
+_DEFAULT_CORS = [
+    "https://novel-v7-web.vercel.app",
+    "https://novel-v7.vercel.app",
+    "https://novel-v7-admin.vercel.app",
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://localhost:4173",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
+]
+_extra = [s.strip() for s in os.getenv("CORS_ORIGINS", "").split(",") if s.strip()]
+_CORS_ORIGINS = list(dict.fromkeys(_DEFAULT_CORS + _extra))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
