@@ -284,12 +284,13 @@ class _ProfileScreenState extends State<ProfileScreen>
       isScrollControlled: true,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModal) {
-          return Padding(
+          return SafeArea(
+            child: Padding(
             padding: EdgeInsets.only(
               left: 20,
               right: 20,
               top: 20,
-              bottom: MediaQuery.of(ctx).viewInsets.bottom + 28,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 40,
             ),
             child: SingleChildScrollView(
               child: Column(
@@ -314,8 +315,19 @@ class _ProfileScreenState extends State<ProfileScreen>
                                   try {
                                     final bytes = await picked.readAsBytes();
                                     final res = await widget.apiService.uploadUserImage(bytes, picked.name);
-                                    final path = (res['path'] ?? res['photo_url'] ?? '').toString();
-                                    if (path.isNotEmpty) setModal(() => photoUrl = path);
+                                    final path = (res['path'] ?? res['photo_url'] ?? res['url'] ?? '').toString();
+                                    if (path.isNotEmpty) {
+                                      setModal(() => photoUrl = path);
+                                      if (ctx.mounted) {
+                                        ScaffoldMessenger.of(ctx).showSnackBar(
+                                          const SnackBar(content: Text('Profile photo updated — tap Save')),
+                                        );
+                                      }
+                                    }
+                                  } catch (e) {
+                                    if (ctx.mounted) {
+                                      ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
+                                    }
                                   } finally {
                                     setModal(() => uploading = false);
                                   }
@@ -336,8 +348,19 @@ class _ProfileScreenState extends State<ProfileScreen>
                                   try {
                                     final bytes = await picked.readAsBytes();
                                     final res = await widget.apiService.uploadUserImage(bytes, picked.name);
-                                    final path = (res['path'] ?? res['cover_url'] ?? '').toString();
-                                    if (path.isNotEmpty) setModal(() => coverUrl = path);
+                                    final path = (res['path'] ?? res['cover_url'] ?? res['photo_url'] ?? res['url'] ?? '').toString();
+                                    if (path.isNotEmpty) {
+                                      setModal(() => coverUrl = path);
+                                      if (ctx.mounted) {
+                                        ScaffoldMessenger.of(ctx).showSnackBar(
+                                          const SnackBar(content: Text('Cover updated — tap Save')),
+                                        );
+                                      }
+                                    }
+                                  } catch (e) {
+                                    if (ctx.mounted) {
+                                      ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
+                                    }
                                   } finally {
                                     setModal(() => uploading = false);
                                   }
@@ -390,6 +413,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ],
               ),
             ),
+          ),
           );
         },
       ),
@@ -582,6 +606,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                       TabBar(
                         controller: _tabController,
                         isScrollable: true,
+                        tabAlignment: TabAlignment.center,
                         labelColor: brand,
                         unselectedLabelColor: muted,
                         indicatorColor: brand,
@@ -1296,6 +1321,19 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
     if (resolvedId == 0) {
       resolvedId = widget.profile.id ?? 0;
+    }
+    // Last resort: ask /api/me for current user id
+    if (resolvedId == 0) {
+      try {
+        final me = await widget.apiService.fetchMe();
+        resolvedId = _asInt(me['id']);
+        if (resolvedId > 0 && mounted) {
+          setState(() {
+            _userProfile = {...?_userProfile, ...me};
+            _isOwnProfile = true;
+          });
+        }
+      } catch (_) {}
     }
     if (resolvedId == 0) {
       if (!mounted) return;

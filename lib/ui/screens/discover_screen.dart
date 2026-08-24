@@ -39,9 +39,21 @@ class _DiscoverScreenState extends State<DiscoverScreen>
   @override
   void initState() {
     super.initState();
-    _tabs = widget.data.discoverTabs.isNotEmpty
+    // Dedupe backend tabs (was showing "New New Popular Popular…")
+    final rawTabs = widget.data.discoverTabs.isNotEmpty
         ? widget.data.discoverTabs
         : const ['New', 'Popular', 'Fanfiction', 'Newsfeed'];
+    final seen = <String>{};
+    _tabs = <String>[];
+    for (final tab in rawTabs) {
+      final key = tab.trim().toLowerCase();
+      if (key.isEmpty || seen.contains(key)) continue;
+      seen.add(key);
+      _tabs.add(tab.trim());
+    }
+    if (_tabs.isEmpty) {
+      _tabs = const ['New', 'Popular', 'Fanfiction', 'Newsfeed'];
+    }
     _tabController = TabController(length: _tabs.length, vsync: this);
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
@@ -119,12 +131,58 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                                   ListTile(
                                     leading: const Icon(Icons.support_agent_outlined),
                                     title: const Text('Contact support'),
-                                    onTap: () {
+                                    onTap: () async {
                                       Navigator.pop(ctx);
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('Open More tab → Support to contact us'),
+                                      if (!context.mounted) return;
+                                      await showModalBottomSheet<void>(
+                                        context: context,
+                                        isScrollControlled: true,
+                                        shape: const RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
                                         ),
+                                        builder: (sctx) {
+                                          final subject = TextEditingController();
+                                          final body = TextEditingController();
+                                          return Padding(
+                                            padding: EdgeInsets.only(
+                                              left: 20, right: 20, top: 20,
+                                              bottom: MediaQuery.of(sctx).viewInsets.bottom + 20,
+                                            ),
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                                              children: [
+                                                const Text('Contact support', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                                                const SizedBox(height: 12),
+                                                TextField(controller: subject, decoration: const InputDecoration(labelText: 'Subject')),
+                                                TextField(controller: body, maxLines: 4, decoration: const InputDecoration(labelText: 'How can we help?')),
+                                                const SizedBox(height: 12),
+                                                ElevatedButton(
+                                                  onPressed: () async {
+                                                    try {
+                                                      await widget.apiService.submitSupportRequest({
+                                                        'subject': subject.text.trim(),
+                                                        'description': body.text.trim(),
+                                                        'issue': subject.text.trim(),
+                                                      });
+                                                      if (sctx.mounted) Navigator.pop(sctx);
+                                                      if (context.mounted) {
+                                                        ScaffoldMessenger.of(context).showSnackBar(
+                                                          const SnackBar(content: Text('Support request sent')),
+                                                        );
+                                                      }
+                                                    } catch (e) {
+                                                      if (sctx.mounted) {
+                                                        ScaffoldMessenger.of(sctx).showSnackBar(SnackBar(content: Text('$e')));
+                                                      }
+                                                    }
+                                                  },
+                                                  child: const Text('Send'),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        },
                                       );
                                     },
                                   ),
@@ -133,9 +191,11 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                                     title: const Text('Change account'),
                                     onTap: () {
                                       Navigator.pop(ctx);
+                                      // Jump user to More tab (index 4) if RootShell is parent
                                       ScaffoldMessenger.of(context).showSnackBar(
                                         const SnackBar(
-                                          content: Text('Open More tab → Account to switch or sign out'),
+                                          content: Text('Open the More tab to switch account or sign out'),
+                                          duration: Duration(seconds: 3),
                                         ),
                                       );
                                     },
@@ -192,19 +252,22 @@ class _DiscoverScreenState extends State<DiscoverScreen>
         shrinkWrap: true,
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 30),
         children: [
-          if (widget.data.libraryEntries.isNotEmpty) ...[
-            _DynamicStoryRail(
-              section: _DiscoverRailSection(
-                title: 'Continue Reading',
-                books: widget.data.libraryEntries
-                    .map((e) => e.book)
-                    .where((b) => b.id > 0)
-                    .toList(),
-              ),
-              apiService: widget.apiService,
-            ),
-            const SizedBox(height: 24),
-          ],
+          _ContinueReadingSection(
+            entries: widget.data.libraryEntries,
+            apiService: widget.apiService,
+            onBrowse: () {
+              // stay on Discover — already there; optional jump to Explore
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => ExploreScreen(
+                    topics: widget.data.exploreTopics,
+                    apiService: widget.apiService,
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 24),
           if (showExploreLead) ...[
             _ExploreStoriesSection(
               books: sections.first.books,
@@ -230,25 +293,8 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                 apiService: widget.apiService,
               ),
               const SizedBox(height: 24),
+              // Genre pill row removed (user request)
               if (i == 1) ...[
-                _GenrePillRow(
-                  topics: widget.data.exploreTopics,
-                  books: allBooks,
-                  apiService: widget.apiService,
-                  onOpenExplore: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => ExploreScreen(
-                          topics: widget.data.exploreTopics,
-                          apiService: widget.apiService,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 24),
-              ],
-              if (i == 2) ...[
                 _AuthorsStrip(books: allBooks, apiService: widget.apiService),
                 const SizedBox(height: 24),
                 _BrowseGenresSection(

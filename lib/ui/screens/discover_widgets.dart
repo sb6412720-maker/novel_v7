@@ -91,7 +91,7 @@ class _ExploreStoriesSectionState extends State<_ExploreStoriesSection> {
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(viewportFraction: 0.38, initialPage: 0);
+    _pageController = PageController(viewportFraction: 0.36, initialPage: 0);
   }
 
   @override
@@ -210,7 +210,7 @@ class _ExploreStoriesSectionState extends State<_ExploreStoriesSection> {
                     child: Center(
                       child: _StoryCard(
                         book: item,
-                        width: isActive ? 128 : 108,
+                        width: isActive ? 148 : 124,
                         apiService: widget.apiService,
                       ),
                     ),
@@ -228,12 +228,7 @@ class _ExploreStoriesSectionState extends State<_ExploreStoriesSection> {
           onRead: () => _openBook(lead),
         ),
         const SizedBox(height: 16),
-        _GenrePillRow(
-          topics: widget.topics,
-          books: widget.books,
-          apiService: widget.apiService,
-          onOpenExplore: widget.onOpenExplore,
-        ),
+
       ],
     );
   }
@@ -264,7 +259,7 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
   void initState() {
     super.initState();
     // Slightly denser carousel (Inkitt-like card density)
-    _pageController = PageController(viewportFraction: 0.38, initialPage: 0);
+    _pageController = PageController(viewportFraction: 0.36, initialPage: 0);
   }
 
   @override
@@ -391,7 +386,7 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
                       child: Center(
                         child: _StoryCard(
                           book: item,
-                          width: isActive ? 128 : 108,
+                          width: isActive ? 148 : 124,
                           apiService: widget.apiService,
                         ),
                       ),
@@ -1057,6 +1052,140 @@ class _GenrePillRow extends StatelessWidget {
 
 
 /// Horizontal "Browse genres" carousel (video-style genre cards).
+
+
+/// Wattpad-style Continue reading strip (always visible).
+class _ContinueReadingSection extends StatelessWidget {
+  const _ContinueReadingSection({
+    required this.entries,
+    required this.apiService,
+    this.onBrowse,
+  });
+
+  final List<LibraryEntryModel> entries;
+  final ApiService apiService;
+  final VoidCallback? onBrowse;
+
+  @override
+  Widget build(BuildContext context) {
+    final books = entries
+        .map((e) => e.book)
+        .where((b) => b.id > 0)
+        .toList();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Continue reading',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                fontSize: 17,
+                color: isDark ? Colors.white : null,
+              ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 168,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              for (final b in books.take(8))
+                Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => StoryDetailScreen(
+                            apiService: apiService,
+                            book: BookDetailModel(
+                              id: b.id,
+                              title: b.title,
+                              author: b.author,
+                              description: b.description,
+                              statusText: b.statusText,
+                              rating: b.rating,
+                              genre: b.primaryGenre,
+                              cta: b.cta,
+                              coverPath: b.coverPath,
+                              authorUserId: b.authorUserId,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: SizedBox(
+                        width: 110,
+                        height: 160,
+                        child: b.coverPath.isNotEmpty
+                            ? Image.network(
+                                apiService.resolveAssetUrl(b.coverPath),
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => ColoredBox(
+                                  color: Colors.grey.shade300,
+                                  child: const Icon(Icons.menu_book),
+                                ),
+                              )
+                            : ColoredBox(
+                                color: Colors.grey.shade300,
+                                child: const Icon(Icons.menu_book),
+                              ),
+                      ),
+                    ),
+                  ),
+                ),
+              // Empty-state / Browse card
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Container(
+                  width: 150,
+                  height: 160,
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1E1E1E) : const Color(0xFFF4F4F6),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        books.isEmpty
+                            ? "Stories you're reading will appear here"
+                            : 'Find more stories',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDark ? Colors.white70 : Colors.black54,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      ElevatedButton.icon(
+                        onPressed: onBrowse,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1A1A1A),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          minimumSize: const Size(0, 36),
+                        ),
+                        icon: const Icon(Icons.search, size: 16),
+                        label: const Text('Browse stories', style: TextStyle(fontSize: 12)),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _BrowseGenresSection extends StatelessWidget {
   const _BrowseGenresSection({
     required this.books,
