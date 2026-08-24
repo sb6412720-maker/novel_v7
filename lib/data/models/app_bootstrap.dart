@@ -27,21 +27,21 @@ class AppBootstrap {
   final ProfileModel profile;
   final List<AchievementGroupModel> achievements;
 
-  factory AppBootstrap.fromMap(Map<String, dynamic> map) {
-    List<dynamic> list(String key) {
-      final v = map[key];
+  factory AppBootstrap.fromMap(Map<String, dynamic> data) {
+    List<dynamic> asList(String key) {
+      final v = data[key];
       if (v is List) return v;
       return const <dynamic>[];
     }
 
-    Map<String, dynamic> map(String key) {
-      final v = map[key];
+    Map<String, dynamic> asMap(String key) {
+      final v = data[key];
       if (v is Map<String, dynamic>) return v;
       if (v is Map) return Map<String, dynamic>.from(v);
       return <String, dynamic>{};
     }
 
-    final featuredRaw = map('featured_book');
+    final featuredRaw = asMap('featured_book');
     if (featuredRaw.isEmpty) {
       featuredRaw.addAll(<String, dynamic>{
         'id': 0,
@@ -57,30 +57,30 @@ class AppBootstrap {
 
     return AppBootstrap(
       discoverTabs: List<String>.from(
-        list('discover_tabs').map((e) => e.toString()),
+        asList('discover_tabs').map((e) => e.toString()),
       ),
-      recentlyUpdated: list('recently_updated')
+      recentlyUpdated: asList('recently_updated')
           .whereType<Map>()
           .map((item) => BookCardModel.fromMap(Map<String, dynamic>.from(item)))
           .toList(),
-      recentlyCompleted: list('recently_completed')
+      recentlyCompleted: asList('recently_completed')
           .whereType<Map>()
           .map((item) => BookCardModel.fromMap(Map<String, dynamic>.from(item)))
           .toList(),
-      discoverBooks: list('discover_books')
+      discoverBooks: asList('discover_books')
           .whereType<Map>()
           .map((item) => BookCardModel.fromMap(Map<String, dynamic>.from(item)))
           .toList(),
       featuredBook: BookDetailModel.fromMap(featuredRaw),
-      exploreTopics: list('explore_topics')
+      exploreTopics: asList('explore_topics')
           .whereType<Map>()
           .map((item) => ExploreTopicModel.fromMap(Map<String, dynamic>.from(item)))
           .toList(),
-      libraryEntries: list('library_entries')
+      libraryEntries: asList('library_entries')
           .whereType<Map>()
           .map((item) => LibraryEntryModel.fromMap(Map<String, dynamic>.from(item)))
           .toList(),
-      writeScreen: WriteScreenModel.fromMap(map('write_screen').isEmpty
+      writeScreen: WriteScreenModel.fromMap(asMap('write_screen').isEmpty
           ? <String, dynamic>{
               'manage_tabs': <String>['Manage Stories', 'Analytics'],
               'story_tabs': <String>['Submitted', 'Drafts'],
@@ -89,16 +89,16 @@ class AppBootstrap {
               'empty_title': "You haven't submitted any story yet",
               'empty_cta': 'Submit Stories',
             }
-          : map('write_screen')),
-      notifications: list('notifications')
+          : asMap('write_screen')),
+      notifications: asList('notifications')
           .whereType<Map>()
           .map((item) => NotificationModel.fromMap(Map<String, dynamic>.from(item)))
           .toList(),
-      menuSections: list('menu_sections')
+      menuSections: asList('menu_sections')
           .whereType<Map>()
           .map((item) => MenuSectionModel.fromMap(Map<String, dynamic>.from(item)))
           .toList(),
-      profile: ProfileModel.fromMap(map('profile').isEmpty
+      profile: ProfileModel.fromMap(asMap('profile').isEmpty
           ? <String, dynamic>{
               'display_name': 'Reader',
               'username': '@reader',
@@ -110,8 +110,8 @@ class AppBootstrap {
               'day_streak': 0,
               'reading_lists': <dynamic>[],
             }
-          : map('profile')),
-      achievements: list('achievements')
+          : asMap('profile')),
+      achievements: asList('achievements')
           .whereType<Map>()
           .map((item) => AchievementGroupModel.fromMap(Map<String, dynamic>.from(item)))
           .toList(),
@@ -156,8 +156,8 @@ class BookCardModel {
 
   factory BookCardModel.fromMap(Map<String, dynamic> map) {
     return BookCardModel(
-      id: map['id'] as int,
-      title: map['title'] as String,
+      id: (map['id'] as num?)?.toInt() ?? 0,
+      title: map['title']?.toString() ?? '',
       author: map['author'] as String? ?? '',
       authorUserId: (map['author_user_id'] as num?)?.toInt(),
       authorPhotoUrl: (map['author_photo_url'] as String?) ??
@@ -248,8 +248,8 @@ class ExploreTopicModel {
 
   factory ExploreTopicModel.fromMap(Map<String, dynamic> map) {
     return ExploreTopicModel(
-      name: map['name'] as String,
-      topicCount: map['topic_count'] as int,
+      name: map['name']?.toString() ?? '',
+      topicCount: (map['topic_count'] as num?)?.toInt() ?? 0,
     );
   }
 }
@@ -312,12 +312,18 @@ class WriteScreenModel {
 
   factory WriteScreenModel.fromMap(Map<String, dynamic> map) {
     return WriteScreenModel(
-      manageTabs: List<String>.from(map['manage_tabs'] as List<dynamic>),
-      storyTabs: List<String>.from(map['story_tabs'] as List<dynamic>),
-      filterLabel: map['filter_label'] as String,
-      sortLabel: map['sort_label'] as String,
-      emptyTitle: map['empty_title'] as String,
-      emptyCta: map['empty_cta'] as String,
+      manageTabs: List<String>.from(
+        ((map['manage_tabs'] as List?) ?? const ['Manage Stories', 'Analytics'])
+            .map((e) => e.toString()),
+      ),
+      storyTabs: List<String>.from(
+        ((map['story_tabs'] as List?) ?? const ['Submitted', 'Drafts'])
+            .map((e) => e.toString()),
+      ),
+      filterLabel: map['filter_label']?.toString() ?? 'All stories',
+      sortLabel: map['sort_label']?.toString() ?? 'Recently Updated',
+      emptyTitle: map['empty_title']?.toString() ?? "You haven't submitted any story yet",
+      emptyCta: map['empty_cta']?.toString() ?? 'Submit Stories',
     );
   }
 }
@@ -337,10 +343,10 @@ class NotificationModel {
 
   factory NotificationModel.fromMap(Map<String, dynamic> map) {
     return NotificationModel(
-      tab: map['tab'] as String,
-      title: map['title'] as String,
-      message: map['message'] as String,
-      createdAt: map['created_at'] as String,
+      tab: map['tab']?.toString() ?? 'all',
+      title: map['title']?.toString() ?? '',
+      message: map['message']?.toString() ?? '',
+      createdAt: map['created_at']?.toString() ?? '',
     );
   }
 }
@@ -413,18 +419,19 @@ class ProfileModel {
   factory ProfileModel.fromMap(Map<String, dynamic> map) {
     return ProfileModel(
       id: (map['id'] as num?)?.toInt(),
-      displayName: map['display_name'] as String,
-      username: map['username'] as String,
-      photoUrl: map['photo_url'] as String? ?? '',
-      coverUrl: map['cover_url'] as String? ?? '',
-      following: map['following'] as int,
-      followers: map['followers'] as int,
-      blocked: map['blocked'] as int,
-      chaptersRead: map['chapters_read'] as int,
-      socialKarma: map['social_karma'] as int,
-      dayStreak: map['day_streak'] as int,
-      readingLists: (map['reading_lists'] as List<dynamic>)
-          .map((item) => ReadingListModel.fromMap(item as Map<String, dynamic>))
+      displayName: map['display_name']?.toString() ?? 'Reader',
+      username: map['username']?.toString() ?? '@reader',
+      photoUrl: map['photo_url']?.toString() ?? '',
+      coverUrl: map['cover_url']?.toString() ?? '',
+      following: (map['following'] as num?)?.toInt() ?? 0,
+      followers: (map['followers'] as num?)?.toInt() ?? 0,
+      blocked: (map['blocked'] as num?)?.toInt() ?? 0,
+      chaptersRead: (map['chapters_read'] as num?)?.toInt() ?? 0,
+      socialKarma: (map['social_karma'] as num?)?.toInt() ?? 0,
+      dayStreak: (map['day_streak'] as num?)?.toInt() ?? 0,
+      readingLists: ((map['reading_lists'] as List?) ?? const <dynamic>[])
+          .whereType<Map>()
+          .map((item) => ReadingListModel.fromMap(Map<String, dynamic>.from(item)))
           .toList(),
     );
   }

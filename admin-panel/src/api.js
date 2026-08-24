@@ -1,5 +1,5 @@
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.trim() || "http://127.0.0.1:8000";
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "https://novel-v7.vercel.app").trim().replace(/\/$/, "");
 const ADMIN_TOKEN_KEY = "novel_admin_token";
 
 export function getAdminToken() {
@@ -26,13 +26,20 @@ async function request(path, options = {}) {
   }
 
   const isFormData = options.body instanceof FormData;
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      ...(isFormData ? {} : { "Content-Type": "application/json" }),
-      ...headers,
-    },
-    ...options,
-  });
+  let response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      headers: {
+        ...(isFormData ? {} : { "Content-Type": "application/json" }),
+        ...headers,
+      },
+      ...options,
+    });
+  } catch (e) {
+    throw new Error(
+      `Failed to reach backend at ${API_BASE_URL}. Check VITE_API_BASE_URL and that https://novel-v7.vercel.app is up. (${e?.message || e})`
+    );
+  }
 
   if (!response.ok) {
     const text = await response.text();

@@ -1482,6 +1482,53 @@ def get_me(user: dict[str, Any] = Depends(require_user)):
     }
 
 
+@app.get("/api/users/search")
+def search_users(
+    query: str = Query(default=""),
+    limit: int = Query(default=30, ge=1, le=100),
+):
+    """Search public authors by display_name / email local-part. Mobile Profile search."""
+    q_raw = (query or "").strip()
+    if not q_raw:
+        rows = fetch_all(
+            """
+            SELECT id, email, display_name, photo_url, cover_url, bio
+            FROM app_users
+            ORDER BY id DESC
+            LIMIT %s
+            """,
+            (limit,),
+        )
+    else:
+        like = "%" + q_raw + "%"
+        rows = fetch_all(
+            """
+            SELECT id, email, display_name, photo_url, cover_url, bio
+            FROM app_users
+            WHERE COALESCE(display_name, '') LIKE %s
+               OR COALESCE(email, '') LIKE %s
+            ORDER BY id DESC
+            LIMIT %s
+            """,
+            (like, like, limit),
+        )
+    items = []
+    for u in (rows or []):
+        display = _row_get(u, "display_name") or (_row_get(u, "email") or "Reader").split("@")[0]
+        username = "@" + display.lower().replace(" ", "")
+        items.append(
+            {
+                "id": u.get("id"),
+                "display_name": display,
+                "username": username,
+                "photo_url": u.get("photo_url") or "",
+                "cover_url": u.get("cover_url") or "",
+                "bio": u.get("bio") or "",
+            }
+        )
+    return {"items": items}
+
+
 @app.get("/api/users/{user_id}")
 def get_user_profile(user_id: int):
     rows = fetch_all(
@@ -1986,25 +2033,29 @@ def search_stories(
             """,
             (limit,),
         )
-        return [
-            {
-                "id": r["id"],
-                "title": r.get("title") or "",
-                "author": r.get("author") or "",
-                "description": (r.get("description") or "")[:240],
-                "cover_path": _normalize_cover_path(r.get("cover_path") or ""),
-                "accent_hex": r.get("accent_hex") or "#6C63FF",
-                "status_text": r.get("status_text") or "",
-                "rating": float(r.get("rating") or 0),
-                "genre": r.get("genre") or "",
-                "primary_genre": r.get("primary_genre") or r.get("genre") or "",
-                "secondary_genre": r.get("secondary_genre") or "",
-                "is_completed": bool(r.get("is_completed")),
-                "section_name": r.get("section_name") or "featured",
-                "cta_label": r.get("cta_label") or "Read",
-            }
-            for r in (rows or [])
-        ]
+        return {
+            "items": [
+                {
+                    "id": r["id"],
+                    "title": r.get("title") or "",
+                    "author": r.get("author") or "",
+                    "description": (r.get("description") or "")[:240],
+                    "cover_path": _normalize_cover_path(r.get("cover_path") or ""),
+                    "accent_hex": r.get("accent_hex") or "#6C63FF",
+                    "status_text": r.get("status_text") or "",
+                    "rating": float(r.get("rating") or 0),
+                    "genre": r.get("genre") or "",
+                    "primary_genre": r.get("primary_genre") or r.get("genre") or "",
+                    "secondary_genre": r.get("secondary_genre") or "",
+                    "is_completed": bool(r.get("is_completed")),
+                    "section_name": r.get("section_name") or "featured",
+                    "cta_label": r.get("cta_label") or "Read",
+                    "author_user_id": r.get("user_id"),
+                    "user_id": r.get("user_id"),
+                }
+                for r in (rows or [])
+            ]
+        }
 
     q = "%" + q_raw + "%"
     if g:

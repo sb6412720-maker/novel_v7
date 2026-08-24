@@ -464,8 +464,54 @@ class ApiService {
       );
       final response = await _get('${uri.path}?${uri.query}');
       if (response.statusCode != 200) return const <Map<String, dynamic>>[];
-      final payload = jsonDecode(response.body) as Map<String, dynamic>;
-      return List<Map<String, dynamic>>.from(payload['items'] as List<dynamic>);
+      final decoded = jsonDecode(response.body);
+      if (decoded is List) {
+        return decoded
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      if (decoded is Map<String, dynamic>) {
+        final items = decoded['items'];
+        if (items is List) {
+          return items
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
+        }
+      }
+      return const <Map<String, dynamic>>[];
+    } catch (_) {
+      return const <Map<String, dynamic>>[];
+    }
+  }
+
+  /// Search users/authors for Profile search chip.
+  Future<List<Map<String, dynamic>>> searchUsers({String query = ''}) async {
+    try {
+      final q = Uri.encodeQueryComponent(query.trim());
+      final response = await _get(
+        '/api/users/search?query=$q',
+        timeout: const Duration(seconds: 10),
+      );
+      if (response.statusCode != 200) return const <Map<String, dynamic>>[];
+      final payload = jsonDecode(response.body);
+      if (payload is Map<String, dynamic>) {
+        final items = payload['items'];
+        if (items is List) {
+          return items
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
+        }
+      }
+      if (payload is List) {
+        return payload
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      return const <Map<String, dynamic>>[];
     } catch (_) {
       return const <Map<String, dynamic>>[];
     }
