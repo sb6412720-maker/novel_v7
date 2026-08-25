@@ -110,15 +110,16 @@ class ReadingListCreateRequest(BaseModel):
 
 
 class StoryCreateRequest(BaseModel):
-    title: str = "Untitled Story"
-    author: str = "Author"
-    description: str = ""
-    genre: str = "Romance"
-    cover_path: str = ""
-    tags: list[str] = []
-    content_warnings: str = ""
-    status_text: str = "Draft"  # private until Complete + chapter with 50+ words
-    # Client may send extras (language, audience) — ignored by default
+    model_config = {"extra": "ignore"}
+
+    title: str | None = "Untitled Story"
+    author: str | None = "Author"
+    description: str | None = ""
+    genre: str | None = "Romance"
+    cover_path: str | None = ""
+    tags: list[str] | None = []
+    content_warnings: str | None = ""
+    status_text: str | None = "Draft"
     language: str | None = None
     audience: str | None = None
 
@@ -1651,74 +1652,77 @@ def update_me(
     payload: ProfileUpdateRequest,
     user: dict[str, Any] = Depends(require_user),
 ):
-    try:
-        _ensure_profile_extra_columns()
-    except Exception:
-        pass
-    try:
-        rows = fetch_all(
-            "SELECT id, display_name, photo_url, cover_url, bio, gender, birth_date, COALESCE(profile_complete,0) AS profile_complete FROM app_users WHERE id=%s LIMIT 1",
-            (user["user_id"],),
-        )
-    except Exception:
-        rows = fetch_all(
-            "SELECT id, display_name, photo_url, cover_url, bio FROM app_users WHERE id=%s LIMIT 1",
-            (user["user_id"],),
-        )
-    if not rows:
-        raise HTTPException(status_code=404, detail="User not found")
+    """Fast profile update — single UPDATE, no heavy SELECT when possible."""
+    uid = int(user["user_id"])
+    # Build SET dynamically from provided fields only
+    sets: list[str] = []
+    args: list[Any] = []
+    if payload.display_name is not None:
+        sets.append("display_name=%s")
+        args.append(payload.display_name.strip() or "Reader")
+    if payload.photo_url is not None:
+        sets.append("photo_url=%s")
+        args.append(payload.photo_url)
+    if payload.cover_url is not None:
+        sets.append("cover_url=%s")
+        args.append(payload.cover_url)
+    if payload.bio is not None:
+        sets.append("bio=%s")
+        args.append(payload.bio)
+    if payload.gender is not None:
+        sets.append("gender=%s")
+        args.append(payload.gender)
+    if payload.birth_date is not None:
+        sets.append("birth_date=%s")
+        args.append(payload.birth_date)
+    if payload.profile_complete is not None:
+        sets.append("profile_complete=%s")
+        args.append(1 if payload.profile_complete else 0)
+    elif payload.display_name is not None:
+        sets.append("profile_complete=%s")
+        args.append(1)
 
-    current = rows[0]
-    next_display_name = payload.display_name or _row_get(current, "display_name")
-    next_photo_url = payload.photo_url if payload.photo_url is not None else _row_get(current, "photo_url")
-    next_cover_url = payload.cover_url if payload.cover_url is not None else _row_get(current, "cover_url")
-    next_bio = payload.bio if payload.bio is not None else _row_get(current, "bio")
-    next_gender = payload.gender if payload.gender is not None else _row_get(current, "gender")
-    next_birth = payload.birth_date if payload.birth_date is not None else _row_get(current, "birth_date")
-    next_complete = 1 if payload.profile_complete else int(_row_get(current, "profile_complete") or 0)
-    if payload.profile_complete is False:
-        next_complete = 0
-    if payload.display_name and payload.bio is not None:
-        next_complete = 1
+    if not sets:
+        return {"ok": True}
 
+    sets.append("updated_at=CURRENT_TIMESTAMP")
+    sql = f"UPDATE app_users SET {', '.join(sets)} WHERE id=%s"
+    args.append(uid)
     try:
-        execute_write(
-            """
-            UPDATE app_users
-            SET display_name=%s, photo_url=%s, cover_url=%s, bio=%s,
-                gender=%s, birth_date=%s, profile_complete=%s, updated_at=CURRENT_TIMESTAMP
-            WHERE id=%s
-            """,
-            (
-                next_display_name,
-                next_photo_url,
-                next_cover_url,
-                next_bio,
-                next_gender or "",
-                next_birth or "",
-                next_complete,
-                user["user_id"],
-            ),
-        )
-    except Exception as col_exc:
-        LOGGER.warning("update_me extended cols failed (%s) — falling back", col_exc)
-        execute_write(
-            """
-            UPDATE app_users
-            SET display_name=%s, photo_url=%s, cover_url=%s, bio=%s, updated_at=CURRENT_TIMESTAMP
-            WHERE id=%s
-            """,
-            (next_display_name, next_photo_url, next_cover_url, next_bio, user["user_id"]),
-        )
+        execute_write(sql, tuple(args))
+    except Exception as exc:
+        LOGGER.warning("update_me full failed (%s) — basic fallback", exc)
+        # Fallback without optional columns
+        basic_sets = [s for s in sets if not any(x in s for x in ("gender", "birth_date", "profile_complete"))]
+        if not basic_sets:
+            basic_sets = ["display_name=%s"]
+            args = [payload.display_name or "Reader", uid]
+            sql = "UPDATE app_users SET display_name=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s"
+        else:
+            # rebuild args for basic only
+            basic_args: list[Any] = []
+            if payload.display_name is not None:
+                basic_args.append(payload.display_name.strip() or "Reader")
+            if payload.photo_url is not None:
+                basic_args.append(payload.photo_url)
+            if payload.cover_url is not None:
+                basic_args.append(payload.cover_url)
+            if payload.bio is not None:
+                basic_args.append(payload.bio)
+            basic_args.append(uid)
+            sql = f"UPDATE app_users SET {', '.join(basic_sets)} WHERE id=%s"
+            args = basic_args
+        execute_write(sql, tuple(args))
+
     return {
         "ok": True,
-        "display_name": next_display_name,
-        "photo_url": next_photo_url or "",
-        "cover_url": next_cover_url or "",
-        "bio": next_bio or "",
-        "gender": next_gender or "",
-        "birth_date": next_birth or "",
-        "profile_complete": bool(next_complete),
+        "display_name": payload.display_name or "",
+        "photo_url": payload.photo_url or "",
+        "cover_url": payload.cover_url or "",
+        "bio": payload.bio or "",
+        "gender": payload.gender or "",
+        "birth_date": payload.birth_date or "",
+        "profile_complete": True,
     }
 
 
@@ -1813,7 +1817,7 @@ async def upload_support_attachment(file: UploadFile = File(...)):
 
 _BOOTSTRAP_CACHE: dict[str, Any] | None = None
 _BOOTSTRAP_CACHE_AT: float = 0.0
-_BOOTSTRAP_CACHE_TTL = 45.0  # seconds — keeps home fast after cold start
+_BOOTSTRAP_CACHE_TTL = 300.0  # seconds — keeps home fast after cold start
 
 
 @app.get("/api/bootstrap")
@@ -3121,7 +3125,7 @@ def create_writer_story(
 ):
     tags_clean = [str(t).strip().lstrip("#") for t in (payload.tags or []) if str(t).strip()]
     # Tags optional on create — author can add later in settings
-    cover = _normalize_cover_path(payload.cover_path)
+    cover = _normalize_cover_path(payload.cover_path or "")
     warnings = (payload.content_warnings or "").strip()
     title = (payload.title or "").strip() or "Untitled Story"
     author = (payload.author or "").strip() or "Author"

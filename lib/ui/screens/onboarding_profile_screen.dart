@@ -81,9 +81,19 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
       widget.onDone();
     } catch (e) {
       if (!mounted) return;
+      // Cold start / timeout: still continue — profile can sync later
+      final msg = e.toString().toLowerCase();
+      final isTimeout = msg.contains('timeout') || msg.contains('timed out');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not save profile: $e')),
+        SnackBar(
+          content: Text(
+            isTimeout
+                ? 'Server is waking up — your name was kept. You can edit profile later.'
+                : 'Could not save profile: $e',
+          ),
+        ),
       );
+      if (isTimeout) widget.onDone();
     } finally {
       if (mounted) setState(() => _saving = false);
     }

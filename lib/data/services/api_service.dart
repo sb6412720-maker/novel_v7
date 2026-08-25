@@ -79,7 +79,7 @@ class ApiService {
 
   Future<http.Response> _get(
     String path, {
-    Duration timeout = const Duration(seconds: 8),
+    Duration timeout = const Duration(seconds: 20),
   }) {
     return _requestWithHostFallback(
       (baseUrl) => http.get(Uri.parse('$baseUrl$path'), headers: _authHeaders),
@@ -177,7 +177,7 @@ class ApiService {
       try {
         final response = await _get(
           '/api/bootstrap',
-          timeout: const Duration(seconds: 55),
+          timeout: const Duration(seconds: 90),
         );
         if (response.statusCode >= 200 && response.statusCode < 300) {
           final decoded = jsonDecode(response.body);
@@ -206,7 +206,7 @@ class ApiService {
         debugPrint('bootstrap error (attempt $attempt) from $_baseUrl: $e');
         if (attempt == 1) {
           debugPrint('retrying bootstrap after cold-start...');
-          await Future<void>.delayed(const Duration(seconds: 2));
+          await Future<void>.delayed(const Duration(seconds: 3));
           continue;
         }
         debugPrint('$st');
@@ -569,7 +569,7 @@ class ApiService {
     final response = await _put(
       '/api/me',
       payload,
-      timeout: const Duration(seconds: 12),
+      timeout: const Duration(seconds: 60),
     );
     _ensureSuccessResponse(response);
     try {
@@ -1083,7 +1083,7 @@ class ApiService {
     final response = await _post(
       '/api/write/stories',
       payload,
-      timeout: const Duration(seconds: 45),
+      timeout: const Duration(seconds: 60),
     );
     _ensureSuccessResponse(response);
     try {

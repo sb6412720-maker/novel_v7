@@ -239,7 +239,8 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
           ),
         ),
       );
-      await _loadBootstrap(showLoading: false);
+      // Soft refresh — don't block UI on slow bootstrap
+      unawaited(_loadBootstrap(showLoading: false));
     } catch (_) {
       // Non-fatal
     }
