@@ -110,14 +110,17 @@ class ReadingListCreateRequest(BaseModel):
 
 
 class StoryCreateRequest(BaseModel):
-    title: str
-    author: str
-    description: str
-    genre: str
+    title: str = "Untitled Story"
+    author: str = "Author"
+    description: str = ""
+    genre: str = "Romance"
     cover_path: str = ""
     tags: list[str] = []
     content_warnings: str = ""
     status_text: str = "Draft"  # private until Complete + chapter with 50+ words
+    # Client may send extras (language, audience) — ignored by default
+    language: str | None = None
+    audience: str | None = None
 
 
 class StoryUpdateRequest(BaseModel):
@@ -1472,10 +1475,16 @@ def get_me(user: dict[str, Any] = Depends(require_user)):
         _ensure_profile_extra_columns()
     except Exception:
         pass
-    rows = fetch_all(
-        "SELECT id, email, display_name, photo_url, cover_url, bio, provider, gender, birth_date, COALESCE(profile_complete,0) AS profile_complete, COALESCE(is_author,0) AS is_author FROM app_users WHERE id=%s LIMIT 1",
-        (user["user_id"],),
-    )
+    try:
+        rows = fetch_all(
+            "SELECT id, email, display_name, photo_url, cover_url, bio, provider, gender, birth_date, COALESCE(profile_complete,0) AS profile_complete, COALESCE(is_author,0) AS is_author FROM app_users WHERE id=%s LIMIT 1",
+            (user["user_id"],),
+        )
+    except Exception:
+        rows = fetch_all(
+            "SELECT id, email, display_name, photo_url, cover_url, bio, provider FROM app_users WHERE id=%s LIMIT 1",
+            (user["user_id"],),
+        )
     if not rows:
         raise HTTPException(status_code=404, detail="User not found")
     u = rows[0]
@@ -1646,10 +1655,16 @@ def update_me(
         _ensure_profile_extra_columns()
     except Exception:
         pass
-    rows = fetch_all(
-        "SELECT id, display_name, photo_url, cover_url, bio, gender, birth_date, COALESCE(profile_complete,0) AS profile_complete FROM app_users WHERE id=%s LIMIT 1",
-        (user["user_id"],),
-    )
+    try:
+        rows = fetch_all(
+            "SELECT id, display_name, photo_url, cover_url, bio, gender, birth_date, COALESCE(profile_complete,0) AS profile_complete FROM app_users WHERE id=%s LIMIT 1",
+            (user["user_id"],),
+        )
+    except Exception:
+        rows = fetch_all(
+            "SELECT id, display_name, photo_url, cover_url, bio FROM app_users WHERE id=%s LIMIT 1",
+            (user["user_id"],),
+        )
     if not rows:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -1666,24 +1681,35 @@ def update_me(
     if payload.display_name and payload.bio is not None:
         next_complete = 1
 
-    execute_write(
-        """
-        UPDATE app_users
-        SET display_name=%s, photo_url=%s, cover_url=%s, bio=%s,
-            gender=%s, birth_date=%s, profile_complete=%s, updated_at=CURRENT_TIMESTAMP
-        WHERE id=%s
-        """,
-        (
-            next_display_name,
-            next_photo_url,
-            next_cover_url,
-            next_bio,
-            next_gender or "",
-            next_birth or "",
-            next_complete,
-            user["user_id"],
-        ),
-    )
+    try:
+        execute_write(
+            """
+            UPDATE app_users
+            SET display_name=%s, photo_url=%s, cover_url=%s, bio=%s,
+                gender=%s, birth_date=%s, profile_complete=%s, updated_at=CURRENT_TIMESTAMP
+            WHERE id=%s
+            """,
+            (
+                next_display_name,
+                next_photo_url,
+                next_cover_url,
+                next_bio,
+                next_gender or "",
+                next_birth or "",
+                next_complete,
+                user["user_id"],
+            ),
+        )
+    except Exception as col_exc:
+        LOGGER.warning("update_me extended cols failed (%s) — falling back", col_exc)
+        execute_write(
+            """
+            UPDATE app_users
+            SET display_name=%s, photo_url=%s, cover_url=%s, bio=%s, updated_at=CURRENT_TIMESTAMP
+            WHERE id=%s
+            """,
+            (next_display_name, next_photo_url, next_cover_url, next_bio, user["user_id"]),
+        )
     return {
         "ok": True,
         "display_name": next_display_name,
@@ -3097,6 +3123,10 @@ def create_writer_story(
     # Tags optional on create — author can add later in settings
     cover = _normalize_cover_path(payload.cover_path)
     warnings = (payload.content_warnings or "").strip()
+    title = (payload.title or "").strip() or "Untitled Story"
+    author = (payload.author or "").strip() or "Author"
+    description = (payload.description or "").strip()
+    genre = (payload.genre or "").strip() or "Romance"
     # Draft by default. Visible to others only when status is Published/Completed
     # (requires at least one chapter with >= 50 words — enforced on chapter save / Complete).
     raw_status = (payload.status_text or "Draft").strip() or "Draft"
@@ -3121,13 +3151,13 @@ def create_writer_story(
         """,
         (
             user["user_id"],
-            payload.title,
-            payload.author,
-            payload.description,
+            title,
+            author,
+            description,
             cover,
             status,
-            payload.genre,
-            payload.genre,
+            genre,
+            genre,
             warnings,
         ),
     )

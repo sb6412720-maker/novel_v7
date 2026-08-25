@@ -326,14 +326,12 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         statusText = 'Ongoing';
       }
       final payload = <String, dynamic>{
-        'title': title,
+        'title': title.isEmpty ? 'Untitled Story' : title,
         'description': summary,
         'author': author.isEmpty ? 'Author' : author,
         'genre': genre.isEmpty ? 'Romance' : genre,
         'content_warnings': warnings,
         'tags': List<String>.from(_selectedTags.take(3)),
-        'language': _language,
-        'audience': _audience ?? '',
         'status_text': statusText,
         if (_coverPath.isNotEmpty) 'cover_path': _coverPath,
       };

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
+import 'signup_screen.dart';
 
+/// Welcome / Sign in screen (professional auth entry).
 class LoginScreen extends StatefulWidget {
   const LoginScreen({
     super.key,
@@ -9,7 +11,6 @@ class LoginScreen extends StatefulWidget {
     this.onSkipAsReader,
   });
 
-  /// method: google | email | guest
   final Future<void> Function(
     String method, {
     String? email,
@@ -37,10 +38,9 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _openEmailAuth({required bool register}) async {
+  Future<void> _openEmailLogin() async {
     final emailCtrl = TextEditingController();
     final passCtrl = TextEditingController();
-    final nameCtrl = TextEditingController();
     final formKey = GlobalKey<FormState>();
     var obscure = true;
 
@@ -56,36 +56,36 @@ class _LoginScreenState extends State<LoginScreen> {
           builder: (context, setModal) {
             return Padding(
               padding: EdgeInsets.fromLTRB(
-                20,
-                20,
-                20,
-                MediaQuery.of(context).viewInsets.bottom + 20,
+                24,
+                24,
+                24,
+                MediaQuery.of(context).viewInsets.bottom + 24,
               ),
               child: Form(
                 key: formKey,
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Text(
-                        register ? 'Create account' : 'Sign in with email',
-                        style: Theme.of(context).textTheme.headlineSmall,
+                        'Sign in',
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
                       ),
-                      const SizedBox(height: 16),
-                      if (register) ...[
-                        TextFormField(
-                          controller: nameCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'Display name',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                      ],
+                      const SizedBox(height: 6),
+                      Text(
+                        'Welcome back to NovelHub',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Colors.black54,
+                            ),
+                      ),
+                      const SizedBox(height: 20),
                       TextFormField(
                         controller: emailCtrl,
                         keyboardType: TextInputType.emailAddress,
+                        autofillHints: const [AutofillHints.email],
                         decoration: const InputDecoration(
                           labelText: 'Email',
                           border: OutlineInputBorder(),
@@ -102,6 +102,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       TextFormField(
                         controller: passCtrl,
                         obscureText: obscure,
+                        autofillHints: const [AutofillHints.password],
                         decoration: InputDecoration(
                           labelText: 'Password',
                           border: const OutlineInputBorder(),
@@ -111,8 +112,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ? Icons.visibility_outlined
                                   : Icons.visibility_off_outlined,
                             ),
-                            onPressed: () =>
-                                setModal(() => obscure = !obscure),
+                            onPressed: () => setModal(() => obscure = !obscure),
                           ),
                         ),
                         validator: (v) {
@@ -122,10 +122,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           return null;
                         },
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 20),
                       SizedBox(
-                        width: double.infinity,
-                        height: 48,
+                        height: 50,
                         child: FilledButton(
                           onPressed: () {
                             if (!(formKey.currentState?.validate() ?? false)) {
@@ -134,25 +133,27 @@ class _LoginScreenState extends State<LoginScreen> {
                             Navigator.of(context).pop({
                               'email': emailCtrl.text.trim(),
                               'password': passCtrl.text,
-                              'mode': register ? 'register' : 'login',
-                              'displayName': nameCtrl.text.trim(),
+                              'mode': 'login',
                             });
                           },
-                          child: Text(register ? 'Create account' : 'Sign in'),
+                          child: const Text('Sign in'),
                         ),
                       ),
                       TextButton(
                         onPressed: () {
                           Navigator.pop(context);
-                          Future.microtask(
-                            () => _openEmailAuth(register: !register),
-                          );
+                          Future.microtask(() {
+                            if (!mounted) return;
+                            Navigator.of(this.context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => SignUpScreen(
+                                  onContinue: widget.onContinue,
+                                ),
+                              ),
+                            );
+                          });
                         },
-                        child: Text(
-                          register
-                              ? 'Already have an account? Sign in'
-                              : 'Need an account? Register',
-                        ),
+                        child: const Text('New here? Create an account'),
                       ),
                     ],
                   ),
@@ -166,7 +167,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
     emailCtrl.dispose();
     passCtrl.dispose();
-    nameCtrl.dispose();
     if (result == null || !mounted) return;
 
     await _run(
@@ -174,8 +174,7 @@ class _LoginScreenState extends State<LoginScreen> {
         'email',
         email: result['email'],
         password: result['password'],
-        mode: result['mode'],
-        displayName: result['displayName'],
+        mode: result['mode'] ?? 'login',
       ),
     );
   }
@@ -184,6 +183,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
+        width: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             colors: [Color(0xFFFDF9F3), Color(0xFFEAF5F4)],
@@ -198,16 +198,17 @@ class _LoginScreenState extends State<LoginScreen> {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 420),
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    const SizedBox(height: 24),
                     Text(
                       'NovelHub',
                       style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                             fontWeight: FontWeight.w800,
                             color: AppTheme.ink,
+                            letterSpacing: -0.5,
                           ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
                     Text(
                       'Discover millions of free books',
                       textAlign: TextAlign.center,
@@ -215,34 +216,58 @@ class _LoginScreenState extends State<LoginScreen> {
                             color: const Color(0xFF525252),
                           ),
                     ),
-                    const SizedBox(height: 36),
+                    const SizedBox(height: 40),
                     if (_busy)
                       const Padding(
                         padding: EdgeInsets.only(bottom: 16),
                         child: CircularProgressIndicator(),
                       ),
-                    _LoginButton(
-                      icon: Icons.g_mobiledata,
+                    _AuthButton(
+                      icon: Icons.g_mobiledata_rounded,
                       label: 'Continue with Google',
                       onPressed: _busy
                           ? null
                           : () => _run(() => widget.onContinue('google')),
                     ),
                     const SizedBox(height: 12),
-                    _LoginButton(
+                    _AuthButton(
                       icon: Icons.email_outlined,
                       label: 'Sign in with email',
-                      onPressed: _busy
-                          ? null
-                          : () => _openEmailAuth(register: false),
+                      onPressed: _busy ? null : _openEmailLogin,
                     ),
                     const SizedBox(height: 12),
-                    _LoginButton(
+                    _AuthButton(
                       icon: Icons.person_outline,
                       label: 'Continue as Guest',
                       onPressed: _busy
                           ? null
                           : () => _run(() => widget.onContinue('guest')),
+                    ),
+                    const SizedBox(height: 28),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          "Don't have an account? ",
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Colors.black54,
+                              ),
+                        ),
+                        TextButton(
+                          onPressed: _busy
+                              ? null
+                              : () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => SignUpScreen(
+                                        onContinue: widget.onContinue,
+                                      ),
+                                    ),
+                                  );
+                                },
+                          child: const Text('Sign up'),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -255,8 +280,8 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-class _LoginButton extends StatelessWidget {
-  const _LoginButton({
+class _AuthButton extends StatelessWidget {
+  const _AuthButton({
     required this.icon,
     required this.label,
     required this.onPressed,
@@ -284,10 +309,10 @@ class _LoginButton extends StatelessWidget {
         icon: Icon(icon, size: 24),
         label: Text(
           label,
-          style: Theme.of(context)
-              .textTheme
-              .titleMedium
-              ?.copyWith(color: const Color(0xFF525252)),
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: const Color(0xFF525252),
+                fontWeight: FontWeight.w600,
+              ),
         ),
       ),
     );
