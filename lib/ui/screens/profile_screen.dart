@@ -73,18 +73,31 @@ class _ProfileScreenState extends State<ProfileScreen>
           : (viewId ?? 0);
 
       if (_isOwnProfile) {
-        _userProfile = me.isNotEmpty ? me : {
-          'id': widget.profile.id,
-          'display_name': widget.profile.displayName,
-          'username': widget.profile.username,
-          'following': widget.profile.following,
-          'followers': widget.profile.followers,
-          'chapters_read': widget.profile.chaptersRead,
-          'social_karma': widget.profile.socialKarma,
-          'day_streak': widget.profile.dayStreak,
-          'photo_url': widget.profile.photoUrl,
-          'cover_url': widget.profile.coverUrl,
-        };
+        if (me.isNotEmpty) {
+          _userProfile = {
+            ...me,
+            'display_name': (me['display_name'] ?? me['name'] ?? widget.profile.displayName).toString(),
+            'photo_url': (me['photo_url'] ?? me['avatar_url'] ?? widget.profile.photoUrl).toString(),
+            'cover_url': (me['cover_url'] ?? widget.profile.coverUrl).toString(),
+            'bio': (me['bio'] ?? '').toString(),
+            'gender': (me['gender'] ?? '').toString(),
+            'birth_date': (me['birth_date'] ?? '').toString(),
+            'username': (me['username'] ?? widget.profile.username).toString(),
+          };
+        } else {
+          _userProfile = {
+            'id': widget.profile.id,
+            'display_name': widget.profile.displayName,
+            'username': widget.profile.username,
+            'following': widget.profile.following,
+            'followers': widget.profile.followers,
+            'chapters_read': widget.profile.chaptersRead,
+            'social_karma': widget.profile.socialKarma,
+            'day_streak': widget.profile.dayStreak,
+            'photo_url': widget.profile.photoUrl,
+            'cover_url': widget.profile.coverUrl,
+          };
+        }
       } else {
         _userProfile = await widget.apiService.fetchProfile(viewId!);
         try {

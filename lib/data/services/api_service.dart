@@ -581,7 +581,7 @@ class ApiService {
     final response = await _put(
       '/api/me',
       payload,
-      timeout: const Duration(seconds: 60),
+      timeout: const Duration(seconds: 45),
     );
     _ensureSuccessResponse(response);
     try {
@@ -595,7 +595,7 @@ class ApiService {
     final response = await _post(
       '/api/library',
       payload,
-      timeout: const Duration(seconds: 8),
+      timeout: const Duration(seconds: 45),
     );
     _ensureSuccessResponse(response);
   }
@@ -604,7 +604,7 @@ class ApiService {
     final response = await _put(
       '/api/library/$id',
       payload,
-      timeout: const Duration(seconds: 8),
+      timeout: const Duration(seconds: 45),
     );
     _ensureSuccessResponse(response);
   }
@@ -612,7 +612,7 @@ class ApiService {
   Future<void> deleteLibraryEntry(int id) async {
     final response = await _delete(
       '/api/library/$id',
-      timeout: const Duration(seconds: 8),
+      timeout: const Duration(seconds: 45),
     );
     _ensureSuccessResponse(response);
   }
@@ -990,7 +990,7 @@ class ApiService {
     final response = await _post(
       '/api/genres',
       {'name': name.trim()},
-      timeout: const Duration(seconds: 8),
+      timeout: const Duration(seconds: 60),
     );
     _ensureSuccessResponse(response);
     try {
@@ -1110,7 +1110,7 @@ class ApiService {
     final response = await _put(
       '/api/write/stories/$id',
       payload,
-      timeout: const Duration(seconds: 8),
+      timeout: const Duration(seconds: 60),
     );
     _ensureSuccessResponse(response);
   }
@@ -1144,7 +1144,7 @@ class ApiService {
     final response = await _post(
       '/api/write/stories/$storyId/chapters',
       payload,
-      timeout: const Duration(seconds: 8),
+      timeout: const Duration(seconds: 90),
     );
     if (response.statusCode < 200 || response.statusCode >= 300) return null;
     final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -1158,7 +1158,7 @@ class ApiService {
     final response = await _put(
       '/api/write/chapters/$chapterId',
       payload,
-      timeout: const Duration(seconds: 8),
+      timeout: const Duration(seconds: 90),
     );
     _ensureSuccessResponse(response);
   }
