@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../data/services/api_service.dart';
 
-/// Shown once after first Google/email sign-in until profile basics are filled.
+/// Shown for new users before Discover — must complete once.
 class OnboardingProfileScreen extends StatefulWidget {
   const OnboardingProfileScreen({
     super.key,
@@ -29,6 +32,11 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
   DateTime? _birthDate;
   bool _saving = false;
 
+  String _photoUrl = '';
+  String _coverUrl = '';
+  File? _localPhoto;
+  File? _localCover;
+
   static const _genders = ['Female', 'Male', 'Non-binary', 'Prefer not to say'];
 
   @override
@@ -36,6 +44,7 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
     super.initState();
     _nameCtrl = TextEditingController(text: widget.initialDisplayName);
     _bioCtrl = TextEditingController();
+    _photoUrl = widget.initialPhotoUrl; // Google avatar if present
   }
 
   @override
@@ -43,6 +52,35 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
     _nameCtrl.dispose();
     _bioCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickImage({required bool cover}) async {
+    final picker = ImagePicker();
+    final x = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: cover ? 1600 : 800,
+      maxHeight: cover ? 900 : 800,
+      imageQuality: 85,
+    );
+    if (x == null) return;
+    setState(() {
+      if (cover) {
+        _localCover = File(x.path);
+      } else {
+        _localPhoto = File(x.path);
+      }
+    });
+  }
+
+  Future<String?> _uploadIfNeeded(File? file) async {
+    if (file == null) return null;
+    try {
+      final res = await widget.apiService.uploadUserImage(file);
+      final path = (res['path'] ?? res['url'] ?? '').toString();
+      return path.isEmpty ? null : path;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> _pickBirthDate() async {
@@ -66,6 +104,11 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
     }
     setState(() => _saving = true);
     try {
+      final uploadedPhoto = await _uploadIfNeeded(_localPhoto);
+      final uploadedCover = await _uploadIfNeeded(_localCover);
+      if (uploadedPhoto != null) _photoUrl = uploadedPhoto;
+      if (uploadedCover != null) _coverUrl = uploadedCover;
+
       await widget.apiService.updateMyProfile({
         'display_name': name,
         'bio': _bioCtrl.text.trim(),
@@ -74,21 +117,20 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
           'birth_date':
               '${_birthDate!.year.toString().padLeft(4, '0')}-${_birthDate!.month.toString().padLeft(2, '0')}-${_birthDate!.day.toString().padLeft(2, '0')}',
         'profile_complete': true,
-        if (widget.initialPhotoUrl.isNotEmpty)
-          'photo_url': widget.initialPhotoUrl,
+        if (_photoUrl.isNotEmpty) 'photo_url': _photoUrl,
+        if (_coverUrl.isNotEmpty) 'cover_url': _coverUrl,
       });
       if (!mounted) return;
       widget.onDone();
     } catch (e) {
       if (!mounted) return;
-      // Cold start / timeout: still continue — profile can sync later
       final msg = e.toString().toLowerCase();
       final isTimeout = msg.contains('timeout') || msg.contains('timed out');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             isTimeout
-                ? 'Server is waking up — your name was kept. You can edit profile later.'
+                ? 'Server is waking up — continuing. You can edit profile later.'
                 : 'Could not save profile: $e',
           ),
         ),
@@ -99,12 +141,30 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
     }
   }
 
+  ImageProvider? get _avatarProvider {
+    if (_localPhoto != null) return FileImage(_localPhoto!);
+    if (_photoUrl.isNotEmpty) {
+      final url = widget.apiService.resolveAssetUrl(_photoUrl);
+      if (url.startsWith('http')) return NetworkImage(url);
+    }
+    return null;
+  }
+
+  ImageProvider? get _coverProvider {
+    if (_localCover != null) return FileImage(_localCover!);
+    if (_coverUrl.isNotEmpty) {
+      final url = widget.apiService.resolveAssetUrl(_coverUrl);
+      if (url.startsWith('http')) return NetworkImage(url);
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
           children: [
             Text(
               'Complete your profile',
@@ -112,24 +172,80 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
                     fontWeight: FontWeight.w700,
                   ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
-              'Readers and authors see this on your profile.',
+              'This appears on your public profile for readers and authors.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Colors.black54,
                   ),
             ),
-            const SizedBox(height: 28),
-            if (widget.initialPhotoUrl.isNotEmpty)
-              Center(
-                child: CircleAvatar(
-                  radius: 40,
-                  backgroundImage: NetworkImage(
-                    widget.apiService.resolveAssetUrl(widget.initialPhotoUrl),
-                  ),
+            const SizedBox(height: 20),
+            // Cover
+            GestureDetector(
+              onTap: _saving ? null : () => _pickImage(cover: true),
+              child: Container(
+                height: 120,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8EEF0),
+                  borderRadius: BorderRadius.circular(12),
+                  image: _coverProvider != null
+                      ? DecorationImage(image: _coverProvider!, fit: BoxFit.cover)
+                      : null,
+                ),
+                alignment: Alignment.center,
+                child: _coverProvider == null
+                    ? const Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.add_photo_alternate_outlined, size: 28),
+                          SizedBox(height: 4),
+                          Text('Add cover photo', style: TextStyle(fontSize: 13)),
+                        ],
+                      )
+                    : null,
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Avatar overlapping
+            Center(
+              child: GestureDetector(
+                onTap: _saving ? null : () => _pickImage(cover: false),
+                child: Stack(
+                  children: [
+                    CircleAvatar(
+                      radius: 44,
+                      backgroundColor: const Color(0xFFDDE5E7),
+                      backgroundImage: _avatarProvider,
+                      child: _avatarProvider == null
+                          ? const Icon(Icons.person, size: 40, color: Colors.black45)
+                          : null,
+                    ),
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF0D9488),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.camera_alt, size: 14, color: Colors.white),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            if (widget.initialPhotoUrl.isNotEmpty) const SizedBox(height: 20),
+            ),
+            if (widget.initialPhotoUrl.isNotEmpty && _localPhoto == null)
+              const Padding(
+                padding: EdgeInsets.only(top: 6),
+                child: Text(
+                  'Using your Google photo — tap to change',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12, color: Colors.black45),
+                ),
+              ),
+            const SizedBox(height: 20),
             TextField(
               controller: _nameCtrl,
               decoration: const InputDecoration(
@@ -137,11 +253,13 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
                 border: OutlineInputBorder(),
               ),
               textCapitalization: TextCapitalization.words,
+              style: const TextStyle(color: Colors.black),
             ),
             const SizedBox(height: 14),
             TextField(
               controller: _bioCtrl,
               maxLines: 3,
+              style: const TextStyle(color: Colors.black),
               decoration: const InputDecoration(
                 labelText: 'Bio',
                 hintText: 'A short intro about you',
@@ -169,7 +287,7 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
               trailing: const Icon(Icons.calendar_today_outlined),
               onTap: _pickBirthDate,
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 24),
             SizedBox(
               height: 52,
               child: FilledButton(
@@ -178,14 +296,10 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
                     ? const SizedBox(
                         width: 22,
                         height: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
                     : const Text('Save and continue'),
               ),
-            ),
-            TextButton(
-              onPressed: _saving ? null : widget.onDone,
-              child: const Text('Skip for now'),
             ),
           ],
         ),

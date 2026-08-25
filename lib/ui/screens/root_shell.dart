@@ -215,14 +215,21 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   }
 
 
+  bool _onboardingChecked = false;
+
   Future<void> _maybeShowOnboarding(AuthSession session) async {
+    if (session.isGuest) return;
     try {
       final me = await _apiService.fetchMe();
       final complete = me['profile_complete'] == true ||
           me['profile_complete'] == 1 ||
           me['profile_complete'] == '1';
-      if (complete) return;
+      if (complete) {
+        _onboardingChecked = true;
+        return;
+      }
       final name = (me['display_name'] ?? session.displayName).toString().trim();
+      final photo = (me['photo_url'] ?? me['avatar_url'] ?? session.photoUrl ?? '').toString();
       if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
@@ -230,7 +237,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
           builder: (_) => OnboardingProfileScreen(
             apiService: _apiService,
             initialDisplayName: name.toLowerCase() == 'reader' ? '' : name,
-            initialPhotoUrl: (me['photo_url'] ?? me['avatar_url'] ?? '').toString(),
+            initialPhotoUrl: photo,
             onDone: () {
               if (Navigator.of(context).canPop()) {
                 Navigator.of(context).pop();
@@ -239,10 +246,10 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
           ),
         ),
       );
-      // Soft refresh — don't block UI on slow bootstrap
+      _onboardingChecked = true;
       unawaited(_loadBootstrap(showLoading: false));
     } catch (_) {
-      // Non-fatal
+      _onboardingChecked = true;
     }
   }
 

@@ -2760,7 +2760,6 @@ def get_story_chapter_revisions(chapter_id: int):
     }
 
 
-@app.post("/api/write/stories/{story_id}/chapters")
 def _word_count(text: str) -> int:
     return len([w for w in str(text or "").split() if w.strip()])
 
@@ -2800,7 +2799,8 @@ def _promote_author_and_maybe_publish(user_id: int, story_id: int, chapter_conte
     except Exception as exc:
         LOGGER.warning("promote visibility failed: %s", exc)
 
-@app.post("/api/write/stories")
+
+@app.post("/api/write/stories/{story_id}/chapters")
 def create_story_chapter(story_id: int, payload: ChapterCreateRequest):
     try:
         story_rows = fetch_all("SELECT id FROM books WHERE id=%s", (story_id,))
@@ -3119,6 +3119,8 @@ def _serialize_book(row: Any) -> dict[str, Any]:
 
 
 
+
+@app.post("/api/write/stories")
 def create_writer_story(
     payload: StoryCreateRequest,
     user: dict[str, Any] = Depends(require_user),
