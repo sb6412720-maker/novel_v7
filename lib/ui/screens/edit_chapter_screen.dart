@@ -659,13 +659,12 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
                             expands: true,
                             textAlignVertical: TextAlignVertical.top,
                             keyboardType: TextInputType.multiline,
-                    style: const TextStyle(color: Colors.black87, fontSize: 16, height: 1.5),
                             style: TextStyle(
-                              fontSize: 15,
-                              height: 1.6,
+                              fontSize: 16,
+                              height: 1.5,
                               fontWeight: _isBold ? FontWeight.bold : FontWeight.normal,
                               fontStyle: _isItalic ? FontStyle.italic : FontStyle.normal,
-                              color: AppTheme.ink,
+                              color: Colors.black87,
                             ),
                             decoration: const InputDecoration(
                               contentPadding: EdgeInsets.fromLTRB(16, 4, 16, 12),

@@ -75,8 +75,13 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
   Future<String?> _uploadIfNeeded(File? file) async {
     if (file == null) return null;
     try {
-      final res = await widget.apiService.uploadUserImage(file);
-      final path = (res['path'] ?? res['url'] ?? '').toString();
+      final bytes = await file.readAsBytes();
+      final name = file.path.split(RegExp(r'[\\/]')).last;
+      final res = await widget.apiService.uploadUserImage(
+        bytes,
+        name.isEmpty ? 'photo.jpg' : name,
+      );
+      final path = (res['path'] ?? res['url'] ?? res['photo_url'] ?? '').toString();
       return path.isEmpty ? null : path;
     } catch (_) {
       return null;
