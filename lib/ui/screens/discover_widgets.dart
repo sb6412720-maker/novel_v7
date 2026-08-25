@@ -622,12 +622,40 @@ class _StoryCardState extends State<_StoryCard> {
     );
   }
 
+  Widget _coverImage({required double width, required double height}) {
+    final seed = widget.book.id > 0
+        ? widget.book.id
+        : widget.book.title.hashCode;
+    final asset = CoverAssets.assetForSeed(seed);
+    final coverPath = widget.book.coverPath;
+    if (coverPath.isNotEmpty) {
+      final url = widget.apiService.resolveAssetUrl(coverPath);
+      return Image.network(
+        url,
+        fit: BoxFit.cover,
+        width: width,
+        height: height,
+        cacheWidth: (width * 2).round().clamp(80, 600),
+        cacheHeight: (height * 2).round().clamp(80, 800),
+        errorBuilder: (_, _, _) => Image.asset(
+          asset,
+          fit: BoxFit.cover,
+          width: width,
+          height: height,
+        ),
+      );
+    }
+    return Image.asset(
+      asset,
+      fit: BoxFit.cover,
+      width: width,
+      height: height,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final color = _hexToColor(widget.book.accentHex);
-    final coverUrl = widget.book.coverPath.isEmpty
-        ? null
-        : widget.apiService.resolveAssetUrl(widget.book.coverPath);
     final compact = widget.width <= 140;
 
     if (compact) {
@@ -638,21 +666,7 @@ class _StoryCardState extends State<_StoryCard> {
           height: 160,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(10),
-            child: coverUrl == null
-                ? ColoredBox(
-                    color: color.withValues(alpha: 0.15),
-                    child: const Center(child: Icon(Icons.menu_book, size: 28)),
-                  )
-                : Image.network(
-                    coverUrl,
-                    fit: BoxFit.cover,
-                    width: widget.width,
-                    height: 160,
-                    errorBuilder: (context, error, stackTrace) => ColoredBox(
-                      color: color.withValues(alpha: 0.15),
-                      child: const Center(child: Icon(Icons.menu_book, size: 28)),
-                    ),
-                  ),
+            child: _coverImage(width: widget.width, height: 160),
           ),
         ),
       );
@@ -683,19 +697,7 @@ class _StoryCardState extends State<_StoryCard> {
               borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
               child: AspectRatio(
                 aspectRatio: 0.72,
-                child: coverUrl == null
-                    ? Container(
-                        color: color.withValues(alpha: 0.2),
-                        child: const Center(child: Icon(Icons.menu_book)),
-                      )
-                    : Image.network(
-                        coverUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          color: color.withValues(alpha: 0.2),
-                          child: const Center(child: Icon(Icons.menu_book)),
-                        ),
-                      ),
+                child: _coverImage(width: widget.width, height: widget.width / 0.72),
               ),
             ),
             Padding(
@@ -1065,6 +1067,22 @@ class _ContinueReadingSection extends StatelessWidget {
   final ApiService apiService;
   final VoidCallback? onBrowse;
 
+  Widget _continueCover(BookCardModel b, {double w = 110, double h = 160}) {
+    final asset = CoverAssets.assetForSeed(b.id > 0 ? b.id : b.title.hashCode);
+    if (b.coverPath.isNotEmpty) {
+      return Image.network(
+        apiService.resolveAssetUrl(b.coverPath),
+        fit: BoxFit.cover,
+        width: w,
+        height: h,
+        cacheWidth: (w * 2).round(),
+        cacheHeight: (h * 2).round(),
+        errorBuilder: (_, _, _) => Image.asset(asset, fit: BoxFit.cover, width: w, height: h),
+      );
+    }
+    return Image.asset(asset, fit: BoxFit.cover, width: w, height: h);
+  }
+
   @override
   Widget build(BuildContext context) {
     final books = entries
@@ -1073,11 +1091,13 @@ class _ContinueReadingSection extends StatelessWidget {
         .toList();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    // Centered section on Discover page
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Text(
           'Continue reading',
+          textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w700,
                 fontSize: 17,
@@ -1087,56 +1107,46 @@ class _ContinueReadingSection extends StatelessWidget {
         const SizedBox(height: 12),
         SizedBox(
           height: 168,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            children: [
-              for (final b in books.take(8))
-                Padding(
-                  padding: const EdgeInsets.only(right: 10),
-                  child: GestureDetector(
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => StoryDetailScreen(
-                            apiService: apiService,
-                            book: BookDetailModel(
-                              id: b.id,
-                              title: b.title,
-                              author: b.author,
-                              description: b.description,
-                              statusText: b.statusText,
-                              rating: b.rating,
-                              genre: b.primaryGenre,
-                              cta: b.cta,
-                              coverPath: b.coverPath,
-                              authorUserId: b.authorUserId,
+          child: Center(
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              shrinkWrap: true,
+              children: [
+                for (final b in books.take(8))
+                  Padding(
+                    padding: const EdgeInsets.only(right: 10),
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => StoryDetailScreen(
+                              apiService: apiService,
+                              book: BookDetailModel(
+                                id: b.id,
+                                title: b.title,
+                                author: b.author,
+                                description: b.description,
+                                statusText: b.statusText,
+                                rating: b.rating,
+                                genre: b.primaryGenre,
+                                cta: b.cta,
+                                coverPath: b.coverPath,
+                                authorUserId: b.authorUserId,
+                              ),
                             ),
                           ),
+                        );
+                      },
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: SizedBox(
+                          width: 110,
+                          height: 160,
+                          child: _continueCover(b),
                         ),
-                      );
-                    },
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: SizedBox(
-                        width: 110,
-                        height: 160,
-                        child: b.coverPath.isNotEmpty
-                            ? Image.network(
-                                apiService.resolveAssetUrl(b.coverPath),
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) => ColoredBox(
-                                  color: Colors.grey.shade300,
-                                  child: const Icon(Icons.menu_book),
-                                ),
-                              )
-                            : ColoredBox(
-                                color: Colors.grey.shade300,
-                                child: const Icon(Icons.menu_book),
-                              ),
                       ),
                     ),
                   ),
-                ),
               // Empty-state / Browse card
               Padding(
                 padding: const EdgeInsets.only(right: 8),
@@ -1178,6 +1188,7 @@ class _ContinueReadingSection extends StatelessWidget {
                 ),
               ),
             ],
+            ),
           ),
         ),
       ],
@@ -1513,21 +1524,22 @@ class _SectionBooksScreen extends StatelessWidget {
                   leading: SizedBox(
                     width: 40,
                     height: 56,
-                    child: cover.isNotEmpty
-                        ? Image.network(
-                            apiService.resolveAssetUrl(cover),
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => ColoredBox(
-                              color: isDark
-                                  ? const Color(0xFF2C2C2C)
-                                  : const Color(0xFFE4E4E4),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: cover.isNotEmpty
+                          ? Image.network(
+                              apiService.resolveAssetUrl(cover),
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => Image.asset(
+                                CoverAssets.assetForSeed(item.id),
+                                fit: BoxFit.cover,
+                              ),
+                            )
+                          : Image.asset(
+                              CoverAssets.assetForSeed(item.id),
+                              fit: BoxFit.cover,
                             ),
-                          )
-                        : ColoredBox(
-                            color: isDark
-                                ? const Color(0xFF2C2C2C)
-                                : const Color(0xFFE4E4E4),
-                          ),
+                    ),
                   ),
                   title: Text(
                     item.title,
@@ -1619,14 +1631,29 @@ class _GenreBooksScreen extends StatelessWidget {
                   leading: SizedBox(
                     width: 40,
                     height: 56,
-                    child: cover.isNotEmpty
-                        ? Image.network(
-                            apiService.resolveAssetUrl(cover),
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                ColoredBox(color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2C2C2C) : const Color(0xFFE4E4E4)),
-                          )
-                        : ColoredBox(color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2C2C2C) : const Color(0xFFE4E4E4)),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: cover.isNotEmpty
+                          ? Image.network(
+                              apiService.resolveAssetUrl(cover),
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  Image.asset(
+                                CoverAssets.assetForSeed(
+                                  (item['id'] as num?)?.toInt() ??
+                                      (item['title']?.toString() ?? '').hashCode,
+                                ),
+                                fit: BoxFit.cover,
+                              ),
+                            )
+                          : Image.asset(
+                              CoverAssets.assetForSeed(
+                                (item['id'] as num?)?.toInt() ??
+                                    (item['title']?.toString() ?? '').hashCode,
+                              ),
+                              fit: BoxFit.cover,
+                            ),
+                    ),
                   ),
                   title: Text(item['title']?.toString() ?? ''),
                   subtitle: Text(item['author']?.toString() ?? ''),

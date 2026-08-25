@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../core/constants/cover_assets.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/models/app_bootstrap.dart';
 import '../../data/services/api_service.dart';
@@ -251,22 +252,6 @@ class _DiscoverScreenState extends State<DiscoverScreen>
         shrinkWrap: true,
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 30),
         children: [
-          _ContinueReadingSection(
-            entries: widget.data.libraryEntries,
-            apiService: widget.apiService,
-            onBrowse: () {
-              // stay on Discover — already there; optional jump to Explore
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => ExploreScreen(
-                    topics: widget.data.exploreTopics,
-                    apiService: widget.apiService,
-                  ),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 24),
           if (showExploreLead) ...[
             _ExploreStoriesSection(
               books: sections.first.books,
@@ -292,7 +277,26 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                 apiService: widget.apiService,
               ),
               const SizedBox(height: 24),
-              // Genre pill row removed (user request)
+            ],
+            // Center of Discover page: Continue reading
+            if (i == 0) ...[
+              _ContinueReadingSection(
+                entries: widget.data.libraryEntries,
+                apiService: widget.apiService,
+                onBrowse: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => ExploreScreen(
+                        topics: widget.data.exploreTopics,
+                        apiService: widget.apiService,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 24),
+            ],
+            if (!(showExploreLead && i == 0)) ...[
               if (i == 1) ...[
                 _AuthorsStrip(books: allBooks, apiService: widget.apiService),
                 const SizedBox(height: 24),
@@ -314,6 +318,23 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                 const SizedBox(height: 24),
               ],
             ],
+          ],
+          // If no rails, still show Continue reading centered
+          if (sections.isEmpty) ...[
+            _ContinueReadingSection(
+              entries: widget.data.libraryEntries,
+              apiService: widget.apiService,
+              onBrowse: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ExploreScreen(
+                      topics: widget.data.exploreTopics,
+                      apiService: widget.apiService,
+                    ),
+                  ),
+                );
+              },
+            ),
           ],
         ],
       ),

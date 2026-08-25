@@ -526,7 +526,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
 
   Future<void> _openParagraphComments(int paragraphIndex, String preview) async {
     final bookId = widget.bookId;
-    if (bookId == null) {
+    if (bookId == null || bookId <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Open a published story to view comments')),
       );
@@ -534,8 +534,10 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     }
     var comments = <Map<String, dynamic>>[];
     var loading = true;
+    var loadStarted = false;
     String? error;
     final controller = TextEditingController();
+    var posting = false;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -547,7 +549,9 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setModal) {
-            if (loading) {
+            // Load once only — avoid re-fetch on every rebuild
+            if (!loadStarted) {
+              loadStarted = true;
               widget.apiService
                   .fetchChapterComments(
                     bookId: bookId,
@@ -565,7 +569,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                     loading = false;
                   });
                 }
-              }).catchError((_) {
+              }).catchError((Object e) {
                 if (ctx.mounted) {
                   setModal(() {
                     loading = false;
@@ -698,6 +702,10 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                               child: TextField(
                                 controller: controller,
                                 style: TextStyle(color: _fg),
+                                textInputAction: TextInputAction.send,
+                                onSubmitted: (_) async {
+                                  // same as send button
+                                },
                                 decoration: InputDecoration(
                                   hintText: 'Add a comment…',
                                   hintStyle: TextStyle(color: _muted),
@@ -718,46 +726,71 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                             ),
                             const SizedBox(width: 8),
                             IconButton(
-                              icon: const Icon(Icons.send, color: Color(0xFF1A73E8)),
-                              onPressed: () async {
-                                final text = controller.text.trim();
-                                if (text.isEmpty) return;
-                                try {
-                                  final item =
-                                      await widget.apiService.postChapterComment(
-                                    bookId: bookId,
-                                    chapterNumber: _chapterNumber,
-                                    body: text,
-                                    paragraphIndex: paragraphIndex,
-                                  );
-                                  controller.clear();
-                                  setModal(() {
-                                    comments = [item, ...comments];
-                                  });
-                                  if (mounted) {
-                                    setState(() {
-                                      _paragraphCommentCounts[paragraphIndex] =
-                                          (_paragraphCommentCounts[
-                                                      paragraphIndex] ??
-                                                  0) +
-                                              1;
-                                    });
-                                  }
-                                } catch (e) {
-                                  if (ctx.mounted) {
-                                    final msg = e.toString().toLowerCase();
-                                    ScaffoldMessenger.of(ctx).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          msg.contains('timeout')
-                                              ? 'Server busy — try again'
-                                              : 'Error: $e',
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                }
-                              },
+                              icon: posting
+                                  ? const SizedBox(
+                                      width: 22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.send, color: Color(0xFF1A73E8)),
+                              onPressed: posting
+                                  ? null
+                                  : () async {
+                                      final text = controller.text.trim();
+                                      if (text.isEmpty) return;
+                                      setModal(() => posting = true);
+                                      try {
+                                        final item = await widget.apiService
+                                            .postChapterComment(
+                                          bookId: bookId,
+                                          chapterNumber: _chapterNumber,
+                                          body: text,
+                                          paragraphIndex: paragraphIndex,
+                                        );
+                                        // Ensure UI has body/name even if API omits them
+                                        final normalized = <String, dynamic>{
+                                          'display_name':
+                                              item['display_name'] ??
+                                              item['username'] ??
+                                              'You',
+                                          'body': item['body'] ?? text,
+                                          'paragraph_index':
+                                              item['paragraph_index'] ??
+                                              paragraphIndex,
+                                          ...item,
+                                        };
+                                        controller.clear();
+                                        setModal(() {
+                                          comments = [normalized, ...comments];
+                                          posting = false;
+                                        });
+                                        if (mounted) {
+                                          setState(() {
+                                            _paragraphCommentCounts[
+                                                    paragraphIndex] =
+                                                (_paragraphCommentCounts[
+                                                            paragraphIndex] ??
+                                                        0) +
+                                                    1;
+                                          });
+                                        }
+                                      } catch (e) {
+                                        setModal(() => posting = false);
+                                        if (ctx.mounted) {
+                                          final msg = e.toString().toLowerCase();
+                                          final friendly = msg.contains('401') ||
+                                                  msg.contains('unauthorized') ||
+                                                  msg.contains('sign')
+                                              ? 'Please sign in to comment'
+                                              : msg.contains('timeout')
+                                                  ? 'Server busy — try again'
+                                                  : 'Could not post comment';
+                                          ScaffoldMessenger.of(ctx).showSnackBar(
+                                            SnackBar(content: Text(friendly)),
+                                          );
+                                        }
+                                      }
+                                    },
                             ),
                           ],
                         ),
@@ -1164,60 +1197,109 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
   }
 
   Widget _buildThemePanel() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      decoration: BoxDecoration(
-        color: _bg,
-        border: Border(
-          top: BorderSide(color: _muted.withValues(alpha: 0.2)),
+    return Material(
+      color: _bg,
+      elevation: 8,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        decoration: BoxDecoration(
+          color: _bg,
+          border: Border(
+            top: BorderSide(color: _muted.withValues(alpha: 0.25)),
+          ),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _themeChip(
-                'White',
-                _ReaderTheme.white,
-                Colors.white,
-                Colors.black,
-              ),
-              _themeChip(
-                'Eggshell',
-                _ReaderTheme.eggshell,
-                const Color(0xFFF5F0E6),
-                Colors.black87,
-              ),
-              _themeChip(
-                'Nightowl',
-                _ReaderTheme.nightowl,
-                const Color(0xFF1A1A1A),
-                Colors.white,
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text('Font size', style: TextStyle(color: _muted, fontSize: 12)),
-          Row(
-            children: [
-              Text('A−', style: TextStyle(color: _fg, fontSize: 12)),
-              Expanded(
-                child: Slider(
-                  value: _fontSize,
-                  min: 14,
-                  max: 24,
-                  divisions: 10,
-                  activeColor: const Color(0xFFE85D4C),
-                  onChanged: (v) => setState(() => _fontSize = v),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Reading theme',
+                  style: TextStyle(
+                    color: _fg,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
                 ),
-              ),
-              Text('A+', style: TextStyle(color: _fg, fontSize: 16)),
-            ],
-          ),
-        ],
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  icon: Icon(Icons.close, size: 20, color: _muted),
+                  onPressed: () => setState(() => _showThemePanel = false),
+                ),
+              ],
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _themeChip(
+                  'White',
+                  _ReaderTheme.white,
+                  Colors.white,
+                  Colors.black,
+                ),
+                _themeChip(
+                  'Eggshell',
+                  _ReaderTheme.eggshell,
+                  const Color(0xFFF5F0E6),
+                  Colors.black87,
+                ),
+                _themeChip(
+                  'Nightowl',
+                  _ReaderTheme.nightowl,
+                  const Color(0xFF1A1A1A),
+                  Colors.white,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Font size  ${_fontSize.round()}',
+              style: TextStyle(color: _muted, fontSize: 12),
+            ),
+            Row(
+              children: [
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _fontSize = (_fontSize - 1).clamp(14.0, 28.0);
+                    });
+                  },
+                  child: Text('A−', style: TextStyle(color: _fg, fontSize: 14)),
+                ),
+                Expanded(
+                  child: SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      activeTrackColor: const Color(0xFFE85D4C),
+                      thumbColor: const Color(0xFFE85D4C),
+                      overlayColor: const Color(0x33E85D4C),
+                    ),
+                    child: Slider(
+                      value: _fontSize.clamp(14.0, 28.0),
+                      min: 14,
+                      max: 28,
+                      divisions: 14,
+                      label: '${_fontSize.round()}',
+                      onChanged: (v) {
+                        setState(() => _fontSize = v);
+                      },
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _fontSize = (_fontSize + 1).clamp(14.0, 28.0);
+                    });
+                  },
+                  child: Text('A+', style: TextStyle(color: _fg, fontSize: 18)),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1229,31 +1311,59 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     Color fg,
   ) {
     final selected = _theme == value;
-    return GestureDetector(
-      onTap: () => setState(() => _theme = value),
-      child: Column(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color:
-                    selected ? const Color(0xFFE85D4C) : Colors.grey.shade400,
-                width: selected ? 2 : 1,
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: () {
+        setState(() {
+          _theme = value;
+        });
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Column(
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: selected
+                      ? const Color(0xFFE85D4C)
+                      : Colors.grey.shade400,
+                  width: selected ? 2.5 : 1,
+                ),
+                boxShadow: selected
+                    ? [
+                        BoxShadow(
+                          color: const Color(0xFFE85D4C).withValues(alpha: 0.35),
+                          blurRadius: 8,
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Text(
+                'Aa',
+                style: TextStyle(
+                  color: fg,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                ),
               ),
             ),
-            child: Text(
-              'A',
-              style: TextStyle(color: fg, fontWeight: FontWeight.w700),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? const Color(0xFFE85D4C) : _muted,
+                fontSize: 11,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(label, style: TextStyle(color: _muted, fontSize: 11)),
-        ],
+          ],
+        ),
       ),
     );
   }

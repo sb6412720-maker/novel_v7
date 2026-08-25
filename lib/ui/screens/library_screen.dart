@@ -563,27 +563,105 @@ class _ListDetailState extends State<_ListDetail> {
   }
 
   Future<void> _add() async {
-    final rows = await widget.api.searchStories(query: '');
+    // Prefer search; fall back to writer stories / library entries so lists
+    // can always receive books even when /api/search is empty.
+    List<Map<String, dynamic>> rows = [];
+    try {
+      rows = await widget.api.searchStories(query: '');
+    } catch (_) {}
+    if (rows.isEmpty) {
+      try {
+        rows = await widget.api.fetchWriterStories();
+      } catch (_) {}
+    }
+    if (rows.isEmpty) {
+      try {
+        final lib = await widget.api.fetchLibraryEntries();
+        rows = lib
+            .map((e) {
+              final book = e['book'];
+              if (book is Map) {
+                return Map<String, dynamic>.from(book);
+              }
+              return <String, dynamic>{
+                'id': e['book_id'] ?? e['id'],
+                'title': e['title'] ?? 'Story',
+                'author': e['author'] ?? '',
+              };
+            })
+            .where((m) => ((m['id'] as num?)?.toInt() ?? 0) > 0)
+            .toList();
+      } catch (_) {}
+    }
     if (!mounted) return;
+    if (rows.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No stories available to add. Browse Discover first.'),
+        ),
+      );
+      return;
+    }
     final picked = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
-      builder: (ctx) => ListView(
-        children: rows
-            .map(
-              (r) => ListTile(
-                title: Text('${r['title']}'),
-                subtitle: Text('${r['author']}'),
-                onTap: () => Navigator.pop(ctx, r),
+      isScrollControlled: true,
+      builder: (ctx) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.of(ctx).size.height * 0.6,
+          child: Column(
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 14, 16, 8),
+                child: Text(
+                  'Add story to list',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                ),
               ),
-            )
-            .toList(),
+              const Divider(height: 1),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: rows.length,
+                  itemBuilder: (ctx, i) {
+                    final r = rows[i];
+                    return ListTile(
+                      title: Text('${r['title'] ?? 'Untitled'}'),
+                      subtitle: Text('${r['author'] ?? ''}'),
+                      onTap: () => Navigator.pop(ctx, r),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
     if (picked == null) return;
-    final id = (picked['id'] as num?)?.toInt();
-    if (id == null) return;
-    await widget.api.addReadingListItem(widget.listId, id);
-    await _load();
+    final id = (picked['id'] as num?)?.toInt() ??
+        (picked['book_id'] as num?)?.toInt();
+    if (id == null || id <= 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Invalid story — could not add')),
+        );
+      }
+      return;
+    }
+    try {
+      await widget.api.addReadingListItem(widget.listId, id);
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Story saved to reading list')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not save: $e')),
+        );
+      }
+    }
   }
 
   @override
