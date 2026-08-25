@@ -146,6 +146,8 @@ class _ProfileScreenState extends State<ProfileScreen>
     return int.tryParse('$v') ?? 0;
   }
 
+  bool get _isAuthor => widget.profile.isAuthor;
+
   String get _displayName {
     final n = _s(_userProfile?['display_name']);
     if (n.isNotEmpty) return n;
@@ -669,13 +671,19 @@ class _ProfileScreenState extends State<ProfileScreen>
                 _displayName,
                 style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Color(0xFF1A1A1A)),
               ),
-              const SizedBox(width: 6),
-              Container(
-                width: 18,
-                height: 18,
-                decoration: const BoxDecoration(color: brand, shape: BoxShape.circle),
-                child: const Icon(Icons.check, size: 12, color: Colors.white),
-              ),
+              // Pen badge for authors (no green check)
+              if (_isAuthor) ...[
+                const SizedBox(width: 6),
+                Container(
+                  width: 18,
+                  height: 18,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF0D9488),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.edit, size: 11, color: Colors.white),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 2),

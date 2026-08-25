@@ -401,6 +401,10 @@ class ProfileModel {
     required this.socialKarma,
     required this.dayStreak,
     required this.readingLists,
+    this.isAuthor = false,
+    this.bio = '',
+    this.gender = '',
+    this.birthDate = '',
   });
 
   final int? id;
@@ -415,6 +419,10 @@ class ProfileModel {
   final int socialKarma;
   final int dayStreak;
   final List<ReadingListModel> readingLists;
+  final bool isAuthor;
+  final String bio;
+  final String gender;
+  final String birthDate;
 
   factory ProfileModel.fromMap(Map<String, dynamic> map) {
     return ProfileModel(
@@ -433,6 +441,10 @@ class ProfileModel {
           .whereType<Map>()
           .map((item) => ReadingListModel.fromMap(Map<String, dynamic>.from(item)))
           .toList(),
+      isAuthor: (map['is_author'] == true || map['is_author'] == 1 || map['is_author'] == '1'),
+      bio: map['bio']?.toString() ?? '',
+      gender: map['gender']?.toString() ?? '',
+      birthDate: map['birth_date']?.toString() ?? map['birthDate']?.toString() ?? '',
     );
   }
 }

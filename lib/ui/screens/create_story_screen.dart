@@ -301,7 +301,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     return parts.join(', ');
   }
 
-  Future<void> _save({required bool publish}) async {
+  Future<void> _save({required bool asDraft}) async {
     final title = _titleController.text.trim();
     final summary = _summaryController.text.trim();
     final author = _authorController.text.trim();
@@ -313,46 +313,53 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       );
       return;
     }
-    if (publish && !_canPublish) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Complete cover, title, summary, genre and audience to publish'),
-        ),
-      );
-      return;
-    }
 
     setState(() => _saving = true);
     try {
       final warnings = _buildWarningsString();
+      // Draft keeps private. Save uses Ongoing/Completed toggle.
+      // Completed + chapter with >=50 words becomes readable by others (backend).
+      final String statusText;
+      if (asDraft) {
+        statusText = 'Draft';
+      } else if (_status == 'Completed') {
+        statusText = 'Completed';
+      } else {
+        statusText = 'Ongoing';
+      }
       final payload = <String, dynamic>{
         'title': title,
         'description': summary,
         'author': author.isEmpty ? 'Author' : author,
-        'genre': genre,
+        'genre': genre.isEmpty ? 'Romance' : genre,
         'content_warnings': warnings,
         'tags': List<String>.from(_selectedTags.take(3)),
         'language': _language,
         'audience': _audience ?? '',
-        'status_text': publish
-            ? 'Published'
-            : (_status == 'Completed' ? 'Completed' : 'Ongoing'),
+        'status_text': statusText,
         if (_coverPath.isNotEmpty) 'cover_path': _coverPath,
       };
 
+      int storyId;
       if (_isEditing) {
-        final id = (widget.story!['id'] as num).toInt();
-        await widget.apiService.updateWriterStory(id, payload);
-        if (publish) await widget.apiService.publishWriterStory(id);
+        storyId = (widget.story!['id'] as num).toInt();
+        await widget.apiService.updateWriterStory(storyId, payload);
       } else {
-        final id = await widget.apiService.createWriterStory(payload);
-        if (publish && id > 0) {
-          try {
-            await widget.apiService.publishWriterStory(id);
-          } catch (_) {}
-        }
+        storyId = await widget.apiService.createWriterStory(payload);
       }
       if (!mounted) return;
+      if (!asDraft && storyId > 0) {
+        // Nudge user to add a chapter (>= 50 words) so readers can see it.
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _status == 'Completed'
+                  ? 'Saved as Complete. Add a chapter with at least 50 words so others can read it.'
+                  : 'Saved. Add at least one chapter (50+ words) to become an author.',
+            ),
+          ),
+        );
+      }
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
@@ -490,7 +497,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                   ),
                   const Spacer(),
                   TextButton(
-                    onPressed: _saving ? null : () => _save(publish: false),
+                    onPressed: _saving ? null : () => _save(asDraft: true),
                     child: const Text(
                       'Save',
                       style: TextStyle(
@@ -1042,7 +1049,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: _saving ? null : () => _save(publish: false),
+                      onPressed: _saving ? null : () => _save(asDraft: true),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: _textHi,
                         side: const BorderSide(color: _border),
@@ -1063,7 +1070,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                   Expanded(
                     flex: 2,
                     child: ElevatedButton(
-                      onPressed: _canPublish ? () => _save(publish: true) : null,
+                      onPressed: _saving ? null : () => _save(asDraft: false),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _magenta,
                         disabledBackgroundColor: _magenta.withValues(alpha: 0.4),
@@ -1072,7 +1079,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                         elevation: 0,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      child: const Text('Publish Story', style: TextStyle(fontWeight: FontWeight.w600)),
+                      child: const Text('Save', style: TextStyle(fontWeight: FontWeight.w600)),
                     ),
                   ),
                 ],

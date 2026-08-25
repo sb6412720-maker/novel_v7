@@ -290,19 +290,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: 24),
                         Text(
                           'Banned or suspended accounts cannot sign in. '
-                          'Each Google / email account is separate — '
-                          'moderation applies to that account.',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: AppTheme.muted,
-                              ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'By continuing you agree to our Terms of Service and Privacy Policy.',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
                       ],
                     ),
                   ),

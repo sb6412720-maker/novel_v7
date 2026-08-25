@@ -91,7 +91,7 @@ class _ExploreStoriesSectionState extends State<_ExploreStoriesSection> {
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(viewportFraction: 0.36, initialPage: 0);
+    _pageController = PageController(viewportFraction: 0.42, initialPage: 0);
   }
 
   @override
@@ -166,7 +166,7 @@ class _ExploreStoriesSectionState extends State<_ExploreStoriesSection> {
               onPressed: _openSeeAll,
               style: TextButton.styleFrom(
                 foregroundColor: AppTheme.brand,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
+                padding: const EdgeInsets.only(left: 0, right: 8),
                 minimumSize: const Size(0, 32),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
@@ -181,6 +181,7 @@ class _ExploreStoriesSectionState extends State<_ExploreStoriesSection> {
         SizedBox(
           height: 210,
           child: PageView.builder(
+              padEnds: false,
             controller: _pageController,
             padEnds: true,
             itemCount: _validBooks.length,
@@ -259,7 +260,7 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
   void initState() {
     super.initState();
     // Slightly denser carousel (Inkitt-like card density)
-    _pageController = PageController(viewportFraction: 0.36, initialPage: 0);
+    _pageController = PageController(viewportFraction: 0.42, initialPage: 0);
   }
 
   @override
@@ -309,7 +310,7 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
               },
               style: TextButton.styleFrom(
                 foregroundColor: AppTheme.brand,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
+                padding: const EdgeInsets.only(left: 0, right: 8),
                 minimumSize: const Size(0, 32),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
@@ -339,6 +340,7 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
           SizedBox(
             height: 200,
             child: PageView.builder(
+              padEnds: false,
               controller: _pageController,
               padEnds: true,
               itemCount: widget.section.books.where((e) => e.id > 0).length,
@@ -1259,7 +1261,7 @@ class _BrowseGenresSection extends StatelessWidget {
                 onPressed: onOpenExplore,
                 style: TextButton.styleFrom(
                   foregroundColor: AppTheme.brand,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  padding: const EdgeInsets.only(left: 0, right: 8),
                   minimumSize: const Size(0, 32),
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),

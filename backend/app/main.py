@@ -117,7 +117,7 @@ class StoryCreateRequest(BaseModel):
     cover_path: str = ""
     tags: list[str] = []
     content_warnings: str = ""
-    status_text: str = "Published"  # auto-publish by default; pass "Draft" to keep private
+    status_text: str = "Draft"  # private until Complete + chapter with 50+ words
 
 
 class StoryUpdateRequest(BaseModel):
@@ -880,7 +880,7 @@ def _store_media_bytes(content: bytes, filename: str, content_type: str = "image
         UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
         (UPLOAD_ROOT / filename).write_bytes(content)
     except Exception as exc:
-        LOGGER.warning("local upload write failed (ok on Vercel): %s", exc)
+        LOGGER.info("local upload skipped (read-only FS / Vercel): %s — using DB media", exc)
 
     media_id, _ = execute_write(
         "INSERT INTO media_files (filename, content_type, data) VALUES (%s, %s, %s)",
@@ -2721,6 +2721,14 @@ def create_story_chapter(story_id: int, payload: ChapterCreateRequest):
             )
         except Exception as rev_exc:
             LOGGER.warning("Chapter revision log failed (non-fatal): %s", rev_exc)
+        try:
+            # Promote author + visibility rules
+            owner = fetch_all("SELECT user_id FROM books WHERE id=%s LIMIT 1", (story_id,))
+            uid = int(owner[0]["user_id"]) if owner and owner[0].get("user_id") else None
+            if uid:
+                _promote_author_and_maybe_publish(uid, story_id, payload.content or "")
+        except Exception as promo_exc:
+            LOGGER.warning("chapter create promote: %s", promo_exc)
         bump_content_version()
         return {"ok": True, "id": row_id}
     except HTTPException:
@@ -2784,6 +2792,13 @@ def update_story_chapter(chapter_id: int, payload: ChapterUpdateRequest):
             _parse_optional_datetime(str(next_scheduled_for)) if next_scheduled_for else None
         ),
     )
+    try:
+        owner = fetch_all("SELECT user_id FROM books WHERE id=%s LIMIT 1", (_row_get(current, "story_id"),))
+        uid = int(owner[0]["user_id"]) if owner and owner[0].get("user_id") else None
+        if uid:
+            _promote_author_and_maybe_publish(uid, int(_row_get(current, "story_id")), next_content or "")
+    except Exception as promo_exc:
+        LOGGER.warning("chapter update promote: %s", promo_exc)
     bump_content_version()
     return {"ok": True}
 
@@ -2975,27 +2990,69 @@ def _serialize_book(row: Any) -> dict[str, Any]:
     }
 
 
+
+def _word_count(text: str) -> int:
+    return len([w for w in str(text or "").split() if w.strip()])
+
+
+def _promote_author_and_maybe_publish(user_id: int, story_id: int, chapter_content: str) -> None:
+    """If chapter has >= 50 words: mark user as author.
+    If story is Completed/Published and has a >=50-word chapter, keep visible.
+    If story is Draft/Ongoing without enough content, stays private.
+    """
+    words = _word_count(chapter_content)
+    if words >= 50:
+        try:
+            execute_write(
+                "UPDATE app_users SET is_author=1, is_author_active=1 WHERE id=%s",
+                (user_id,),
+            )
+        except Exception:
+            try:
+                execute_write("UPDATE app_users SET is_author=1 WHERE id=%s", (user_id,))
+            except Exception:
+                pass
+    # Visibility: only Completed/Published stories with >=50 word chapter are public
+    try:
+        rows = fetch_all("SELECT status_text FROM books WHERE id=%s LIMIT 1", (story_id,))
+        st = str((rows[0].get("status_text") if rows else "") or "").lower()
+        if st in ("completed", "complete", "published") and words >= 50:
+            execute_write(
+                "UPDATE books SET status_text=%s, section_name=%s WHERE id=%s",
+                ("Published" if "publish" in st or st == "published" else "Completed", "recently_updated", story_id),
+            )
+        elif st in ("completed", "complete", "published") and words < 50:
+            # Not enough content — keep private
+            execute_write(
+                "UPDATE books SET status_text=%s WHERE id=%s",
+                ("Draft", story_id),
+            )
+    except Exception as exc:
+        LOGGER.warning("promote visibility failed: %s", exc)
+
 @app.post("/api/write/stories")
 def create_writer_story(
     payload: StoryCreateRequest,
     user: dict[str, Any] = Depends(require_user),
 ):
     tags_clean = [str(t).strip().lstrip("#") for t in (payload.tags or []) if str(t).strip()]
-    if not tags_clean:
-        raise HTTPException(
-            status_code=400,
-            detail="At least one hashtag/tag is required to create a story",
-        )
+    # Tags optional on create — author can add later in settings
     cover = _normalize_cover_path(payload.cover_path)
     warnings = (payload.content_warnings or "").strip()
-    # Auto-publish by default (requirement): newly created stories go live unless explicitly Draft/Private
-    status = (payload.status_text or "Published").strip() or "Published"
-    if status.lower() in ("publish", "published", "live", "public", ""):
+    # Draft by default. Visible to others only when status is Published/Completed
+    # (requires at least one chapter with >= 50 words — enforced on chapter save / Complete).
+    raw_status = (payload.status_text or "Draft").strip() or "Draft"
+    sl = raw_status.lower()
+    if sl in ("publish", "published", "live", "public"):
         status = "Published"
-    elif status.lower() in ("draft", "private", "unpublished"):
-        status = status[:1].upper() + status[1:].lower() if status.lower() == "draft" else status
-        if status.lower() == "draft":
-            status = "Draft"
+    elif sl in ("complete", "completed"):
+        status = "Completed"
+    elif sl in ("ongoing", "reading"):
+        status = "Ongoing"
+    elif sl in ("draft", "private", "unpublished"):
+        status = "Draft"
+    else:
+        status = "Draft"
     story_id, _ = execute_write(
         """
         INSERT INTO books (
@@ -3025,16 +3082,7 @@ def create_writer_story(
             )
         except Exception:
             pass
-    try:
-        execute_write(
-            "UPDATE app_users SET is_author=1, is_author_active=1 WHERE id=%s",
-            (user["user_id"],),
-        )
-    except Exception:
-        try:
-            execute_write("UPDATE app_users SET is_author=1 WHERE id=%s", (user["user_id"],))
-        except Exception:
-            pass
+    # Author flag is set when first chapter with >= 50 words is saved (see chapter endpoints).
     bump_content_version()
     return {"ok": True, "id": story_id, "status_text": status}
 
