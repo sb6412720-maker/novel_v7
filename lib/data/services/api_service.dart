@@ -265,7 +265,7 @@ class ApiService {
     try {
       final response = await _get(
         '/api/me',
-        timeout: const Duration(seconds: 45),
+        timeout: const Duration(seconds: 90),
       );
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>;
@@ -276,7 +276,7 @@ class ApiService {
 
   /// Raises on 401/403 so AuthService can force logout after ban/suspend.
   Future<Map<String, dynamic>> fetchMeStrict() async {
-    final response = await _get('/api/me', timeout: const Duration(seconds: 45));
+    final response = await _get('/api/me', timeout: const Duration(seconds: 90));
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as Map<String, dynamic>;
     }

@@ -3449,36 +3449,48 @@ def list_books_by_tag(tag_name: str):
 
 @app.get("/api/me/reviews")
 def list_my_reviews(user: dict[str, Any] = Depends(require_user)):
-    """Books this user has reviewed — used on Profile > Reviews and to re-read."""
-    rows = fetch_all(
-        """
-        SELECT r.id, r.rating, r.comment, r.created_at, r.book_id,
-               b.title, b.author, b.cover_path, b.accent_hex, b.primary_genre, b.status_text
-        FROM book_reviews r
-        JOIN books b ON b.id = r.book_id
-        WHERE r.user_id = %s
-        ORDER BY r.created_at DESC
-        """,
-        (user["user_id"],),
-    )
+    """Reviews left ON this author's stories (Profile > Reviews tab)."""
+    try:
+        rows = fetch_all(
+            """
+            SELECT r.id, r.rating, r.comment, r.created_at, r.book_id, r.user_id AS reviewer_id,
+                   b.title, b.author, b.cover_path, b.accent_hex, b.primary_genre, b.status_text,
+                   u.display_name AS reviewer_name, u.photo_url AS reviewer_photo
+            FROM book_reviews r
+            JOIN books b ON b.id = r.book_id
+            LEFT JOIN app_users u ON u.id = r.user_id
+            WHERE b.user_id = %s
+            ORDER BY r.created_at DESC
+            LIMIT 100
+            """,
+            (user["user_id"],),
+        )
+    except Exception as exc:
+        LOGGER.warning("list_my_reviews (received) failed: %s", exc)
+        rows = []
     return {
         "items": [
             {
-                "id": row["id"],
-                "rating": row["rating"],
-                "comment": row["comment"] or "",
-                "created_at": str(row["created_at"]) if row.get("created_at") is not None else "",
+                "id": row["id"] if isinstance(row, dict) else row[0],
+                "rating": (row.get("rating") if isinstance(row, dict) else None) or 0,
+                "comment": (row.get("comment") if isinstance(row, dict) else "") or "",
+                "body": (row.get("comment") if isinstance(row, dict) else "") or "",
+                "created_at": str(row.get("created_at") or "") if isinstance(row, dict) else "",
+                "reviewer_name": (row.get("reviewer_name") if isinstance(row, dict) else None) or "Reader",
+                "reviewer_photo": (row.get("reviewer_photo") if isinstance(row, dict) else None) or "",
+                "user_id": row.get("reviewer_id") if isinstance(row, dict) else None,
+                "book_id": row.get("book_id") if isinstance(row, dict) else None,
                 "book": {
-                    "id": row["book_id"],
-                    "title": row["title"],
-                    "author": row["author"],
-                    "cover_path": _normalize_cover_path(row["cover_path"]),
-                    "accent_hex": row.get("accent_hex") or "#A1A1A1",
-                    "primary_genre": row.get("primary_genre") or "",
-                    "status_text": row.get("status_text") or "",
+                    "id": row.get("book_id") if isinstance(row, dict) else None,
+                    "title": row.get("title") if isinstance(row, dict) else "",
+                    "author": row.get("author") if isinstance(row, dict) else "",
+                    "cover_path": _normalize_cover_path((row.get("cover_path") if isinstance(row, dict) else None) or ""),
+                    "accent_hex": (row.get("accent_hex") if isinstance(row, dict) else None) or "#A1A1A1",
+                    "primary_genre": (row.get("primary_genre") if isinstance(row, dict) else None) or "",
+                    "status_text": (row.get("status_text") if isinstance(row, dict) else None) or "",
                 },
             }
-            for row in rows
+            for row in (rows or [])
         ]
     }
 
@@ -5262,54 +5274,7 @@ def admin_set_author_active(
     return {"ok": True, "is_author_active": bool(active)}
 
 
-@app.get("/api/users/{user_id}/activity")
-def list_user_activity(user_id: int):
-    """Real activity feed: story updates + wall-ish posts from this user."""
-    items: list[dict[str, Any]] = []
-    try:
-        books = fetch_all(
-            """
-            SELECT id, title, cover_path, status_text, updated_at, created_at
-            FROM books WHERE user_id=%s
-            ORDER BY COALESCE(updated_at, created_at) DESC, id DESC
-            LIMIT 30
-            """,
-            (user_id,),
-        )
-        for b in books:
-            when = str(_row_get(b, "updated_at") or _row_get(b, "created_at") or "")
-            items.append({
-                "id": f"book-{_row_get(b, 'id')}",
-                "type": "story_update",
-                "title": f"Updated {_row_get(b, 'title') or 'a story'}",
-                "message": _row_get(b, "status_text") or "",
-                "cover_path": _normalize_cover_path(_row_get(b, "cover_path") or ""),
-                "book_id": _row_get(b, "id"),
-                "created_at": when,
-            })
-    except Exception:
-        pass
-    try:
-        posts = fetch_all(
-            """
-            SELECT id, body, created_at FROM chat_messages
-            WHERE user_id=%s ORDER BY id DESC LIMIT 20
-            """,
-            (user_id,),
-        )
-        for p in posts:
-            items.append({
-                "id": f"wall-{_row_get(p, 'id')}",
-                "type": "wall",
-                "title": "Posted on wall",
-                "message": (_row_get(p, "body") or "")[:200],
-                "cover_path": "",
-                "created_at": str(_row_get(p, "created_at") or ""),
-            })
-    except Exception:
-        pass
-    items.sort(key=lambda x: str(x.get("created_at") or ""), reverse=True)
-    return {"items": items[:40]}
+# list_user_activity provided by activity_feed (others-only)
 
 try:
     from .inkitt_routes import register_inkitt_routes

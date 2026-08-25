@@ -461,9 +461,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
     bool isCompleted(Map<String, dynamic> s) {
       final st = _s(s['status_text']).toLowerCase();
-      final flag = s['is_completed'];
-      if (flag == true || flag == 1 || '$flag' == '1') return true;
-      return st.contains('complete') || st.contains('finished') || st == 'published';
+      return st.contains('complete') || st.contains('publish') || st.contains('submitted');
     }
     if (_storyFilter == 'Completed') {
       list = list.where(isCompleted).toList();
@@ -1345,7 +1343,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     Text(
                       completed
                           ? 'Completed${chapters > 0 ? ' · $chapters Chapters' : ''}'
-                          : (chapters > 0 ? '$chapters Chapters' : status),
+                          : 'Ongoing${chapters > 0 ? ' · $chapters Chapters' : ''}',
                       style: TextStyle(fontSize: 11, color: completed ? brand : muted, fontWeight: FontWeight.w500),
                     ),
                   ],
@@ -1866,7 +1864,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   // ─── Reviews ─────────────────────────────────────────────
   Widget _buildReviewsTab() {
     if (_reviews.isEmpty) {
-      return const Center(child: Text('No reviews yet', style: TextStyle(color: muted)));
+      return const Center(child: Text('No reviews on your stories yet', style: TextStyle(color: muted)));
     }
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -1874,15 +1872,22 @@ class _ProfileScreenState extends State<ProfileScreen>
       separatorBuilder: (context, index) => const Divider(height: 28),
       itemBuilder: (context, i) {
         final r = _reviews[i];
-        final bookTitle = _s(r['book_title'] ?? r['title'] ?? 'Story');
-        final author = _s(r['book_author'] ?? r['author'] ?? '');
-        final cover = _s(r['cover_path'] ?? r['book_cover'] ?? '');
-        final bid = _asInt(r['book_id'] ?? r['story_id'] ?? r['id']);
+        final bookMap = (r['book'] is Map)
+            ? Map<String, dynamic>.from(r['book'] as Map)
+            : <String, dynamic>{};
+        final bookTitle = _s(r['book_title'] ?? bookMap['title'] ?? r['title'] ?? 'Story');
+        final author = _s(
+          r['reviewer_name'] ?? r['book_author'] ?? bookMap['author'] ?? r['author'] ?? '',
+        );
+        final cover = _s(
+          r['cover_path'] ?? bookMap['cover_path'] ?? r['book_cover'] ?? '',
+        );
+        final bid = _asInt(r['book_id'] ?? bookMap['id'] ?? r['story_id'] ?? r['id']);
         final stars = _asInt(r['rating'] ?? r['stars'] ?? 0);
         final plot = _asInt(r['plot_score'] ?? r['plot'] ?? stars);
         final writing = _asInt(r['writing_score'] ?? r['writing_style'] ?? stars);
         final grammar = _asInt(r['grammar_score'] ?? r['grammar'] ?? stars);
-        final headline = _s(r['headline'] ?? '');
+        final headline = _s(r['headline'] ?? r['reviewer_name'] ?? '');
         final body = _s(r['body'] ?? r['comment'] ?? r['review'] ?? r['text'] ?? '');
 
         return Column(
@@ -1909,7 +1914,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                     children: [
                       Text(bookTitle, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
                       if (author.isNotEmpty)
-                        Text('by $author', style: const TextStyle(fontSize: 12, color: muted)),
+                        Text(
+                          author.isEmpty ? '' : 'Review by $author',
+                          style: const TextStyle(fontSize: 12, color: muted),
+                        ),
                     ],
                   ),
                 ),

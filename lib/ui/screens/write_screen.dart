@@ -305,7 +305,7 @@ class _ManageStoriesTab extends StatelessWidget {
             indicatorColor: AppTheme.brand,
             tabs: writeModel.storyTabs.isNotEmpty
                 ? writeModel.storyTabs.map((e) => Tab(text: e)).toList()
-                : const [Tab(text: 'Published'), Tab(text: 'Drafts')],
+                : const [Tab(text: 'Submitted'), Tab(text: 'Drafts')],
           ),
         ),
         Padding(
@@ -467,7 +467,13 @@ class _StoryListCard extends StatelessWidget {
     final description = story['description']?.toString() ?? '';
     final genre = story['genre']?.toString() ?? '';
     final statusText = story['status_text']?.toString().trim() ?? 'Draft';
-    final isDraft = statusText.toLowerCase().contains('draft');
+    final stLower = statusText.toLowerCase();
+    final isDraft = stLower.contains('draft') ||
+        stLower.contains('ongoing') ||
+        stLower.isEmpty;
+    final statusLabel = stLower.contains('complete') || stLower.contains('publish')
+        ? 'Submitted'
+        : (stLower.contains('ongoing') ? 'Ongoing' : 'Draft');
     final coverPath = story['cover_path']?.toString() ?? '';
     final coverUrl = coverPath.isEmpty ? '' : apiService.resolveAssetUrl(coverPath);
 
@@ -581,7 +587,7 @@ class _StoryListCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
-                            isDraft ? 'Draft' : statusText,
+                            statusLabel,
                             style: TextStyle(
                               fontSize: 11,
                               color: isDraft
