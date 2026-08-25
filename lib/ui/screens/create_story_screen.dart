@@ -26,15 +26,16 @@ class CreateStoryScreen extends StatefulWidget {
 }
 
 class _CreateStoryScreenState extends State<CreateStoryScreen> {
-  static const Color _ink = Color(0xFF0C0A10);
-  static const Color _panel = Color(0xFF17131D);
-  static const Color _panelAlt = Color(0xFF1F1926);
-  static const Color _border = Color(0xFF2C2433);
-  static const Color _borderSoft = Color(0xFF211B28);
-  static const Color _textHi = Color(0xFFF6F1F8);
-  static const Color _textLo = Color(0xFF9A8FA6);
-  static const Color _textFaint = Color(0xFF695F74);
-  static const Color _magenta = Color(0xFFE14FA0);
+  // Light theme (default for New Story / story creation page)
+  static const Color _ink = Color(0xFFFAF8F5); // page background
+  static const Color _panel = Color(0xFFFFFFFF); // cards
+  static const Color _panelAlt = Color(0xFFF5F3F0); // secondary surfaces
+  static const Color _border = Color(0xFFE8E8E8);
+  static const Color _borderSoft = Color(0xFFEDEAE6);
+  static const Color _textHi = Color(0xFF231F20); // primary text
+  static const Color _textLo = Color(0xFF767676); // secondary text
+  static const Color _textFaint = Color(0xFF9A9A9A);
+  static const Color _magenta = Color(0xFF581845); // brand
   static const Color _violet = Color(0xFF8B5CF6);
   static const Color _amber = Color(0xFFF0B357);
   static const Color _green = Color(0xFF4FD1A5);
@@ -334,6 +335,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         'content_warnings': warnings,
         'tags': List<String>.from(_selectedTags.take(3)),
         'status_text': statusText,
+        'language': _language,
+        if ((_audience ?? '').trim().isNotEmpty) 'audience': _audience!.trim(),
         if (_coverPath.isNotEmpty) 'cover_path': _coverPath,
       };
 
@@ -478,7 +481,24 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     final titleLen = _titleController.text.length;
     final summaryLen = _summaryController.text.length;
 
-    return Scaffold(
+    // Force light theme for the entire New Story / story creation page
+    return Theme(
+      data: ThemeData(
+        useMaterial3: true,
+        brightness: Brightness.light,
+        scaffoldBackgroundColor: _ink,
+        colorScheme: const ColorScheme.light(
+          primary: _magenta,
+          secondary: _violet,
+          surface: _panel,
+        ),
+        textTheme: const TextTheme(
+          bodyLarge: TextStyle(color: _textHi),
+          bodyMedium: TextStyle(color: _textLo),
+          titleMedium: TextStyle(color: _textHi),
+        ),
+      ),
+      child: Scaffold(
       backgroundColor: _ink,
       body: SafeArea(
         child: Column(
@@ -486,7 +506,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
             Container(
               padding: const EdgeInsets.fromLTRB(8, 10, 16, 10),
               decoration: const BoxDecoration(
-                color: Color(0xD90C0A10),
+                color: Color(0xFFFAF8F5),
                 border: Border(bottom: BorderSide(color: _borderSoft)),
               ),
               child: Row(
@@ -962,21 +982,21 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                                 return Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                   decoration: BoxDecoration(
-                                    color: const Color(0x268B5CF6),
+                                    color: const Color(0x1A8B5CF6),
                                     borderRadius: BorderRadius.circular(999),
-                                    border: Border.all(color: const Color(0x598B5CF6)),
+                                    border: Border.all(color: const Color(0x668B5CF6)),
                                   ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text(
                                         '#$t',
-                                        style: const TextStyle(color: Color(0xFFCBB8FB), fontSize: 12.5),
+                                        style: const TextStyle(color: Color(0xFF5B3FA6), fontSize: 12.5),
                                       ),
                                       const SizedBox(width: 6),
                                       GestureDetector(
                                         onTap: () => _removeTag(t),
-                                        child: const Icon(Icons.close, size: 12, color: Color(0xFFCBB8FB)),
+                                        child: const Icon(Icons.close, size: 12, color: Color(0xFF5B3FA6)),
                                       ),
                                     ],
                                   ),
@@ -1051,7 +1071,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
             Container(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
               decoration: const BoxDecoration(
-                color: Color(0xF00C0A10),
+                color: Color(0xFFFAF8F5),
                 border: Border(top: BorderSide(color: _borderSoft)),
               ),
               child: Row(
@@ -1097,6 +1117,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 

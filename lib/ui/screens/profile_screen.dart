@@ -1273,6 +1273,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                     width: 72,
                     height: 100,
                     fit: BoxFit.cover,
+                    cacheWidth: 144,
+                    cacheHeight: 200,
                     errorBuilder: (context, error, stackTrace) => Container(width: 72, height: 100, color: cardBg),
                   )
                 : Container(width: 72, height: 100, color: cardBg),
@@ -1343,7 +1345,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                     Text(
                       completed
                           ? 'Completed${chapters > 0 ? ' · $chapters Chapters' : ''}'
-                          : 'Ongoing${chapters > 0 ? ' · $chapters Chapters' : ''}',
+                          : (status.toLowerCase().contains('draft') || status.isEmpty
+                              ? 'Draft${chapters > 0 ? ' · $chapters Chapters' : ''}'
+                              : 'Ongoing${chapters > 0 ? ' · $chapters Chapters' : ''}'),
                       style: TextStyle(fontSize: 11, color: completed ? brand : muted, fontWeight: FontWeight.w500),
                     ),
                   ],

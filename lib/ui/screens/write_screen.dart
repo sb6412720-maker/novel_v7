@@ -7,6 +7,7 @@ import '../../data/models/app_bootstrap.dart';
 import '../../data/services/api_service.dart';
 import 'create_story_screen.dart';
 import 'edit_chapter_screen.dart';
+import 'story_detail_screen.dart';
 
 class WriteScreen extends StatefulWidget {
   const WriteScreen({super.key, required this.data, required this.apiService});
@@ -359,17 +360,20 @@ class _ManageStoriesTab extends StatelessWidget {
                   return const Center(child: CircularProgressIndicator());
                 }
 
+                // Tab 0 = Submitted (Completed / Published)
+                // Tab 1 = Drafts (Draft + Ongoing)
                 final stories = (snapshot.data ?? <Map<String, dynamic>>[])
                     .where((story) {
                       final statusText =
                           story['status_text']?.toString().toLowerCase() ?? '';
-                      final isDraft = statusText.contains('draft') ||
-                          statusText.contains('ongoing') ||
-                          statusText.isEmpty;
-                      if (storySubTabs.index == 0 && isDraft) {
+                      final isSubmitted = statusText.contains('complete') ||
+                          statusText.contains('publish') ||
+                          statusText.contains('submitted');
+                      final isDraftOrOngoing = !isSubmitted;
+                      if (storySubTabs.index == 0 && isDraftOrOngoing) {
                         return false;
                       }
-                      if (storySubTabs.index == 1 && !isDraft) {
+                      if (storySubTabs.index == 1 && isSubmitted) {
                         return false;
                       }
                       if (query.trim().isEmpty) return true;
@@ -460,6 +464,45 @@ class _StoryListCard extends StatelessWidget {
   final VoidCallback onEditChapter;
   final VoidCallback onDelete;
 
+  void _openStoryDetail(BuildContext context) {
+    final id = (story['id'] as num?)?.toInt() ?? 0;
+    if (id <= 0) return;
+    final title = story['title']?.toString() ?? 'Untitled';
+    final author = story['author']?.toString() ?? '';
+    final description = story['description']?.toString() ?? '';
+    final genre = story['genre']?.toString() ?? '';
+    final statusText = story['status_text']?.toString().trim() ?? 'Draft';
+    final coverPath = story['cover_path']?.toString() ?? '';
+    final ratingRaw = story['rating'];
+    final rating = (ratingRaw is num)
+        ? ratingRaw.toDouble()
+        : double.tryParse('$ratingRaw') ?? 0.0;
+    final authorUserId =
+        (story['author_user_id'] as num?)?.toInt() ??
+        (story['user_id'] as num?)?.toInt() ??
+        0;
+
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => StoryDetailScreen(
+          apiService: apiService,
+          book: BookDetailModel(
+            id: id,
+            title: title,
+            author: author,
+            description: description,
+            statusText: statusText,
+            rating: rating,
+            genre: genre,
+            cta: 'Read now',
+            coverPath: coverPath,
+            authorUserId: authorUserId,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final title = story['title']?.toString() ?? 'Untitled';
@@ -468,154 +511,174 @@ class _StoryListCard extends StatelessWidget {
     final genre = story['genre']?.toString() ?? '';
     final statusText = story['status_text']?.toString().trim() ?? 'Draft';
     final stLower = statusText.toLowerCase();
-    final isDraft = stLower.contains('draft') ||
-        stLower.contains('ongoing') ||
-        stLower.isEmpty;
-    final statusLabel = stLower.contains('complete') || stLower.contains('publish')
-        ? 'Submitted'
-        : (stLower.contains('ongoing') ? 'Ongoing' : 'Draft');
+    // Labels: Draft | Ongoing | Completed
+    final String statusLabel;
+    final Color statusBg;
+    final Color statusFg;
+    if (stLower.contains('complete') ||
+        stLower.contains('publish') ||
+        stLower.contains('submitted')) {
+      statusLabel = 'Completed';
+      statusBg = const Color(0xFFDCEFD9);
+      statusFg = const Color(0xFF24613A);
+    } else if (stLower.contains('ongoing')) {
+      statusLabel = 'Ongoing';
+      statusBg = const Color(0xFFD6EAF8);
+      statusFg = const Color(0xFF1A5276);
+    } else {
+      statusLabel = 'Draft';
+      statusBg = const Color(0xFFF7E1B5);
+      statusFg = const Color(0xFF8A5A00);
+    }
     final coverPath = story['cover_path']?.toString() ?? '';
     final coverUrl = coverPath.isEmpty ? '' : apiService.resolveAssetUrl(coverPath);
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Theme.of(context).brightness == Brightness.dark
-            ? const Color(0xFF1E1E1E)
-            : Colors.white,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.border),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(7),
-            child: Container(
-              width: 52,
-              height: 74,
-              color: AppTheme.brand.withValues(alpha: 0.14),
-              child: coverUrl.isNotEmpty
-                  ? Image.network(
-                      coverUrl,
-                      fit: BoxFit.cover,
-                      width: 52,
-                      height: 74,
-                      errorBuilder: (_, _, _) => const Icon(
-                        Icons.book_rounded,
-                        color: AppTheme.brand,
-                        size: 24,
-                      ),
-                    )
-                  : const Icon(
-                      Icons.book_rounded,
-                      color: AppTheme.brand,
-                      size: 24,
-                    ),
-            ),
+        onTap: () => _openStoryDetail(context),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF1E1E1E)
+                : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppTheme.border),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleMedium?.copyWith(fontSize: 15),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(7),
+                child: Container(
+                  width: 52,
+                  height: 74,
+                  color: AppTheme.brand.withValues(alpha: 0.14),
+                  child: coverUrl.isNotEmpty
+                      ? Image.network(
+                          coverUrl,
+                          fit: BoxFit.cover,
+                          width: 52,
+                          height: 74,
+                          cacheWidth: 104,
+                          cacheHeight: 148,
+                          errorBuilder: (_, _, _) => const Icon(
+                            Icons.book_rounded,
+                            color: AppTheme.brand,
+                            size: 24,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.book_rounded,
+                          color: AppTheme.brand,
+                          size: 24,
+                        ),
                 ),
-                if (author.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      'by $author',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppTheme.muted,
-                      ),
-                    ),
-                  ),
-                if (description.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 5),
-                    child: Text(
-                      description,
-                      maxLines: 2,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppTheme.muted,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.titleMedium?.copyWith(fontSize: 15),
+                    ),
+                    if (author.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          'by $author',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.muted,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                if (genre.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppTheme.brand.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            genre,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: AppTheme.brand,
-                            ),
+                    if (description.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 5),
+                        child: Text(
+                          description,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.muted,
                           ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isDraft
-                                ? const Color(0xFFF7E1B5)
-                                : const Color(0xFFDCEFD9),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            statusLabel,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: isDraft
-                                  ? const Color(0xFF8A5A00)
-                                  : const Color(0xFF24613A),
+                      ),
+                    if (genre.isNotEmpty || statusLabel.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            if (genre.isNotEmpty)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.brand.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  genre,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppTheme.brand,
+                                  ),
+                                ),
+                              ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: statusBg,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                statusLabel,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: statusFg,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'edit') onEdit();
-              if (value == 'chapter') onEditChapter();
-              if (value == 'delete') onDelete();
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'edit', child: Text('Edit details')),
-              PopupMenuItem(value: 'chapter', child: Text('Chapters')),
-              PopupMenuItem(value: 'delete', child: Text('Delete')),
+                      ),
+                  ],
+                ),
+              ),
+              PopupMenuButton<String>(
+                onSelected: (value) {
+                  if (value == 'edit') onEdit();
+                  if (value == 'chapter') onEditChapter();
+                  if (value == 'delete') onDelete();
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'edit', child: Text('Edit details')),
+                  PopupMenuItem(value: 'chapter', child: Text('Chapters')),
+                  PopupMenuItem(value: 'delete', child: Text('Delete')),
+                ],
+                icon: const Icon(Icons.more_vert_rounded, size: 20),
+              ),
             ],
-            icon: const Icon(Icons.more_vert_rounded, size: 20),
           ),
-        ],
+        ),
       ),
     );
   }
