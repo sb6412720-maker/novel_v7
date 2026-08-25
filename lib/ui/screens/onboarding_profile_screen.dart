@@ -28,6 +28,8 @@ class OnboardingProfileScreen extends StatefulWidget {
 class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _bioCtrl;
+  late final TextEditingController _emailCtrl;
+  late final TextEditingController _passCtrl;
   String? _gender;
   DateTime? _birthDate;
   bool _saving = false;
@@ -44,6 +46,8 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
     super.initState();
     _nameCtrl = TextEditingController(text: widget.initialDisplayName);
     _bioCtrl = TextEditingController();
+    _emailCtrl = TextEditingController();
+    _passCtrl = TextEditingController();
     _photoUrl = widget.initialPhotoUrl; // Google avatar if present
   }
 
