@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/app_bootstrap.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
   ApiService();
@@ -15,6 +16,30 @@ class ApiService {
 
   /// Last successful bootstrap — survive sleep / failed refresh (never show empty app).
   static AppBootstrap? _cachedBootstrap;
+  static const _diskBootstrapKey = 'novelhub_bootstrap_json_v1';
+
+  Future<AppBootstrap?> loadDiskBootstrap() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_diskBootstrapKey);
+      if (raw == null || raw.isEmpty) return null;
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return null;
+      final boot = AppBootstrap.fromMap(Map<String, dynamic>.from(decoded));
+      if (boot.discoverBooks.isEmpty && boot.recentlyUpdated.isEmpty) return null;
+      _cachedBootstrap = boot;
+      return boot;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _saveDiskBootstrap(Map<String, dynamic> raw) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_diskBootstrapKey, jsonEncode(raw));
+    } catch (_) {}
+  }
 
   void setAuthToken(String? token) {
     _authToken = token;
@@ -187,6 +212,7 @@ class ApiService {
             if (boot.discoverBooks.isNotEmpty ||
                 boot.recentlyUpdated.isNotEmpty) {
               _cachedBootstrap = boot;
+              unawaited(_saveDiskBootstrap(decoded));
             }
             debugPrint(
               'bootstrap OK from $_baseUrl '

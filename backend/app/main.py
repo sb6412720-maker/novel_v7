@@ -1888,7 +1888,7 @@ async def upload_support_attachment(file: UploadFile = File(...)):
 
 _BOOTSTRAP_CACHE: dict[str, Any] | None = None
 _BOOTSTRAP_CACHE_AT: float = 0.0
-_BOOTSTRAP_CACHE_TTL = 300.0  # seconds — keeps home fast after cold start
+_BOOTSTRAP_CACHE_TTL = 600.0  # seconds — warm instances stay fast longer
 
 
 @app.get("/api/bootstrap")
@@ -2910,14 +2910,17 @@ def create_story_chapter(story_id: int, payload: ChapterCreateRequest):
             ),
         )
         try:
-            _record_chapter_revision(
-                row_id,
-                payload.title or "Untitled",
-                payload.content or "",
-                payload.notes or "",
-                submission_status,
-                scheduled_for,
-            )
+            import os as _os
+            # Skip revision log on Vercel cold path — shaves multi-second writes
+            if not (_os.getenv("VERCEL") or _os.getenv("VERCEL_ENV")):
+                _record_chapter_revision(
+                    row_id,
+                    payload.title or "Untitled",
+                    payload.content or "",
+                    payload.notes or "",
+                    submission_status,
+                    scheduled_for,
+                )
         except Exception as rev_exc:
             LOGGER.warning("Chapter revision log failed (non-fatal): %s", rev_exc)
         try:

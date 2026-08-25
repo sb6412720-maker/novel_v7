@@ -78,34 +78,15 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   }
 
   Future<void> _bootstrapApp() async {
-    AuthSession? session;
-    String? blockMessage;
-    try {
-      session = await _authService.restoreSession();
-    } on AuthBlockedException catch (e) {
-      session = null;
-      blockMessage = e.message;
-    } catch (_) {
-      session = null;
+    // Instant UI from last session while Vercel cold-starts (~60s first hit).
+    final disk = await _apiService.loadDiskBootstrap();
+    if (disk != null && mounted) {
+      setState(() {
+        _bootstrap = disk;
+        _loading = false;
+      });
     }
-    if (!mounted) return;
-    setState(() {
-      _session = session;
-      if (session == null) {
-        _showLoginOverlay = true;
-      }
-    });
-    await _loadBootstrap();
-    if (!mounted) return;
-    if (blockMessage != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(blockMessage),
-          backgroundColor: Colors.red.shade700,
-          duration: const Duration(seconds: 6),
-        ),
-      );
-    }
+    await _loadBootstrap(showLoading: _bootstrap == null);
   }
 
   Future<void> _loadBootstrap({bool showLoading = true}) async {
