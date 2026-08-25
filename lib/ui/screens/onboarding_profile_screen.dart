@@ -139,16 +139,14 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
               ),
             ),
             const SizedBox(height: 14),
-            DropdownButtonFormField<String>(
-              value: _gender,
-              decoration: const InputDecoration(
-                labelText: 'Gender',
-                border: OutlineInputBorder(),
-              ),
-              items: _genders
-                  .map((g) => DropdownMenuItem(value: g, child: Text(g)))
+            DropdownMenu<String>(
+              initialSelection: _gender,
+              label: const Text('Gender'),
+              dropdownMenuEntries: _genders
+                  .map((g) => DropdownMenuEntry<String>(value: g, label: g))
                   .toList(),
-              onChanged: (v) => setState(() => _gender = v),
+              onSelected: (v) => setState(() => _gender = v),
+              expandedInsets: EdgeInsets.zero,
             ),
             const SizedBox(height: 14),
             ListTile(

@@ -94,8 +94,6 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     return 'Ready for readers';
   }
 
-  bool get _canPublish => _readinessPct >= 100 && !_saving;
-
   @override
   void initState() {
     super.initState();

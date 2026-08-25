@@ -579,14 +579,7 @@ class ApiService {
     }
   }
 
-  /// Fetch /api/me — returns profile completeness flags.
-  Future<Map<String, dynamic>> fetchMe() async {
-    final response = await _get('/api/me', timeout: const Duration(seconds: 10));
-    _ensureSuccessResponse(response);
-    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
-  }
-
-Future<void> addLibraryEntry(Map<String, dynamic> payload) async {
+  Future<void> addLibraryEntry(Map<String, dynamic> payload) async {
     final response = await _post(
       '/api/library',
       payload,
