@@ -10,7 +10,6 @@ class LoginScreen extends StatefulWidget {
   });
 
   /// method: google | email | guest
-  /// For email, pass email, password, mode (login|register), optional displayName.
   final Future<void> Function(
     String method, {
     String? email,
@@ -73,20 +72,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         register ? 'Create account' : 'Sign in with email',
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        register
-                            ? 'Use a password (min 6 characters). This is required — email-only login is disabled for security.'
-                            : 'Enter the email and password for your account.',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: AppTheme.muted,
-                            ),
-                      ),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 16),
                       if (register) ...[
                         TextFormField(
                           controller: nameCtrl,
-                          textCapitalization: TextCapitalization.words,
                           decoration: const InputDecoration(
                             labelText: 'Display name',
                             border: OutlineInputBorder(),
@@ -97,7 +86,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       TextFormField(
                         controller: emailCtrl,
                         keyboardType: TextInputType.emailAddress,
-                        autofillHints: const [AutofillHints.email],
                         decoration: const InputDecoration(
                           labelText: 'Email',
                           border: OutlineInputBorder(),
@@ -114,11 +102,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       TextFormField(
                         controller: passCtrl,
                         obscureText: obscure,
-                        autofillHints: [
-                          register
-                              ? AutofillHints.newPassword
-                              : AutofillHints.password,
-                        ],
                         decoration: InputDecoration(
                           labelText: 'Password',
                           border: const OutlineInputBorder(),
@@ -209,93 +192,62 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
         child: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return SingleChildScrollView(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 32, 24, 28),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const SizedBox(height: 48),
-                        Text(
-                          'Inkitt',
-                          style: Theme.of(context)
-                              .textTheme
-                              .headlineLarge
-                              ?.copyWith(
-                                fontSize: 54,
-                                fontFamily: 'serif',
-                                fontWeight: FontWeight.w700,
-                              ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Discover Millions of Free Books',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(color: AppTheme.muted),
-                        ),
-                        const SizedBox(height: 40),
-                        if (_busy)
-                          const Padding(
-                            padding: EdgeInsets.only(bottom: 16),
-                            child: Center(child: CircularProgressIndicator()),
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'NovelHub',
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.ink,
                           ),
-                        _LoginButton(
-                          icon: Icons.g_mobiledata_rounded,
-                          label: 'Continue with Google',
-                          onPressed: _busy
-                              ? null
-                              : () => _run(() => widget.onContinue('google')),
-                        ),
-                        const SizedBox(height: 12),
-                        _LoginButton(
-                          icon: Icons.email_outlined,
-                          label: 'Sign in with Email',
-                          onPressed:
-                              _busy ? null : () => _openEmailAuth(register: false),
-                        ),
-                        // TEMPORARILY HIDDEN — Create account with Email
-                        // const SizedBox(height: 12),
-                        // _LoginButton(
-                        //   icon: Icons.person_add_alt_1_outlined,
-                        //   label: 'Create account with Email',
-                        //   onPressed:
-                        //       _busy ? null : () => _openEmailAuth(register: true),
-                        // ),
-                        const SizedBox(height: 12),
-                        _LoginButton(
-                          icon: Icons.person_outline,
-                          label: 'Continue as Guest',
-                          onPressed: _busy
-                              ? null
-                              : () => _run(() => widget.onContinue('guest')),
-                        ),
-                        if (widget.onSkipAsReader != null) ...[
-                          const SizedBox(height: 12),
-                          TextButton(
-                            onPressed: _busy ? null : widget.onSkipAsReader,
-                            child: const Text(
-                              'Browse stories only (read-only, no account)',
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 24),
-                        Text(
-                          'Banned or suspended accounts cannot sign in. '
-                      ],
                     ),
-                  ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Discover millions of free books',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: const Color(0xFF525252),
+                          ),
+                    ),
+                    const SizedBox(height: 36),
+                    if (_busy)
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 16),
+                        child: CircularProgressIndicator(),
+                      ),
+                    _LoginButton(
+                      icon: Icons.g_mobiledata,
+                      label: 'Continue with Google',
+                      onPressed: _busy
+                          ? null
+                          : () => _run(() => widget.onContinue('google')),
+                    ),
+                    const SizedBox(height: 12),
+                    _LoginButton(
+                      icon: Icons.email_outlined,
+                      label: 'Sign in with email',
+                      onPressed: _busy
+                          ? null
+                          : () => _openEmailAuth(register: false),
+                    ),
+                    const SizedBox(height: 12),
+                    _LoginButton(
+                      icon: Icons.person_outline,
+                      label: 'Continue as Guest',
+                      onPressed: _busy
+                          ? null
+                          : () => _run(() => widget.onContinue('guest')),
+                    ),
+                  ],
                 ),
-              );
-            },
+              ),
+            ),
           ),
         ),
       ),

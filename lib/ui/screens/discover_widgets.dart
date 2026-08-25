@@ -181,9 +181,8 @@ class _ExploreStoriesSectionState extends State<_ExploreStoriesSection> {
         SizedBox(
           height: 210,
           child: PageView.builder(
-              padEnds: false,
             controller: _pageController,
-            padEnds: true,
+            padEnds: false,
             itemCount: _validBooks.length,
             onPageChanged: (index) => setState(() => _activeIndex = index),
             itemBuilder: (context, index) {
@@ -340,9 +339,8 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
           SizedBox(
             height: 200,
             child: PageView.builder(
-              padEnds: false,
               controller: _pageController,
-              padEnds: true,
+              padEnds: false,
               itemCount: widget.section.books.where((e) => e.id > 0).length,
               onPageChanged: (index) => setState(() => _activeIndex = index),
               itemBuilder: (context, index) {

@@ -2673,6 +2673,46 @@ def get_story_chapter_revisions(chapter_id: int):
 
 
 @app.post("/api/write/stories/{story_id}/chapters")
+def _word_count(text: str) -> int:
+    return len([w for w in str(text or "").split() if w.strip()])
+
+
+def _promote_author_and_maybe_publish(user_id: int, story_id: int, chapter_content: str) -> None:
+    """If chapter has >= 50 words: mark user as author.
+    If story is Completed/Published and has a >=50-word chapter, keep visible.
+    If story is Draft/Ongoing without enough content, stays private.
+    """
+    words = _word_count(chapter_content)
+    if words >= 50:
+        try:
+            execute_write(
+                "UPDATE app_users SET is_author=1, is_author_active=1 WHERE id=%s",
+                (user_id,),
+            )
+        except Exception:
+            try:
+                execute_write("UPDATE app_users SET is_author=1 WHERE id=%s", (user_id,))
+            except Exception:
+                pass
+    # Visibility: only Completed/Published stories with >=50 word chapter are public
+    try:
+        rows = fetch_all("SELECT status_text FROM books WHERE id=%s LIMIT 1", (story_id,))
+        st = str((rows[0].get("status_text") if rows else "") or "").lower()
+        if st in ("completed", "complete", "published") and words >= 50:
+            execute_write(
+                "UPDATE books SET status_text=%s, section_name=%s WHERE id=%s",
+                ("Published" if "publish" in st or st == "published" else "Completed", "recently_updated", story_id),
+            )
+        elif st in ("completed", "complete", "published") and words < 50:
+            # Not enough content — keep private
+            execute_write(
+                "UPDATE books SET status_text=%s WHERE id=%s",
+                ("Draft", story_id),
+            )
+    except Exception as exc:
+        LOGGER.warning("promote visibility failed: %s", exc)
+
+@app.post("/api/write/stories")
 def create_story_chapter(story_id: int, payload: ChapterCreateRequest):
     try:
         story_rows = fetch_all("SELECT id FROM books WHERE id=%s", (story_id,))
@@ -2991,46 +3031,6 @@ def _serialize_book(row: Any) -> dict[str, Any]:
 
 
 
-def _word_count(text: str) -> int:
-    return len([w for w in str(text or "").split() if w.strip()])
-
-
-def _promote_author_and_maybe_publish(user_id: int, story_id: int, chapter_content: str) -> None:
-    """If chapter has >= 50 words: mark user as author.
-    If story is Completed/Published and has a >=50-word chapter, keep visible.
-    If story is Draft/Ongoing without enough content, stays private.
-    """
-    words = _word_count(chapter_content)
-    if words >= 50:
-        try:
-            execute_write(
-                "UPDATE app_users SET is_author=1, is_author_active=1 WHERE id=%s",
-                (user_id,),
-            )
-        except Exception:
-            try:
-                execute_write("UPDATE app_users SET is_author=1 WHERE id=%s", (user_id,))
-            except Exception:
-                pass
-    # Visibility: only Completed/Published stories with >=50 word chapter are public
-    try:
-        rows = fetch_all("SELECT status_text FROM books WHERE id=%s LIMIT 1", (story_id,))
-        st = str((rows[0].get("status_text") if rows else "") or "").lower()
-        if st in ("completed", "complete", "published") and words >= 50:
-            execute_write(
-                "UPDATE books SET status_text=%s, section_name=%s WHERE id=%s",
-                ("Published" if "publish" in st or st == "published" else "Completed", "recently_updated", story_id),
-            )
-        elif st in ("completed", "complete", "published") and words < 50:
-            # Not enough content — keep private
-            execute_write(
-                "UPDATE books SET status_text=%s WHERE id=%s",
-                ("Draft", story_id),
-            )
-    except Exception as exc:
-        LOGGER.warning("promote visibility failed: %s", exc)
-
-@app.post("/api/write/stories")
 def create_writer_story(
     payload: StoryCreateRequest,
     user: dict[str, Any] = Depends(require_user),
