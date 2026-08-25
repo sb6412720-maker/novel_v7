@@ -101,6 +101,44 @@ class AuthService {
 
   /// Restore session only if the server still accepts the token.
   /// Banned / suspended / revoked sessions are cleared immediately.
+
+  /// Pull latest profile from /api/me into local session (after onboarding).
+  Future<AuthSession?> refreshSessionFromServer() async {
+    final prefs = await SharedPreferences.getInstance();
+    final methodName = prefs.getString(_methodKey);
+    final token = prefs.getString(_tokenKey);
+    if (methodName == null || token == null || token.isEmpty) return null;
+    _apiService.setAuthToken(token);
+    try {
+      final me = await _apiService.fetchMe();
+      if (me.isEmpty) return null;
+      if (me['display_name'] != null) {
+        await prefs.setString(_displayNameKey, me['display_name'].toString());
+      }
+      final photo = (me['photo_url'] ?? me['avatar_url'] ?? '').toString();
+      if (photo.isNotEmpty) {
+        await prefs.setString(_photoUrlKey, photo);
+      }
+      if (me['id'] is num) {
+        await prefs.setInt(_idKey, (me['id'] as num).toInt());
+      }
+      if (me['email'] != null) {
+        await prefs.setString(_emailKey, me['email'].toString());
+      }
+      return AuthSession(
+        id: prefs.getInt(_idKey),
+        method: methodName,
+        email: prefs.getString(_emailKey) ?? me['email']?.toString() ?? '',
+        displayName: prefs.getString(_displayNameKey) ??
+            me['display_name']?.toString() ??
+            'Reader',
+        photoUrl: prefs.getString(_photoUrlKey) ?? photo,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<AuthSession?> restoreSession() async {
     final prefs = await SharedPreferences.getInstance();
     final method = prefs.getString(_methodKey);

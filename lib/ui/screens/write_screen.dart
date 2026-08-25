@@ -305,7 +305,7 @@ class _ManageStoriesTab extends StatelessWidget {
             indicatorColor: AppTheme.brand,
             tabs: writeModel.storyTabs.isNotEmpty
                 ? writeModel.storyTabs.map((e) => Tab(text: e)).toList()
-                : const [Tab(text: 'Submitted'), Tab(text: 'Drafts')],
+                : const [Tab(text: 'Published'), Tab(text: 'Drafts')],
           ),
         ),
         Padding(
@@ -363,7 +363,9 @@ class _ManageStoriesTab extends StatelessWidget {
                     .where((story) {
                       final statusText =
                           story['status_text']?.toString().toLowerCase() ?? '';
-                      final isDraft = statusText.contains('draft');
+                      final isDraft = statusText.contains('draft') ||
+                          statusText.contains('ongoing') ||
+                          statusText.isEmpty;
                       if (storySubTabs.index == 0 && isDraft) {
                         return false;
                       }

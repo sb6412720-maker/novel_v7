@@ -51,6 +51,8 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
   void dispose() {
     _nameCtrl.dispose();
     _bioCtrl.dispose();
+    _emailCtrl.dispose();
+    _passCtrl.dispose();
     super.dispose();
   }
 
@@ -125,6 +127,13 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
         if (_photoUrl.isNotEmpty) 'photo_url': _photoUrl,
         if (_coverUrl.isNotEmpty) 'cover_url': _coverUrl,
       });
+      final em = _emailCtrl.text.trim();
+      final pw = _passCtrl.text;
+      if (em.contains('@') && pw.length >= 6) {
+        try {
+          await widget.apiService.linkEmailPassword(email: em, password: pw);
+        } catch (_) {}
+      }
       if (!mounted) return;
       widget.onDone();
     } catch (e) {
@@ -291,6 +300,39 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
               ),
               trailing: const Icon(Icons.calendar_today_outlined),
               onTap: _pickBirthDate,
+            ),
+
+            const SizedBox(height: 8),
+            Text(
+              'Account login (optional)',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Set an email and password so you can also sign in without Google.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.black54),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              style: const TextStyle(color: Colors.black87),
+              decoration: const InputDecoration(
+                labelText: 'Email (optional)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _passCtrl,
+              obscureText: true,
+              style: const TextStyle(color: Colors.black87),
+              decoration: const InputDecoration(
+                labelText: 'Password (optional, min 6)',
+                border: OutlineInputBorder(),
+              ),
             ),
             const SizedBox(height: 24),
             SizedBox(

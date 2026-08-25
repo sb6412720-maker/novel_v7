@@ -1748,6 +1748,55 @@ def update_me(
     }
 
 
+
+class LinkEmailRequest(BaseModel):
+    email: str
+    password: str
+
+
+@app.post("/api/me/link-email")
+def link_email_password(
+    payload: LinkEmailRequest,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Attach email+password so Google users can also sign in with email."""
+    email = (payload.email or "").strip().lower()
+    password = payload.password or ""
+    if "@" not in email or len(password) < 6:
+        raise HTTPException(status_code=400, detail="Valid email and password (min 6) required")
+    try:
+        _ensure_password_hash_column()
+    except Exception:
+        pass
+    # Hash with same helper as email auth if present
+    try:
+        from passlib.hash import bcrypt
+        pw_hash = bcrypt.hash(password)
+    except Exception:
+        import hashlib
+        pw_hash = hashlib.sha256(password.encode()).hexdigest()
+    # Ensure email unique
+    existing = fetch_all(
+        "SELECT id FROM app_users WHERE LOWER(email)=%s AND id<>%s LIMIT 1",
+        (email, user["user_id"]),
+    )
+    if existing:
+        raise HTTPException(status_code=409, detail="Email already in use")
+    try:
+        execute_write(
+            """
+            UPDATE app_users
+            SET email=%s, password_hash=%s, updated_at=CURRENT_TIMESTAMP
+            WHERE id=%s
+            """,
+            (email, pw_hash, user["user_id"]),
+        )
+    except Exception as exc:
+        LOGGER.warning("link-email failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Could not link email")
+    return {"ok": True, "email": email}
+
+
 @app.api_route("/api/admin/session", methods=["GET", "POST"])
 def admin_session(_: dict[str, Any] = Depends(require_admin)):
     """Validate admin Bearer token. Accepts GET or POST so clients can use either."""

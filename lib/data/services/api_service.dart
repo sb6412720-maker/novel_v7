@@ -565,6 +565,18 @@ class ApiService {
 
   
   /// Update signed-in user profile (onboarding + settings).
+  Future<void> linkEmailPassword({
+    required String email,
+    required String password,
+  }) async {
+    final response = await _post(
+      '/api/me/link-email',
+      {'email': email, 'password': password},
+      timeout: const Duration(seconds: 30),
+    );
+    _ensureSuccessResponse(response);
+  }
+
   Future<Map<String, dynamic>> updateMyProfile(Map<String, dynamic> payload) async {
     final response = await _put(
       '/api/me',
@@ -673,7 +685,7 @@ class ApiService {
     try {
       final response = await _get(
         '/api/write/stories',
-        timeout: const Duration(seconds: 8),
+        timeout: const Duration(seconds: 30),
       );
       if (response.statusCode != 200) return const <Map<String, dynamic>>[];
       final payload = jsonDecode(response.body) as Map<String, dynamic>;

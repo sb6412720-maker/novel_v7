@@ -33,10 +33,33 @@ class MoreScreen extends StatelessWidget {
           session: session,
           onSignOut: onSignOut,
           onOpenProfile: () {
+            final p = data.profile;
+            final enriched = ProfileModel(
+              id: session.id ?? p.id,
+              displayName: session.displayName.isNotEmpty
+                  ? session.displayName
+                  : p.displayName,
+              username: p.username,
+              photoUrl: (session.photoUrl != null && session.photoUrl!.isNotEmpty)
+                  ? session.photoUrl!
+                  : p.photoUrl,
+              coverUrl: p.coverUrl,
+              following: p.following,
+              followers: p.followers,
+              blocked: p.blocked,
+              chaptersRead: p.chaptersRead,
+              socialKarma: p.socialKarma,
+              dayStreak: p.dayStreak,
+              readingLists: p.readingLists,
+              isAuthor: p.isAuthor,
+              bio: p.bio,
+              gender: p.gender,
+              birthDate: p.birthDate,
+            );
             Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => ProfileScreen(
-                  profile: data.profile,
+                  profile: enriched,
                   apiService: apiService,
                   achievements: data.achievements,
                 ),
@@ -58,7 +81,24 @@ class MoreScreen extends StatelessWidget {
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (_) => ProfileScreen(
-                      profile: data.profile,
+                      profile: ProfileModel(
+                    id: session.id ?? data.profile.id,
+                    displayName: session.displayName.isNotEmpty ? session.displayName : data.profile.displayName,
+                    username: data.profile.username,
+                    photoUrl: (session.photoUrl != null && session.photoUrl!.isNotEmpty) ? session.photoUrl! : data.profile.photoUrl,
+                    coverUrl: data.profile.coverUrl,
+                    following: data.profile.following,
+                    followers: data.profile.followers,
+                    blocked: data.profile.blocked,
+                    chaptersRead: data.profile.chaptersRead,
+                    socialKarma: data.profile.socialKarma,
+                    dayStreak: data.profile.dayStreak,
+                    readingLists: data.profile.readingLists,
+                    isAuthor: data.profile.isAuthor,
+                    bio: data.profile.bio,
+                    gender: data.profile.gender,
+                    birthDate: data.profile.birthDate,
+                  ),
                       apiService: apiService,
                       achievements: data.achievements,
                     ),
@@ -78,7 +118,24 @@ class MoreScreen extends StatelessWidget {
                   MaterialPageRoute<void>(
                     builder: (_) => AchievementsScreen(
                       achievements: data.achievements,
-                      profile: data.profile,
+                      profile: ProfileModel(
+                    id: session.id ?? data.profile.id,
+                    displayName: session.displayName.isNotEmpty ? session.displayName : data.profile.displayName,
+                    username: data.profile.username,
+                    photoUrl: (session.photoUrl != null && session.photoUrl!.isNotEmpty) ? session.photoUrl! : data.profile.photoUrl,
+                    coverUrl: data.profile.coverUrl,
+                    following: data.profile.following,
+                    followers: data.profile.followers,
+                    blocked: data.profile.blocked,
+                    chaptersRead: data.profile.chaptersRead,
+                    socialKarma: data.profile.socialKarma,
+                    dayStreak: data.profile.dayStreak,
+                    readingLists: data.profile.readingLists,
+                    isAuthor: data.profile.isAuthor,
+                    bio: data.profile.bio,
+                    gender: data.profile.gender,
+                    birthDate: data.profile.birthDate,
+                  ),
                     ),
                   ),
                 );
@@ -92,7 +149,24 @@ class MoreScreen extends StatelessWidget {
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (_) => ReadingStatsScreen(
-                      profile: data.profile,
+                      profile: ProfileModel(
+                    id: session.id ?? data.profile.id,
+                    displayName: session.displayName.isNotEmpty ? session.displayName : data.profile.displayName,
+                    username: data.profile.username,
+                    photoUrl: (session.photoUrl != null && session.photoUrl!.isNotEmpty) ? session.photoUrl! : data.profile.photoUrl,
+                    coverUrl: data.profile.coverUrl,
+                    following: data.profile.following,
+                    followers: data.profile.followers,
+                    blocked: data.profile.blocked,
+                    chaptersRead: data.profile.chaptersRead,
+                    socialKarma: data.profile.socialKarma,
+                    dayStreak: data.profile.dayStreak,
+                    readingLists: data.profile.readingLists,
+                    isAuthor: data.profile.isAuthor,
+                    bio: data.profile.bio,
+                    gender: data.profile.gender,
+                    birthDate: data.profile.birthDate,
+                  ),
                     ),
                   ),
                 );
@@ -119,7 +193,24 @@ class MoreScreen extends StatelessWidget {
                   MaterialPageRoute<void>(
                     builder: (_) => AchievementsScreen(
                       achievements: data.achievements,
-                      profile: data.profile,
+                      profile: ProfileModel(
+                    id: session.id ?? data.profile.id,
+                    displayName: session.displayName.isNotEmpty ? session.displayName : data.profile.displayName,
+                    username: data.profile.username,
+                    photoUrl: (session.photoUrl != null && session.photoUrl!.isNotEmpty) ? session.photoUrl! : data.profile.photoUrl,
+                    coverUrl: data.profile.coverUrl,
+                    following: data.profile.following,
+                    followers: data.profile.followers,
+                    blocked: data.profile.blocked,
+                    chaptersRead: data.profile.chaptersRead,
+                    socialKarma: data.profile.socialKarma,
+                    dayStreak: data.profile.dayStreak,
+                    readingLists: data.profile.readingLists,
+                    isAuthor: data.profile.isAuthor,
+                    bio: data.profile.bio,
+                    gender: data.profile.gender,
+                    birthDate: data.profile.birthDate,
+                  ),
                     ),
                   ),
                 );

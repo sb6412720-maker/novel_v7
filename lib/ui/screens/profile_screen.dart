@@ -769,6 +769,10 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   // ─── About ───────────────────────────────────────────────
   Widget _buildAboutTab() {
+    final gender = _s(_userProfile?['gender']);
+    final birth = _s(_userProfile?['birth_date']);
+    // shown in details below
+
     final lists = _readingLists.isNotEmpty
         ? _readingLists
         : widget.profile.readingLists
@@ -782,6 +786,23 @@ class _ProfileScreenState extends State<ProfileScreen>
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
       children: [
+        if (gender.isNotEmpty || birth.isNotEmpty) ...[
+          if (gender.isNotEmpty)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.person_outline, size: 20),
+              title: Text(gender),
+              dense: true,
+            ),
+          if (birth.isNotEmpty)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.cake_outlined, size: 20),
+              title: Text(birth),
+              dense: true,
+            ),
+          const SizedBox(height: 8),
+        ],
         // Stat cards — 2 top + 1 full width (video layout)
         Row(
           children: [

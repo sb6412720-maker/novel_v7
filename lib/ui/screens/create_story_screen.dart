@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../data/services/api_service.dart';
+import 'edit_chapter_screen.dart';
 
 /// Mobile "New Story" screen matching the dark HTML prototype:
 /// cover upload, draft readiness meter, title/summary counters,
@@ -356,7 +357,19 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
           ),
         );
       }
-      Navigator.of(context).pop(true);
+      if (storyId > 0) {
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => EditChapterScreen(
+              apiService: widget.apiService,
+              storyId: storyId,
+              createNew: true,
+              chapterTitle: 'Chapter 1',
+            ),
+          ),
+        );
+      }
+      if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

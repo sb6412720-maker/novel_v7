@@ -217,6 +217,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
 
   bool _onboardingChecked = false;
 
+
   Future<void> _maybeShowOnboarding(AuthSession session) async {
     if (session.isGuest) return;
     try {
@@ -224,12 +225,10 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       final complete = me['profile_complete'] == true ||
           me['profile_complete'] == 1 ||
           me['profile_complete'] == '1';
-      if (complete) {
-        _onboardingChecked = true;
-        return;
-      }
+      if (complete) return;
       final name = (me['display_name'] ?? session.displayName).toString().trim();
-      final photo = (me['photo_url'] ?? me['avatar_url'] ?? session.photoUrl ?? '').toString();
+      final photo =
+          (me['photo_url'] ?? me['avatar_url'] ?? session.photoUrl ?? '').toString();
       if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
@@ -246,11 +245,12 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
           ),
         ),
       );
-      _onboardingChecked = true;
+      final refreshed = await _authService.refreshSessionFromServer();
+      if (mounted && refreshed != null) {
+        setState(() => _session = refreshed);
+      }
       unawaited(_loadBootstrap(showLoading: false));
-    } catch (_) {
-      _onboardingChecked = true;
-    }
+    } catch (_) {}
   }
 
   Future<void> _signOut() async {
