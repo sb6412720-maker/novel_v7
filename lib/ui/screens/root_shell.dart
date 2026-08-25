@@ -8,6 +8,7 @@ import '../../data/services/auth_service.dart';
 import 'discover_screen.dart';
 import 'library_screen.dart';
 import 'login_screen.dart';
+import 'onboarding_profile_screen.dart';
 import 'more_screen.dart';
 import 'notifications_screen.dart';
 import 'write_screen.dart';
@@ -168,6 +169,11 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       });
       await _loadBootstrap();
       if (!mounted) return;
+      // Prompt profile completion for real accounts (not guest)
+      if (!session.isGuest) {
+        await _maybeShowOnboarding(session);
+        if (!mounted) return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -205,6 +211,37 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
           duration: const Duration(seconds: 5),
         ),
       );
+    }
+  }
+
+
+  Future<void> _maybeShowOnboarding(AuthSession session) async {
+    try {
+      final me = await _apiService.fetchMe();
+      final complete = me['profile_complete'] == true ||
+          me['profile_complete'] == 1 ||
+          me['profile_complete'] == '1';
+      if (complete) return;
+      final name = (me['display_name'] ?? session.displayName).toString().trim();
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          fullscreenDialog: true,
+          builder: (_) => OnboardingProfileScreen(
+            apiService: _apiService,
+            initialDisplayName: name.toLowerCase() == 'reader' ? '' : name,
+            initialPhotoUrl: (me['photo_url'] ?? me['avatar_url'] ?? '').toString(),
+            onDone: () {
+              if (Navigator.of(context).canPop()) {
+                Navigator.of(context).pop();
+              }
+            },
+          ),
+        ),
+      );
+      await _loadBootstrap(showLoading: false);
+    } catch (_) {
+      // Non-fatal
     }
   }
 

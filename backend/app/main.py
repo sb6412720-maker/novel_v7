@@ -164,6 +164,9 @@ class ProfileUpdateRequest(BaseModel):
     photo_url: str | None = None
     cover_url: str | None = None
     bio: str | None = None
+    gender: str | None = None
+    birth_date: str | None = None
+    profile_complete: bool | None = None
 
 
 class CategoryCreateRequest(BaseModel):
@@ -726,6 +729,29 @@ def _user_access_block_reason(user_id: int) -> str | None:
             return "This account is temporarily suspended"
     return None
 
+
+
+def _ensure_profile_extra_columns() -> None:
+    """gender, birth_date, profile_complete on app_users (MySQL/SQLite safe)."""
+    cols = [
+        ("gender", "ALTER TABLE app_users ADD COLUMN gender VARCHAR(40) NULL"),
+        ("birth_date", "ALTER TABLE app_users ADD COLUMN birth_date VARCHAR(20) NULL"),
+        ("profile_complete", "ALTER TABLE app_users ADD COLUMN profile_complete TINYINT(1) NOT NULL DEFAULT 0"),
+    ]
+    for col, sql in cols:
+        try:
+            if USE_SQLITE:
+                # SQLite: check pragma
+                rows = fetch_all(f"PRAGMA table_info(app_users)")
+                names = {r.get("name") if isinstance(r, dict) else r[1] for r in (rows or [])}
+                if col not in names:
+                    execute_write(sql.replace("TINYINT(1) NOT NULL DEFAULT 0", "INTEGER DEFAULT 0").replace("VARCHAR(40)", "TEXT").replace("VARCHAR(20)", "TEXT"), ())
+            else:
+                cursor_check = fetch_all(f"SHOW COLUMNS FROM app_users LIKE %s", (col,))
+                if not cursor_check:
+                    execute_write(sql, ())
+        except Exception as exc:
+            LOGGER.warning("ensure profile col %s: %s", col, exc)
 
 def require_user(authorization: str | None = Header(default=None)) -> dict[str, Any]:
     if not authorization or not authorization.lower().startswith("bearer "):
@@ -1442,8 +1468,12 @@ def authenticate_guest(_: GuestAuthRequest):
 
 @app.get("/api/me")
 def get_me(user: dict[str, Any] = Depends(require_user)):
+    try:
+        _ensure_profile_extra_columns()
+    except Exception:
+        pass
     rows = fetch_all(
-        "SELECT id, email, display_name, photo_url, cover_url, bio, provider FROM app_users WHERE id=%s LIMIT 1",
+        "SELECT id, email, display_name, photo_url, cover_url, bio, provider, gender, birth_date, COALESCE(profile_complete,0) AS profile_complete, COALESCE(is_author,0) AS is_author FROM app_users WHERE id=%s LIMIT 1",
         (user["user_id"],),
     )
     if not rows:
@@ -1495,6 +1525,10 @@ def get_me(user: dict[str, Any] = Depends(require_user)):
         "story_count": story_count,
         "library_count": library_count,
         "reading_list_count": reading_list_count,
+        "gender": _row_get(u, "gender") or "",
+        "birth_date": _row_get(u, "birth_date") or "",
+        "profile_complete": bool(int(_row_get(u, "profile_complete") or 0)),
+        "is_author": bool(int(_row_get(u, "is_author") or 0)),
     }
 
 
@@ -1608,8 +1642,12 @@ def update_me(
     payload: ProfileUpdateRequest,
     user: dict[str, Any] = Depends(require_user),
 ):
+    try:
+        _ensure_profile_extra_columns()
+    except Exception:
+        pass
     rows = fetch_all(
-        "SELECT id, display_name, photo_url, cover_url, bio FROM app_users WHERE id=%s LIMIT 1",
+        "SELECT id, display_name, photo_url, cover_url, bio, gender, birth_date, COALESCE(profile_complete,0) AS profile_complete FROM app_users WHERE id=%s LIMIT 1",
         (user["user_id"],),
     )
     if not rows:
@@ -1620,14 +1658,31 @@ def update_me(
     next_photo_url = payload.photo_url if payload.photo_url is not None else _row_get(current, "photo_url")
     next_cover_url = payload.cover_url if payload.cover_url is not None else _row_get(current, "cover_url")
     next_bio = payload.bio if payload.bio is not None else _row_get(current, "bio")
+    next_gender = payload.gender if payload.gender is not None else _row_get(current, "gender")
+    next_birth = payload.birth_date if payload.birth_date is not None else _row_get(current, "birth_date")
+    next_complete = 1 if payload.profile_complete else int(_row_get(current, "profile_complete") or 0)
+    if payload.profile_complete is False:
+        next_complete = 0
+    if payload.display_name and payload.bio is not None:
+        next_complete = 1
 
     execute_write(
         """
         UPDATE app_users
-        SET display_name=%s, photo_url=%s, cover_url=%s, bio=%s, updated_at=CURRENT_TIMESTAMP
+        SET display_name=%s, photo_url=%s, cover_url=%s, bio=%s,
+            gender=%s, birth_date=%s, profile_complete=%s, updated_at=CURRENT_TIMESTAMP
         WHERE id=%s
         """,
-        (next_display_name, next_photo_url, next_cover_url, next_bio, user["user_id"]),
+        (
+            next_display_name,
+            next_photo_url,
+            next_cover_url,
+            next_bio,
+            next_gender or "",
+            next_birth or "",
+            next_complete,
+            user["user_id"],
+        ),
     )
     return {
         "ok": True,
@@ -1635,6 +1690,9 @@ def update_me(
         "photo_url": next_photo_url or "",
         "cover_url": next_cover_url or "",
         "bio": next_bio or "",
+        "gender": next_gender or "",
+        "birth_date": next_birth or "",
+        "profile_complete": bool(next_complete),
     }
 
 

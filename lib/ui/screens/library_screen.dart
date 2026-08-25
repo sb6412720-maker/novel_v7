@@ -69,7 +69,20 @@ class _LibraryScreenState extends State<LibraryScreen>
   Future<void> _loadEntries() async {
     setState(() => _loading = true);
     try {
-      final rows = await widget.apiService.fetchLibraryEntries();
+      // Retry once — token may still be settling after login
+      List<Map<String, dynamic>> rows = [];
+      Object? lastErr;
+      for (var attempt = 0; attempt < 2; attempt++) {
+        try {
+          rows = await widget.apiService.fetchLibraryEntries();
+          lastErr = null;
+          break;
+        } catch (e) {
+          lastErr = e;
+          await Future<void>.delayed(const Duration(milliseconds: 400));
+        }
+      }
+      if (lastErr != null) throw lastErr;
       if (!mounted) return;
       setState(() {
         _entries = rows.map(LibraryEntryModel.fromMap).toList();
