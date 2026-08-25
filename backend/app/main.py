@@ -704,7 +704,7 @@ def _user_access_block_reason(user_id: int) -> str | None:
         (user_id,),
     )
     if not rows:
-        return "Account not found (user id missing in app_users — confirm MYSQL_DATABASE=novel_app_db_v2)"
+        return "Account not found (user id missing in app_users — confirm MYSQL_DATABASE=defaultdb)"
     row = rows[0]
     if int(_row_get(row, "is_deleted") or 0) == 1:
         return "This account has been deleted by an administrator"
@@ -1192,6 +1192,28 @@ def startup_initialize_database():
         LOGGER.exception("Unexpected error running startup tasks: %s", exc)
 
 
+
+@app.get("/favicon.ico")
+def favicon():
+    """Avoid noisy browser 404s on Vercel."""
+    from fastapi.responses import Response
+    # 1x1 transparent PNG
+    import base64
+    png = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+    )
+    return Response(content=png, media_type="image/png")
+
+
+@app.get("/")
+def root():
+    return {
+        "ok": True,
+        "service": "novelhub-api",
+        "docs": "/docs",
+        "health": "/api/health",
+    }
+
 @app.get("/api/health")
 def health():
     """Local/debug: confirm DB mode and row counts after auto-migrate/seed."""
@@ -1211,7 +1233,7 @@ def health():
         return {
             "ok": True,
             "db_mode": "sqlite" if _live_use_sqlite() else "mysql",
-            "mysql_database": _os.getenv("MYSQL_DATABASE", "novel_app_db_v2"),
+            "mysql_database": _os.getenv("MYSQL_DATABASE", "defaultdb"),
             "sqlite_file": str(getattr(db_mod, "SQLITE_FILE", "")),
             "books": _c(books),
             "categories": _c(cats),
@@ -1319,7 +1341,7 @@ def authenticate_google(payload: GoogleAuthRequest):
         if not user_id:
             raise HTTPException(
                 status_code=500,
-                detail="Google sign-in succeeded but user row could not be created. Check MYSQL_DATABASE=novel_app_db_v2.",
+                detail="Google sign-in succeeded but user row could not be created. Check MYSQL_DATABASE=defaultdb.",
             )
 
     try:

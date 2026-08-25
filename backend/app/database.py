@@ -615,7 +615,7 @@ def _ensure_database_exists() -> None:
         return
 
     ssl_disabled = os.getenv("MYSQL_SSL_DISABLED", "false").lower() == "true"
-    db_name = os.getenv("MYSQL_DATABASE", "novel_app_db_v2")
+    db_name = os.getenv("MYSQL_DATABASE", "defaultdb")
     if mysql_connector is None:
         raise RuntimeError("mysql.connector is not installed; install mysql-connector-python to use MySQL mode")
 
@@ -1913,7 +1913,7 @@ def get_connection():
         port=int(os.getenv("MYSQL_PORT", "3306")),
         user=os.getenv("MYSQL_USER", "root"),
         password=os.getenv("MYSQL_PASSWORD", ""),
-        database=os.getenv("MYSQL_DATABASE", "novel_app_db_v2"),
+        database=os.getenv("MYSQL_DATABASE", "defaultdb"),
         ssl_disabled=ssl_disabled,
         use_pure=True,
         connection_timeout=timeout_s,
