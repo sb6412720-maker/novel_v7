@@ -745,8 +745,15 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                                   }
                                 } catch (e) {
                                   if (ctx.mounted) {
+                                    final msg = e.toString().toLowerCase();
                                     ScaffoldMessenger.of(ctx).showSnackBar(
-                                      SnackBar(content: Text('$e')),
+                                      SnackBar(
+                                        content: Text(
+                                          msg.contains('timeout')
+                                              ? 'Server busy — try again'
+                                              : 'Error: $e',
+                                        ),
+                                      ),
                                     );
                                   }
                                 }
@@ -1654,7 +1661,12 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                                               .showSnackBar(
                                             SnackBar(
                                               content: Text(
-                                                'Could not post: $e',
+                                                e
+                                                        .toString()
+                                                        .toLowerCase()
+                                                        .contains('timeout')
+                                                    ? 'Server busy — post again in a moment'
+                                                    : 'Could not post: $e',
                                               ),
                                             ),
                                           );

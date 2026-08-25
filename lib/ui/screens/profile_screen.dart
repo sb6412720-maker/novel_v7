@@ -63,7 +63,17 @@ class _ProfileScreenState extends State<ProfileScreen>
   Future<void> _loadAll() async {
     setState(() => _loadingProfile = true);
     try {
-      final me = await widget.apiService.fetchMe();
+      Map<String, dynamic> me = {};
+      try {
+        me = await widget.apiService.fetchMeStrict();
+      } catch (_) {
+        try {
+          await Future<void>.delayed(const Duration(seconds: 2));
+          me = await widget.apiService.fetchMe();
+        } catch (_) {
+          me = {};
+        }
+      }
       final meId = _asInt(me['id'] ?? me['user_id']);
       final viewId = widget.viewingUserId;
       _isOwnProfile = viewId == null || (meId != 0 && viewId == meId);
@@ -252,9 +262,13 @@ class _ProfileScreenState extends State<ProfileScreen>
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e')),
-      );
+      final msg = e.toString().toLowerCase();
+      final text = (msg.contains('timeout') || msg.contains('timed out'))
+          ? 'Server busy — tap Follow again'
+          : (msg.contains('401') || msg.contains('unauthorized'))
+              ? 'Sign in to follow authors'
+              : 'Could not update follow';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
     }
   }
 

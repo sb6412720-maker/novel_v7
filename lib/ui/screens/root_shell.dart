@@ -226,10 +226,12 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
           ),
         ),
       );
+      // Profile was just saved — force session + home profile from /api/me
       final refreshed = await _authService.refreshSessionFromServer();
       if (mounted && refreshed != null) {
         setState(() => _session = refreshed);
       }
+      // Soft refresh bootstrap so Profile tab gets new name/photo when it uses bootstrap fallback
       unawaited(_loadBootstrap(showLoading: false));
     } catch (_) {}
   }

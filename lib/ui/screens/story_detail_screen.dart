@@ -175,11 +175,15 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
       }
       if (!mounted) return;
       setState(() => _isFollowing = !_isFollowing);
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please sign in to follow authors')),
-        );
+        final msg = e.toString().toLowerCase();
+        final text = (msg.contains('timeout') || msg.contains('timed out'))
+            ? 'Server busy — tap Follow again in a moment'
+            : (msg.contains('401') || msg.contains('unauthorized') || msg.contains('sign'))
+                ? 'Please sign in to follow authors'
+                : 'Could not update follow — try again';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
       }
     } finally {
       if (mounted) setState(() => _loadingFollow = false);

@@ -104,7 +104,7 @@ class ApiService {
 
   Future<http.Response> _get(
     String path, {
-    Duration timeout = const Duration(seconds: 20),
+    Duration timeout = const Duration(seconds: 30),
   }) {
     return _requestWithHostFallback(
       (baseUrl) => http.get(Uri.parse('$baseUrl$path'), headers: _authHeaders),
@@ -149,7 +149,7 @@ class ApiService {
   Future<http.Response> _post(
     String path,
     Object body, {
-    Duration timeout = const Duration(seconds: 8),
+    Duration timeout = const Duration(seconds: 45),
   }) {
     return _requestWithHostFallback(
       (baseUrl) => http.post(
@@ -164,7 +164,7 @@ class ApiService {
   Future<http.Response> _put(
     String path,
     Object body, {
-    Duration timeout = const Duration(seconds: 8),
+    Duration timeout = const Duration(seconds: 45),
   }) {
     return _requestWithHostFallback(
       (baseUrl) => http.put(
@@ -178,7 +178,7 @@ class ApiService {
 
   Future<http.Response> _delete(
     String path, {
-    Duration timeout = const Duration(seconds: 8),
+    Duration timeout = const Duration(seconds: 45),
   }) {
     return _requestWithHostFallback(
       (baseUrl) =>
@@ -265,7 +265,7 @@ class ApiService {
     try {
       final response = await _get(
         '/api/me',
-        timeout: const Duration(seconds: 6),
+        timeout: const Duration(seconds: 45),
       );
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>;
@@ -276,7 +276,7 @@ class ApiService {
 
   /// Raises on 401/403 so AuthService can force logout after ban/suspend.
   Future<Map<String, dynamic>> fetchMeStrict() async {
-    final response = await _get('/api/me', timeout: const Duration(seconds: 8));
+    final response = await _get('/api/me', timeout: const Duration(seconds: 45));
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as Map<String, dynamic>;
     }
@@ -352,7 +352,7 @@ class ApiService {
     final response = await _put(
       '/api/me',
       payload,
-      timeout: const Duration(seconds: 8),
+      timeout: const Duration(seconds: 45),
     );
     _ensureSuccessResponse(response);
     return jsonDecode(response.body) as Map<String, dynamic>;
@@ -466,7 +466,7 @@ class ApiService {
       <String, dynamic>{
         if (deviceId != null && deviceId.isNotEmpty) 'device_id': deviceId,
       },
-      timeout: const Duration(seconds: 8),
+      timeout: const Duration(seconds: 45),
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception(_authErrorBody(response));
@@ -658,7 +658,7 @@ class ApiService {
     final response = await _post(
       '/api/reading-lists',
       payload,
-      timeout: const Duration(seconds: 8),
+      timeout: const Duration(seconds: 45),
     );
     _ensureSuccessResponse(response);
     try {
@@ -687,14 +687,14 @@ class ApiService {
   Future<void> addReadingListItem(int listId, int bookId) async {
     final response = await _post('/api/reading-lists/$listId/items', {
       'book_id': bookId,
-    }, timeout: const Duration(seconds: 8));
+    }, timeout: const Duration(seconds: 45));
     _ensureSuccessResponse(response);
   }
 
   Future<void> removeReadingListItem(int listId, int itemId) async {
     final response = await _delete(
       '/api/reading-lists/$listId/items/$itemId',
-      timeout: const Duration(seconds: 8),
+      timeout: const Duration(seconds: 45),
     );
     _ensureSuccessResponse(response);
   }
@@ -702,7 +702,7 @@ class ApiService {
   Future<void> deleteReadingList(int listId) async {
     final response = await _delete(
       '/api/reading-lists/$listId',
-      timeout: const Duration(seconds: 8),
+      timeout: const Duration(seconds: 45),
     );
     _ensureSuccessResponse(response);
   }
@@ -745,7 +745,7 @@ class ApiService {
     final response = await _post(
       '/api/books/$bookId/reviews',
       payload,
-      timeout: const Duration(seconds: 8),
+      timeout: const Duration(seconds: 45),
     );
     _ensureSuccessResponse(response);
   }
@@ -798,9 +798,9 @@ class ApiService {
       '/api/books/$bookId/chapters/$chapterNumber/comments',
       {
         'body': body,
-        'paragraph_index': ?paragraphIndex,
+        if (paragraphIndex != null) 'paragraph_index': paragraphIndex,
       },
-      timeout: const Duration(seconds: 8),
+      timeout: const Duration(seconds: 45),
     );
     _ensureSuccessResponse(response);
     final payload = jsonDecode(response.body) as Map<String, dynamic>;
@@ -837,7 +837,7 @@ class ApiService {
     final response = await _post(
       '/api/books/$bookId/chapters/$chapterNumber/reactions',
       {'label': label},
-      timeout: const Duration(seconds: 8),
+      timeout: const Duration(seconds: 45),
     );
     _ensureSuccessResponse(response);
     return jsonDecode(response.body) as Map<String, dynamic>;
@@ -953,6 +953,7 @@ class ApiService {
     final response = await _post(
       '/api/authors/$authorId/follow',
       const <String, dynamic>{},
+      timeout: const Duration(seconds: 45),
     );
     _ensureSuccessResponse(response);
     try {
@@ -963,7 +964,10 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> unfollowAuthor(int authorId) async {
-    final response = await _delete('/api/authors/$authorId/follow');
+    final response = await _delete(
+      '/api/authors/$authorId/follow',
+      timeout: const Duration(seconds: 45),
+    );
     _ensureSuccessResponse(response);
     try {
       return jsonDecode(response.body) as Map<String, dynamic>;
@@ -1032,7 +1036,7 @@ class ApiService {
     final response = await _post(
       '/api/write/stories/$storyId/publish',
       const <String, dynamic>{},
-      timeout: const Duration(seconds: 8),
+      timeout: const Duration(seconds: 45),
     );
     _ensureSuccessResponse(response);
   }
@@ -1042,7 +1046,7 @@ class ApiService {
     final response = await _post(
       '/api/books/$bookId/report',
       {'reason': reason},
-      timeout: const Duration(seconds: 8),
+      timeout: const Duration(seconds: 45),
     );
     _ensureSuccessResponse(response);
     try {
@@ -1144,7 +1148,7 @@ class ApiService {
   Future<void> deleteWriterStory(int id) async {
     final response = await _delete(
       '/api/write/stories/$id',
-      timeout: const Duration(seconds: 8),
+      timeout: const Duration(seconds: 45),
     );
     _ensureSuccessResponse(response);
   }
@@ -1153,7 +1157,7 @@ class ApiService {
     try {
       final response = await _get(
         '/api/write/stories/$storyId/chapters',
-        timeout: const Duration(seconds: 8),
+        timeout: const Duration(seconds: 45),
       );
       if (response.statusCode != 200) return const <Map<String, dynamic>>[];
       final payload = jsonDecode(response.body) as Map<String, dynamic>;
@@ -1195,7 +1199,7 @@ class ApiService {
     try {
       final response = await _get(
         '/api/write/chapters/$chapterId/revisions',
-        timeout: const Duration(seconds: 8),
+        timeout: const Duration(seconds: 45),
       );
       if (response.statusCode != 200) return const <Map<String, dynamic>>[];
       final payload = jsonDecode(response.body) as Map<String, dynamic>;
@@ -1208,7 +1212,7 @@ class ApiService {
   Future<void> deleteStoryChapter(int chapterId) async {
     final response = await _delete(
       '/api/write/chapters/$chapterId',
-      timeout: const Duration(seconds: 8),
+      timeout: const Duration(seconds: 45),
     );
     _ensureSuccessResponse(response);
   }

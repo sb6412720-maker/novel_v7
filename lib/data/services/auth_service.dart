@@ -110,8 +110,8 @@ class AuthService {
     if (methodName == null || token == null || token.isEmpty) return null;
     _apiService.setAuthToken(token);
     try {
-      final me = await _apiService.fetchMe();
-      if (me.isEmpty) return null;
+      final me = await _apiService.fetchMeStrict();
+      if (me.isEmpty || me['id'] == null) return null;
       if (me['display_name'] != null) {
         await prefs.setString(_displayNameKey, me['display_name'].toString());
       }
@@ -138,6 +138,8 @@ class AuthService {
       return null;
     }
   }
+
+  
 
   Future<AuthSession?> restoreSession() async {
     final prefs = await SharedPreferences.getInstance();
@@ -168,6 +170,10 @@ class AuthService {
       if (me['id'] is num) {
         await prefs.setInt(_idKey, (me['id'] as num).toInt());
       }
+      final serverPhoto = (me['photo_url'] ?? me['avatar_url'] ?? '').toString();
+      if (serverPhoto.isNotEmpty) {
+        await prefs.setString(_photoUrlKey, serverPhoto);
+      }
       return AuthSession(
         id: prefs.getInt(_idKey),
         method: method,
@@ -175,7 +181,7 @@ class AuthService {
         displayName: prefs.getString(_displayNameKey) ??
             me['display_name']?.toString() ??
             'Reader',
-        photoUrl: prefs.getString(_photoUrlKey) ?? me['photo_url']?.toString(),
+        photoUrl: prefs.getString(_photoUrlKey) ?? serverPhoto,
       );
     } on AuthBlockedException {
       await signOut();
