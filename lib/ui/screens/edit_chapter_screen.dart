@@ -282,10 +282,10 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
       scheduledFor: null,
       successMessage: 'Chapter submitted',
     );
-    // Auto-publish parent story when a chapter is submitted (Inkitt-style).
-    try {
-      await widget.apiService.publishWriterStory(widget.storyId);
-    } catch (_) {}
+    // Do NOT force-publish the parent story here.
+    // Ongoing/Draft stories stay in Drafts; only stories marked Completed
+    // (or already Published) become visible to readers via backend promote.
+    // Backend `_promote_author_and_maybe_publish` handles Completed + 50+ words.
   }
 
   Future<void> _scheduleChapterSubmission() async {

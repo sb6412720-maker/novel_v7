@@ -32,11 +32,15 @@ class _WriteScreenState extends State<WriteScreen>
   void initState() {
     super.initState();
     _mainTabs = TabController(length: 2, vsync: this);
+    final storyTabCount = widget.data.writeScreen.storyTabs.isNotEmpty
+        ? widget.data.writeScreen.storyTabs.length
+        : 2;
+    // Default to Drafts tab (index 1) so Ongoing/Draft stories are visible
+    // right after create + chapter save.
     _storySubTabs = TabController(
-      length: widget.data.writeScreen.storyTabs.isNotEmpty
-          ? widget.data.writeScreen.storyTabs.length
-          : 2,
+      length: storyTabCount,
       vsync: this,
+      initialIndex: storyTabCount > 1 ? 1 : 0,
     );
     _analyticsSubTabs = TabController(length: 2, vsync: this);
     _storiesFuture = widget.apiService.fetchWriterStories();
@@ -155,6 +159,7 @@ class _WriteScreenState extends State<WriteScreen>
           ),
         ),
       );
+      await _reloadStories();
     } else if (choice is Map<String, dynamic>) {
       final id = (choice['id'] as num?)?.toInt();
       final chapterNo = (choice['chapter_number'] as num?)?.toInt();
@@ -170,6 +175,7 @@ class _WriteScreenState extends State<WriteScreen>
           ),
         ),
       );
+      await _reloadStories();
     }
   }
 
@@ -360,15 +366,15 @@ class _ManageStoriesTab extends StatelessWidget {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                // Tab 0 = Submitted (Completed / Published)
-                // Tab 1 = Drafts (Draft + Ongoing)
+                // Tab 0 = Submitted → Completed / Published only
+                // Tab 1 = Drafts → Draft + Ongoing (in-progress writing)
                 final stories = (snapshot.data ?? <Map<String, dynamic>>[])
                     .where((story) {
                       final statusText =
                           story['status_text']?.toString().toLowerCase() ?? '';
                       final isSubmitted = statusText.contains('complete') ||
-                          statusText.contains('publish') ||
-                          statusText.contains('submitted');
+                          statusText.contains('publish');
+                      // "submitted" alone (chapter state) is NOT story-submitted
                       final isDraftOrOngoing = !isSubmitted;
                       if (storySubTabs.index == 0 && isDraftOrOngoing) {
                         return false;

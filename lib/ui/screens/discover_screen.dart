@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/constants/cover_assets.dart';
 import '../../core/theme/app_theme.dart';
@@ -498,6 +499,7 @@ class SearchScreen extends StatefulWidget {
 
 class _SearchScreenState extends State<SearchScreen> {
   late final TextEditingController _searchController;
+  late final FocusNode _searchFocus;
   String _searchQuery = '';
   String _genre = '';
   double _minRating = 0;
@@ -505,10 +507,84 @@ class _SearchScreenState extends State<SearchScreen> {
   List<Map<String, dynamic>> _results = <Map<String, dynamic>>[];
   /// Wattpad-style filter chip: title | tag | profile
   String _searchScope = 'title';
+  /// Cached recent searches per scope (last 5 each).
+  List<String> _recentTitle = const [];
+  List<String> _recentTag = const [];
+  List<String> _recentProfile = const [];
+  bool _showRecent = false;
 
-  Future<void> _runSearch() async {
+  static const _kHistTitle = 'search_hist_title_v1';
+  static const _kHistTag = 'search_hist_tag_v1';
+  static const _kHistProfile = 'search_hist_profile_v1';
+
+  List<String> get _recentForScope {
+    switch (_searchScope) {
+      case 'tag':
+        return _recentTag;
+      case 'profile':
+        return _recentProfile;
+      default:
+        return _recentTitle;
+    }
+  }
+
+  Future<void> _loadSearchHistory() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _recentTitle = prefs.getStringList(_kHistTitle) ?? const [];
+        _recentTag = prefs.getStringList(_kHistTag) ?? const [];
+        _recentProfile = prefs.getStringList(_kHistProfile) ?? const [];
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _saveSearchHistory(String query) async {
+    final q = query.trim();
+    if (q.isEmpty) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      List<String> list;
+      String key;
+      switch (_searchScope) {
+        case 'tag':
+          list = List<String>.from(_recentTag);
+          key = _kHistTag;
+          break;
+        case 'profile':
+          list = List<String>.from(_recentProfile);
+          key = _kHistProfile;
+          break;
+        default:
+          list = List<String>.from(_recentTitle);
+          key = _kHistTitle;
+      }
+      list.removeWhere((e) => e.toLowerCase() == q.toLowerCase());
+      list.insert(0, q);
+      if (list.length > 5) list = list.take(5).toList();
+      await prefs.setStringList(key, list);
+      if (!mounted) return;
+      setState(() {
+        switch (_searchScope) {
+          case 'tag':
+            _recentTag = list;
+            break;
+          case 'profile':
+            _recentProfile = list;
+            break;
+          default:
+            _recentTitle = list;
+        }
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _runSearch({bool recordHistory = false}) async {
     setState(() => _loading = true);
     final q = _searchQuery.trim();
+    if (recordHistory && q.isNotEmpty) {
+      await _saveSearchHistory(q);
+    }
     List<Map<String, dynamic>> rows = <Map<String, dynamic>>[];
     try {
       if (_searchScope == 'tag') {
@@ -622,17 +698,31 @@ class _SearchScreenState extends State<SearchScreen> {
     _searchQuery = widget.initialQuery;
     _genre = widget.initialGenre;
     _searchController = TextEditingController(text: widget.initialQuery);
-    _runSearch();
+    _searchFocus = FocusNode();
+    _searchFocus.addListener(() {
+      if (_searchFocus.hasFocus && _searchQuery.trim().isEmpty) {
+        setState(() => _showRecent = true);
+      }
+    });
+    _loadSearchHistory();
+    if (widget.initialQuery.trim().isNotEmpty) {
+      _runSearch(recordHistory: true);
+    } else {
+      setState(() => _showRecent = true);
+      _runSearch();
+    }
   }
 
   @override
   void dispose() {
+    _searchFocus.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final recent = _recentForScope;
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -641,14 +731,31 @@ class _SearchScreenState extends State<SearchScreen> {
         ),
         title: TextField(
           controller: _searchController,
+          focusNode: _searchFocus,
           decoration: InputDecoration(
             hintText: 'Search stories, people, lists...',
             border: InputBorder.none,
             hintStyle: Theme.of(context).textTheme.bodyMedium,
           ),
+          textInputAction: TextInputAction.search,
+          onTap: () {
+            if (_searchQuery.trim().isEmpty) {
+              setState(() => _showRecent = true);
+            }
+          },
           onChanged: (value) {
-            setState(() => _searchQuery = value);
+            setState(() {
+              _searchQuery = value;
+              _showRecent = value.trim().isEmpty;
+            });
             _runSearch();
+          },
+          onSubmitted: (value) {
+            setState(() {
+              _searchQuery = value;
+              _showRecent = false;
+            });
+            _runSearch(recordHistory: true);
           },
         ),
         actions: [
@@ -656,7 +763,10 @@ class _SearchScreenState extends State<SearchScreen> {
             IconButton(
               icon: const Icon(Icons.close_rounded),
               onPressed: () {
-                setState(() => _searchQuery = '');
+                setState(() {
+                  _searchQuery = '';
+                  _showRecent = true;
+                });
                 _searchController.clear();
                 _runSearch();
               },
@@ -676,7 +786,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 _genre = selected.genre;
                 _minRating = selected.minRating;
               });
-              _runSearch();
+              _runSearch(recordHistory: true);
             },
           ),
         ],
@@ -699,7 +809,10 @@ class _SearchScreenState extends State<SearchScreen> {
                       label: Text(entry['label']!),
                       selected: _searchScope == entry['id'],
                       onSelected: (_) {
-                        setState(() => _searchScope = entry['id']!);
+                        setState(() {
+                          _searchScope = entry['id']!;
+                          _showRecent = _searchQuery.trim().isEmpty;
+                        });
                         _runSearch();
                       },
                       selectedColor: const Color(0xFF00A88E).withValues(alpha: 0.18),
@@ -715,6 +828,44 @@ class _SearchScreenState extends State<SearchScreen> {
               ],
             ),
           ),
+          // Recent searches (per scope): last 5 from local cache
+          if (_showRecent && recent.isNotEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Recent ${_searchScope == 'tag' ? 'tag' : _searchScope == 'profile' ? 'profile' : 'title'} searches',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: AppTheme.muted,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final term in recent.take(5))
+                        ActionChip(
+                          avatar: const Icon(Icons.history, size: 16),
+                          label: Text(term),
+                          onPressed: () {
+                            _searchController.text = term;
+                            setState(() {
+                              _searchQuery = term;
+                              _showRecent = false;
+                            });
+                            _runSearch(recordHistory: true);
+                          },
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())

@@ -340,7 +340,10 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
             height: 200,
             child: PageView.builder(
               controller: _pageController,
-              padEnds: false,
+              // padEnds: true so the LAST card can scroll fully into the
+              // active (center) slot and be selected / opened.
+              padEnds: true,
+              allowImplicitScrolling: true,
               itemCount: widget.section.books.where((e) => e.id > 0).length,
               onPageChanged: (index) => setState(() => _activeIndex = index),
               itemBuilder: (context, index) {
@@ -784,13 +787,31 @@ class _AuthorsStripState extends State<_AuthorsStrip> {
 
   @override
   Widget build(BuildContext context) {
+    // Prefer authors of Completed / Published / recently_updated stories
+    // so a writer who finishes + saves a story appears under New Authors.
+    final ranked = List<BookCardModel>.from(widget.books);
+    ranked.sort((a, b) {
+      int score(BookCardModel x) {
+        final st = x.statusText.toLowerCase();
+        var s = 0;
+        if (st.contains('complete') || st.contains('publish')) s += 3;
+        if (x.sectionName == 'recently_updated' ||
+            x.sectionName == 'recently_completed') {
+          s += 2;
+        }
+        if (x.authorUserId != null && x.authorUserId! > 0) s += 1;
+        if (x.isCompleted) s += 2;
+        return s;
+      }
+
+      return score(b).compareTo(score(a));
+    });
+
     final byAuthor = <String, BookCardModel>{};
-    for (final book in widget.books) {
-      byAuthor.putIfAbsent(
-        book.author.trim().isEmpty ? 'Unknown' : book.author,
-        () => book,
-      );
-      if (byAuthor.length >= 8) break;
+    for (final book in ranked) {
+      final name = book.author.trim().isEmpty ? 'Unknown' : book.author;
+      byAuthor.putIfAbsent(name, () => book);
+      if (byAuthor.length >= 10) break;
     }
 
     final authors = byAuthor.entries.toList();
@@ -813,6 +834,8 @@ class _AuthorsStripState extends State<_AuthorsStrip> {
           height: 124,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
+            // Extra trailing space so last author is fully tappable
+            padding: const EdgeInsets.only(right: 24),
             itemCount: authors.length,
             separatorBuilder: (_, _) => const SizedBox(width: 14),
             itemBuilder: (context, index) {
