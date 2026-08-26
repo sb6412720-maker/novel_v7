@@ -343,6 +343,71 @@ def _ensure_password_hash_column() -> None:
         pass
 
 
+def _ensure_auth_profile_columns() -> None:
+    """username, email_verified, verification_token for professional auth."""
+    cols = [
+        ("username", "ALTER TABLE app_users ADD COLUMN username VARCHAR(64) NULL"),
+        ("email_verified", "ALTER TABLE app_users ADD COLUMN email_verified TINYINT(1) NOT NULL DEFAULT 0"),
+        ("verification_token", "ALTER TABLE app_users ADD COLUMN verification_token VARCHAR(128) NULL"),
+        ("verification_sent_at", "ALTER TABLE app_users ADD COLUMN verification_sent_at DATETIME NULL"),
+    ]
+    for _name, sql in cols:
+        try:
+            execute_write(sql)
+        except Exception:
+            pass
+
+
+def _password_policy_ok(password: str) -> tuple[bool, str]:
+    """Min 8 chars, letter + number + symbol."""
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters"
+    has_letter = any(c.isalpha() for c in password)
+    has_digit = any(c.isdigit() for c in password)
+    has_symbol = any(not c.isalnum() for c in password)
+    if not (has_letter and has_digit and has_symbol):
+        return False, "Password needs letters, numbers, and a symbol"
+    return True, ""
+
+
+def _send_verification_email(to_email: str, token: str, display_name: str = "") -> bool:
+    """Send verification email via Gmail SMTP (env or app defaults)."""
+    import os
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+
+    smtp_user = os.environ.get("SMTP_EMAIL", "malindasilva047@gmail.com").strip()
+    smtp_pass = os.environ.get("SMTP_APP_PASSWORD", "nodv evuf pxpn qzeq").replace(" ", "")
+    app_name = os.environ.get("APP_NAME", "Wingsaga")
+    # Deep link / web verify URL for the app
+    base = os.environ.get("APP_PUBLIC_URL", "https://novel-v7.vercel.app").rstrip("/")
+    verify_url = f"{base}/api/auth/verify-email?token={token}"
+
+    subject = f"Verify your {app_name} email"
+    body_text = (
+        f"Hi {display_name or 'there'},\n\n"
+        f"Thanks for signing up for {app_name}.\n"
+        f"Your verification code is:\n\n{token}\n\n"
+        f"Or open this link:\n{verify_url}\n\n"
+        f"If you did not create an account, ignore this email.\n"
+    )
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = smtp_user
+        msg["To"] = to_email
+        msg.attach(MIMEText(body_text, "plain"))
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as server:
+            server.login(smtp_user, smtp_pass)
+            server.sendmail(smtp_user, [to_email], msg.as_string())
+        LOGGER.info("Verification email sent to %s", to_email)
+        return True
+    except Exception as exc:
+        LOGGER.exception("Failed to send verification email: %s", exc)
+        return False
+
+
 def _hash_password(password: str, salt: str | None = None) -> str:
     salt = salt or secrets.token_hex(16)
     digest = hashlib.pbkdf2_hmac(
@@ -366,10 +431,25 @@ class GoogleAuthRequest(BaseModel):
 
 
 class EmailAuthRequest(BaseModel):
-    email: str
+    email: str = ""
     display_name: str = ""
     password: str = ""
     username: str = ""
+    mode: str = "login"  # login | register
+
+
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    display_name: str = ""
+    username: str
+    photo_url: str = ""
+    cover_url: str = ""
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str = ""
+    email: str = ""
 
 
 class GuestAuthRequest(BaseModel):
@@ -1448,6 +1528,228 @@ def authenticate_email(payload: EmailAuthRequest):
         "photo_url": "",
         "provider": "email",
         "token": create_user_token(user_id),
+    }
+
+
+
+@app.post("/api/auth/register")
+def register_user(payload: RegisterRequest):
+    """Create account (unverified). Sends email verification code. No session until verified."""
+    _ensure_password_hash_column()
+    _ensure_auth_profile_columns()
+    email = (payload.email or "").strip().lower()
+    username = (payload.username or "").strip().lstrip("@").lower()
+    password = (payload.password or "").strip()
+    display_name = (payload.display_name or "").strip() or username or email.split("@")[0]
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Valid email required")
+    if not username or len(username) < 3:
+        raise HTTPException(status_code=400, detail="Username must be at least 3 characters")
+    ok, msg = _password_policy_ok(password)
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    existing = fetch_all(
+        "SELECT id FROM app_users WHERE LOWER(email)=%s LIMIT 1",
+        (email,),
+    )
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered — please log in")
+    try:
+        uname_rows = fetch_all(
+            "SELECT id FROM app_users WHERE LOWER(username)=%s LIMIT 1",
+            (username,),
+        )
+        if uname_rows:
+            raise HTTPException(status_code=400, detail="Username already taken")
+    except HTTPException:
+        raise
+    except Exception:
+        pass
+    token = secrets.token_hex(16)
+    pwd_hash = _hash_password(password)
+    photo = (payload.photo_url or "").strip()
+    cover = (payload.cover_url or "").strip()
+    try:
+        user_id, _ = execute_write(
+            """
+            INSERT INTO app_users
+              (email, provider, display_name, photo_url, cover_url, password_hash,
+               username, email_verified, verification_token)
+            VALUES (%s, 'email', %s, %s, %s, %s, %s, 0, %s)
+            """,
+            (email, display_name, photo, cover, pwd_hash, username, token),
+        )
+    except Exception:
+        user_id, _ = execute_write(
+            """
+            INSERT INTO app_users (email, provider, display_name, photo_url, password_hash)
+            VALUES (%s, 'email', %s, %s, %s)
+            """,
+            (email, display_name, photo, pwd_hash),
+        )
+        try:
+            execute_write(
+                """
+                UPDATE app_users
+                SET username=%s, email_verified=0, verification_token=%s, cover_url=%s
+                WHERE id=%s
+                """,
+                (username, token, cover, user_id),
+            )
+        except Exception:
+            pass
+    sent = _send_verification_email(email, token, display_name)
+    return {
+        "ok": True,
+        "needs_verification": True,
+        "email": email,
+        "email_sent": sent,
+        "message": "Check your email for a verification code, then log in.",
+        # Dev fallback when SMTP fails (still return token only if send failed)
+        **({} if sent else {"dev_token": token}),
+    }
+
+
+@app.post("/api/auth/login")
+def login_user(payload: EmailAuthRequest):
+    """Login with username OR email + password. Requires verified email for email accounts."""
+    _ensure_password_hash_column()
+    _ensure_auth_profile_columns()
+    ident = (payload.email or payload.username or "").strip()
+    password = (payload.password or "").strip()
+    if not ident or not password:
+        raise HTTPException(status_code=400, detail="Username/email and password required")
+    rows = None
+    if "@" in ident:
+        rows = fetch_all(
+            """
+            SELECT id, password_hash, display_name, email, username,
+                   COALESCE(email_verified, 1) AS email_verified, provider
+            FROM app_users WHERE LOWER(email)=%s LIMIT 1
+            """,
+            (ident.lower(),),
+        )
+    if not rows:
+        try:
+            rows = fetch_all(
+                """
+                SELECT id, password_hash, display_name, email, username,
+                       COALESCE(email_verified, 1) AS email_verified, provider
+                FROM app_users WHERE LOWER(username)=%s LIMIT 1
+                """,
+                (ident.lower().lstrip("@"),),
+            )
+        except Exception:
+            rows = None
+    if not rows:
+        # fallback: username stored only in display_name historically
+        rows = fetch_all(
+            """
+            SELECT id, password_hash, display_name, email, provider
+            FROM app_users WHERE LOWER(email)=%s OR LOWER(display_name)=%s LIMIT 1
+            """,
+            (ident.lower(), ident.lower()),
+        )
+    if not rows:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    user = rows[0]
+    user_id = int(_row_get(user, "id"))
+    stored = _row_get(user, "password_hash") or ""
+    if not stored or not _verify_password(password, stored):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    provider = str(_row_get(user, "provider") or "email")
+    verified = int(_row_get(user, "email_verified") if _row_get(user, "email_verified") is not None else 1)
+    # Only enforce verification for email provider accounts created after this feature
+    if provider == "email" and verified == 0:
+        raise HTTPException(
+            status_code=403,
+            detail="Email not verified. Check your inbox for the verification code.",
+            headers={"X-Needs-Verification": "1"},
+        )
+    _assert_user_can_login(user_id)
+    try:
+        execute_write(
+            "UPDATE app_users SET last_login_at=CURRENT_TIMESTAMP WHERE id=%s",
+            (user_id,),
+        )
+    except Exception:
+        pass
+    token = create_user_token(user_id)
+    return {
+        "token": token,
+        "user_id": user_id,
+        "display_name": _row_get(user, "display_name") or "",
+        "email": _row_get(user, "email") or "",
+        "username": _row_get(user, "username") or "",
+        "provider": provider,
+    }
+
+
+@app.post("/api/auth/verify-email")
+def verify_email_post(payload: VerifyEmailRequest):
+    _ensure_auth_profile_columns()
+    token = (payload.token or "").strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="Token required")
+    rows = fetch_all(
+        "SELECT id, email FROM app_users WHERE verification_token=%s LIMIT 1",
+        (token,),
+    )
+    if not rows and payload.email:
+        rows = fetch_all(
+            "SELECT id, email FROM app_users WHERE LOWER(email)=%s AND verification_token=%s LIMIT 1",
+            (payload.email.strip().lower(), token),
+        )
+    if not rows:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification code")
+    user_id = int(_row_get(rows[0], "id"))
+    execute_write(
+        """
+        UPDATE app_users
+        SET email_verified=1, verification_token=NULL
+        WHERE id=%s
+        """,
+        (user_id,),
+    )
+    return {"ok": True, "message": "Email verified. You can log in now."}
+
+
+@app.get("/api/auth/verify-email")
+def verify_email_get(token: str = ""):
+    """Browser link from email."""
+    if not token:
+        return {"ok": False, "detail": "Missing token"}
+    try:
+        return verify_email_post(VerifyEmailRequest(token=token))
+    except HTTPException as exc:
+        return {"ok": False, "detail": exc.detail}
+
+
+@app.post("/api/auth/resend-verification")
+def resend_verification(payload: VerifyEmailRequest):
+    _ensure_auth_profile_columns()
+    email = (payload.email or "").strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="Email required")
+    rows = fetch_all(
+        "SELECT id, display_name, COALESCE(email_verified,0) AS email_verified FROM app_users WHERE LOWER(email)=%s LIMIT 1",
+        (email,),
+    )
+    if not rows:
+        return {"ok": True, "message": "If that email exists, a code was sent."}
+    if int(_row_get(rows[0], "email_verified") or 0) == 1:
+        return {"ok": True, "message": "Email already verified — please log in."}
+    token = secrets.token_hex(16)
+    execute_write(
+        "UPDATE app_users SET verification_token=%s WHERE id=%s",
+        (token, int(_row_get(rows[0], "id"))),
+    )
+    sent = _send_verification_email(email, token, str(_row_get(rows[0], "display_name") or ""))
+    return {
+        "ok": True,
+        "email_sent": sent,
+        "message": "Verification code sent.",
+        **({} if sent else {"dev_token": token}),
     }
 
 

@@ -432,17 +432,19 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Chapter'),
-        content: const Text('Delete this chapter from database?'),
+        title: const Text('Delete chapter?'),
+        content: const Text(
+          'Are you sure you want to delete this chapter? This cannot be undone.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: const Text('No'),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
+            child: const Text('Yes'),
           ),
         ],
       ),

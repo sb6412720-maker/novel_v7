@@ -257,34 +257,40 @@ class AuthService {
     }
   }
 
-  /// Email + password. [mode] is `login` or `register`.
+  /// Username or email + password. [mode] is `login` or `register`.
   Future<AuthSession> signInWithEmail(
     String email, {
     required String password,
     String mode = 'login',
     String? displayName,
   }) async {
-    final normalized = email.trim().toLowerCase();
-    if (normalized.isEmpty || !normalized.contains('@')) {
-      throw Exception('Enter a valid email address.');
+    final ident = email.trim();
+    if (ident.isEmpty) {
+      throw Exception('Enter username or email.');
     }
-    if (password.length < 6) {
-      throw Exception('Password must be at least 6 characters.');
+    if (password.isEmpty) {
+      throw Exception('Enter your password.');
     }
     try {
       final payload = await _apiService.verifyEmailSignIn(
-        normalized,
+        ident,
         password: password,
         mode: mode,
         displayName: displayName,
+        username: ident,
       );
       _apiService.setAuthToken(payload['token']?.toString());
+      final id = payload['user_id'] is num
+          ? (payload['user_id'] as num).toInt()
+          : (payload['id'] is num ? (payload['id'] as num).toInt() : null);
       final session = AuthSession(
-        id: payload['id'] is num ? (payload['id'] as num).toInt() : null,
+        id: id,
         method: 'email',
-        email: payload['email']?.toString() ?? normalized,
+        email: payload['email']?.toString() ??
+            (ident.contains('@') ? ident : ''),
         displayName: payload['display_name']?.toString() ??
-            normalized.split('@').first,
+            payload['username']?.toString() ??
+            ident,
       );
       await _persistSession(session);
       return session;

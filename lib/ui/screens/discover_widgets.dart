@@ -183,9 +183,15 @@ class _ExploreStoriesSectionState extends State<_ExploreStoriesSection> {
           child: PageView.builder(
             controller: _pageController,
             padEnds: false,
-            itemCount: _validBooks.length,
-            onPageChanged: (index) => setState(() => _activeIndex = index),
+            itemCount: _validBooks.length + 1,
+            onPageChanged: (index) {
+              if (index >= _validBooks.length) return;
+              setState(() => _activeIndex = index);
+            },
             itemBuilder: (context, index) {
+              if (index >= _validBooks.length) {
+                return const SizedBox.shrink();
+              }
               final item = _validBooks[index];
               final isActive = index == _activeIndex;
               return AnimatedScale(
@@ -326,10 +332,17 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
           child: PageView.builder(
             controller: _pageController,
             // Same as first slider — no large leading blank space
+            // Extra trailing page so the LAST book can fully slide into view
             padEnds: false,
-            itemCount: valid.length,
-            onPageChanged: (index) => setState(() => _activeIndex = index),
+            itemCount: valid.length + 1,
+            onPageChanged: (index) {
+              if (index >= valid.length) return;
+              setState(() => _activeIndex = index);
+            },
             itemBuilder: (context, index) {
+              if (index >= valid.length) {
+                return const SizedBox.shrink();
+              }
               final item = valid[index];
               final isActive = index == _activeIndex;
               return AnimatedScale(

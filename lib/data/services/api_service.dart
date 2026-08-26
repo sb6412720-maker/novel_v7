@@ -446,14 +446,73 @@ class ApiService {
     required String password,
     String mode = 'login',
     String? displayName,
+    String? username,
   }) async {
+    if (mode == 'login') {
+      final response = await _post('/api/auth/login', {
+        'email': email,
+        'password': password,
+        if (username != null && username.trim().isNotEmpty)
+          'username': username.trim(),
+      }, timeout: const Duration(seconds: 30));
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception(_authErrorBody(response));
+      }
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
     final response = await _post('/api/auth/email', {
       'email': email,
       'password': password,
       'mode': mode,
       if (displayName != null && displayName.trim().isNotEmpty)
         'display_name': displayName.trim(),
-    }, timeout: const Duration(seconds: 12));
+      if (username != null && username.trim().isNotEmpty)
+        'username': username.trim(),
+    }, timeout: const Duration(seconds: 30));
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(_authErrorBody(response));
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> registerAccount(
+    Map<String, dynamic> payload,
+  ) async {
+    final response = await _post(
+      '/api/auth/register',
+      payload,
+      timeout: const Duration(seconds: 45),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(_authErrorBody(response));
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> verifyEmail({
+    required String token,
+    String? email,
+  }) async {
+    final response = await _post(
+      '/api/auth/verify-email',
+      {
+        'token': token,
+        if (email != null && email.isNotEmpty) 'email': email,
+      },
+      timeout: const Duration(seconds: 30),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(_authErrorBody(response));
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> resendVerification(String email) async {
+    final response = await _post(
+      '/api/auth/resend-verification',
+      {'email': email},
+      timeout: const Duration(seconds: 45),
+    );
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception(_authErrorBody(response));
     }

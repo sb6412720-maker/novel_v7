@@ -78,6 +78,28 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   }
 
   Future<void> _bootstrapApp() async {
+    // Restore token session first — login gate if none.
+    try {
+      final restored = await _authService.restoreSession();
+      if (mounted && restored != null) {
+        setState(() {
+          _session = restored;
+          _showLoginOverlay = false;
+        });
+      } else if (mounted) {
+        setState(() {
+          _session = null;
+          _showLoginOverlay = true;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _session = null;
+          _showLoginOverlay = true;
+        });
+      }
+    }
     // Instant UI from last session while Vercel cold-starts (~60s first hit).
     final disk = await _apiService.loadDiskBootstrap();
     if (disk != null && mounted) {
@@ -128,6 +150,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
     String? password,
     String? mode,
     String? displayName,
+    String? username,
   }) async {
     try {
       final AuthSession session;
@@ -135,7 +158,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
         session = await _authService.signInWithGoogle();
       } else if (method == 'email') {
         session = await _authService.signInWithEmail(
-          email ?? '',
+          email ?? username ?? '',
           password: password ?? '',
           mode: mode ?? 'login',
           displayName: displayName,
@@ -242,6 +265,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
     setState(() {
       _session = null;
       _selectedIndex = 1;
+      _showLoginOverlay = true;
     });
     await _loadBootstrap();
   }
@@ -264,11 +288,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       return LoginScreen(
         onContinue: _continueLogin,
         onSkipAsReader: () {
-          setState(() {
-            _showLoginOverlay = false;
-            _selectedIndex = 1; // Discover only
-          });
-          if (_bootstrap == null) _loadBootstrap();
+          _continueLogin('guest');
         },
       );
     }
