@@ -604,7 +604,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                             const Icon(Icons.visibility_outlined, size: 16, color: Colors.black54),
                             const SizedBox(width: 4),
                             Text(
-                              '${_viewCount}',
+                              '$_viewCount',
                               style: const TextStyle(
                                 fontWeight: FontWeight.w700,
                                 fontSize: 16,

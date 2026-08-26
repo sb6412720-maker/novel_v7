@@ -1744,7 +1744,7 @@ class _AuthorsSeeAllScreen extends StatelessWidget {
       body: ListView.separated(
         padding: const EdgeInsets.all(16),
         itemCount: authors.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
+        separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (context, index) {
           final author = authors[index].key;
           final book = authors[index].value;
