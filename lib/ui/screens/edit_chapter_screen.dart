@@ -158,6 +158,41 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
     }
   }
 
+  /// Open editor for next chapter on the SAME story (never pops back to create story).
+  Future<void> _openNextChapterEditor() async {
+    if (widget.storyId <= 0) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Missing story id — cannot add chapter')),
+      );
+      return;
+    }
+    // Prefer server-side next number so we never collide
+    int nextNo = _chapterNumber + 1;
+    try {
+      final chapters =
+          await widget.apiService.fetchStoryChapters(widget.storyId);
+      var maxN = 0;
+      for (final c in chapters) {
+        final n = (c['chapter_number'] as num?)?.toInt() ?? 0;
+        if (n > maxN) maxN = n;
+      }
+      if (maxN + 1 > nextNo) nextNo = maxN + 1;
+    } catch (_) {}
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => EditChapterScreen(
+          apiService: widget.apiService,
+          storyId: widget.storyId,
+          createNew: true,
+          chapterNumber: nextNo,
+          chapterTitle: 'Chapter $nextNo',
+        ),
+      ),
+    );
+  }
+
   Future<void> _saveChapter({
     String? submissionStatus,
     DateTime? scheduledFor,
@@ -243,18 +278,7 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
           ),
         );
         if (addNext == true && mounted) {
-          final nextNo = _chapterNumber + 1;
-          await Navigator.of(context).pushReplacement(
-            MaterialPageRoute<void>(
-              builder: (_) => EditChapterScreen(
-                apiService: widget.apiService,
-                storyId: widget.storyId, // SAME book
-                createNew: true,
-                chapterNumber: nextNo,
-                chapterTitle: 'Chapter $nextNo',
-              ),
-            ),
-          );
+          await _openNextChapterEditor();
         }
       }
     } catch (e) {
@@ -606,21 +630,14 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
               onPressed: _isSaving
                   ? null
                   : () async {
-                      // Save current first, then open NEXT chapter on SAME book
+                      // Save current chapter, then open Chapter N+1 on SAME book
                       await _saveChapter(successMessage: 'Saved');
                       if (!mounted) return;
-                      final nextNo = _chapterNumber + 1;
-                      await Navigator.of(context).pushReplacement(
-                        MaterialPageRoute<void>(
-                          builder: (_) => EditChapterScreen(
-                            apiService: widget.apiService,
-                            storyId: widget.storyId,
-                            createNew: true,
-                            chapterNumber: nextNo,
-                            chapterTitle: 'Chapter $nextNo',
-                          ),
-                        ),
-                      );
+                      // If save failed, _chapterId may still be null for new chapters
+                      if (_chapterId == null && _textController.text.trim().isNotEmpty) {
+                        return; // save showed error
+                      }
+                      await _openNextChapterEditor();
                     },
             ),
             IconButton(

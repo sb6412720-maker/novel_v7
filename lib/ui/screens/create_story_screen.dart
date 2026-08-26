@@ -260,20 +260,25 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     var name = raw.trim();
     if (name.startsWith('#')) name = name.substring(1);
     if (name.isEmpty) return;
-    final match = _availableTags.firstWhere(
-      (t) => t.toLowerCase() == name.toLowerCase(),
-      orElse: () => '',
-    );
-    if (match.isEmpty && _availableTags.isNotEmpty) {
+    // Authors cannot invent hashtags — must pick an admin-created tag.
+    String? match;
+    for (final t in _availableTags) {
+      if (t.toLowerCase() == name.toLowerCase()) {
+        match = t;
+        break;
+      }
+    }
+    if (match == null || match.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Only hashtags created by admin can be used. Pick from suggestions.'),
+          content: Text(
+            'Only admin hashtags can be used. Type to see suggestions, then pick one.',
+          ),
         ),
       );
       return;
     }
-    final finalName = match.isNotEmpty ? match : name;
-    if (_selectedTags.any((t) => t.toLowerCase() == finalName.toLowerCase())) return;
+    if (_selectedTags.any((t) => t.toLowerCase() == match.toLowerCase())) return;
     if (_selectedTags.length >= 3) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Maximum 3 hashtags per story')),
@@ -281,7 +286,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       return;
     }
     setState(() {
-      _selectedTags.add(finalName);
+      _selectedTags.add(match);
       _tagInputController.clear();
     });
   }
@@ -367,6 +372,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
               apiService: widget.apiService,
               storyId: storyId,
               createNew: true,
+              chapterNumber: 1,
               chapterTitle: 'Chapter 1',
             ),
           ),
@@ -385,11 +391,16 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
 
   List<String> _tagSuggestions(String query) {
     final q = query.trim().toLowerCase().replaceFirst('#', '');
-    return _availableTags
+    final base = _availableTags
         .where((t) => !_selectedTags.any((s) => s.toLowerCase() == t.toLowerCase()))
-        .where((t) => q.isEmpty || t.toLowerCase().contains(q))
-        .take(12)
         .toList();
+    if (base.isEmpty) return const <String>[];
+    if (q.isEmpty) return base.take(20).toList();
+    final starts = base.where((t) => t.toLowerCase().startsWith(q)).toList();
+    final contains = base
+        .where((t) => !t.toLowerCase().startsWith(q) && t.toLowerCase().contains(q))
+        .toList();
+    return [...starts, ...contains].take(20).toList();
   }
 
   Future<void> _openPicker({
@@ -1016,7 +1027,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                                 focusNode: focusNode,
                                 style: const TextStyle(color: _textHi, fontSize: 14.5),
                                 decoration: const InputDecoration(
-                                  hintText: 'Search or type a hashtag...',
+                                  hintText: 'Search admin hashtags…',
                                   hintStyle: TextStyle(color: _textFaint),
                                   prefixIcon: Icon(Icons.tag, size: 18, color: _textFaint),
                                   border: InputBorder.none,
@@ -1024,8 +1035,26 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                                   contentPadding: EdgeInsets.symmetric(vertical: 8),
                                 ),
                                 onSubmitted: (v) {
-                                  _addTag(v);
-                                  onFieldSubmitted();
+                                  // Only accept if it matches a suggestion
+                                  final opts = _tagSuggestions(v);
+                                  if (opts.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Pick a hashtag from the suggestion list',
+                                        ),
+                                      ),
+                                    );
+                                  } else if (opts.any((o) =>
+                                      o.toLowerCase() ==
+                                      v.trim().toLowerCase().replaceFirst('#', ''))) {
+                                    _addTag(v);
+                                    onFieldSubmitted();
+                                  } else {
+                                    // Autofill closest
+                                    _addTag(opts.first);
+                                    onFieldSubmitted();
+                                  }
                                 },
                               );
                             },
@@ -1055,6 +1084,39 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                                 ),
                               );
                             },
+                          ),
+                        // Quick pick: show popular admin tags as chips
+                        if (!_loadingTags &&
+                            _availableTags.isNotEmpty &&
+                            _selectedTags.length < 3)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: _availableTags
+                                  .where((t) => !_selectedTags
+                                      .any((s) => s.toLowerCase() == t.toLowerCase()))
+                                  .take(12)
+                                  .map(
+                                    (t) => ActionChip(
+                                      label: Text('#$t', style: const TextStyle(fontSize: 12)),
+                                      onPressed: () => _addTag(t),
+                                      visualDensity: VisualDensity.compact,
+                                      materialTapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ),
+                        if (!_loadingTags && _availableTags.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 6),
+                            child: Text(
+                              'No admin hashtags yet. Ask an admin to create tags.',
+                              style: TextStyle(fontSize: 12, color: Colors.black54),
+                            ),
                           ),
                         if (_loadingTags)
                           const Padding(

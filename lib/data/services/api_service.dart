@@ -1172,7 +1172,7 @@ class ApiService {
       final path = (query == null || query.trim().isEmpty)
           ? '/api/tags'
           : '/api/tags?q=${Uri.encodeQueryComponent(query.trim())}';
-      final response = await _get(path);
+      final response = await _get(path, timeout: const Duration(seconds: 30));
       if (response.statusCode != 200) return const <Map<String, dynamic>>[];
       final payload = jsonDecode(response.body) as Map<String, dynamic>;
       return List<Map<String, dynamic>>.from(payload['items'] as List<dynamic>);
