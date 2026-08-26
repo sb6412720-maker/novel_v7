@@ -162,6 +162,7 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
     String? submissionStatus,
     DateTime? scheduledFor,
     String? successMessage,
+    bool offerNextChapter = false,
   }) async {
     final title = _titleController.text.trim();
     final content = _textController.text.trim();
@@ -197,12 +198,45 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
       _submissionStatus = nextSubmissionStatus;
       _scheduledFor = nextScheduledFor;
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(successMessage ?? 'Chapter saved to database'),
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(successMessage ?? 'Chapter saved to database'),
+        ),
+      );
+
+      // After check-icon save: offer to add the next chapter.
+      if (offerNextChapter) {
+        final addNext = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Chapter saved'),
+            content: const Text('Do you want to add another chapter?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Done'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Add another chapter'),
+              ),
+            ],
           ),
         );
+        if (addNext == true && mounted) {
+          final nextNo = (_chapterNumber ?? 1) + 1;
+          await Navigator.of(context).pushReplacement(
+            MaterialPageRoute<void>(
+              builder: (_) => EditChapterScreen(
+                apiService: widget.apiService,
+                storyId: widget.storyId,
+                createNew: true,
+                chapterTitle: 'Chapter $nextNo',
+              ),
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -554,7 +588,9 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
                     )
                   : const Icon(Icons.check_rounded, color: AppTheme.brand),
               tooltip: 'Save',
-              onPressed: _isSaving ? null : _saveChapter,
+              onPressed: _isSaving
+                  ? null
+                  : () => _saveChapter(offerNextChapter: true),
             ),
             IconButton(
               icon: const Icon(Icons.menu_rounded),

@@ -36,10 +36,20 @@ class _DiscoverScreenState extends State<DiscoverScreen>
   late final TabController _tabController;
   late final List<String> _tabs;
   int _selectedTabIndex = 0;
+  late List<BookCardModel> _shuffledBooks;
+  int _shuffleToken = 0;
+
+  void _reshuffleBooks() {
+    final pool = widget.data.books.where(_isValidBook).toList();
+    pool.shuffle(math.Random(DateTime.now().millisecondsSinceEpoch + _shuffleToken));
+    _shuffledBooks = pool;
+    _shuffleToken++;
+  }
 
   @override
   void initState() {
     super.initState();
+    _reshuffleBooks();
     // Dedupe backend tabs (was showing "New New Popular Popular…")
     final rawTabs = widget.data.discoverTabs.isNotEmpty
         ? widget.data.discoverTabs
@@ -71,7 +81,19 @@ class _DiscoverScreenState extends State<DiscoverScreen>
 
   @override
   Widget build(BuildContext context) {
-    return CustomScrollView(
+    // Prefer shuffled catalog so pull-to-refresh changes order
+    final catalog = _shuffledBooks.isNotEmpty
+        ? _shuffledBooks
+        : widget.data.books.where(_isValidBook).toList();
+
+    return RefreshIndicator(
+      onRefresh: () async {
+        setState(_reshuffleBooks);
+        // Small delay so the indicator is visible
+        await Future<void>.delayed(const Duration(milliseconds: 350));
+      },
+      child: CustomScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
       slivers: [
         Builder(
           builder: (context) {
@@ -236,6 +258,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
         ),
         SliverToBoxAdapter(child: _buildTabContent(_selectedTabIndex)),
       ],
+      ),
     );
   }
 

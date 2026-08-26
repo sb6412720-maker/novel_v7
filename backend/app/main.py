@@ -138,6 +138,10 @@ class StoryUpdateRequest(BaseModel):
 class ReviewCreateRequest(BaseModel):
     rating: int
     comment: str = ""
+    title: str | None = None
+    plot_rating: int | None = None
+    style_rating: int | None = None
+    tech_rating: int | None = None
 
 
 class ChapterCommentCreateRequest(BaseModel):
@@ -3530,11 +3534,55 @@ def list_my_reviews(user: dict[str, Any] = Depends(require_user)):
 
 @app.get("/api/books/{book_id}/reviews")
 def list_book_reviews(book_id: int):
-    rows = fetch_all(
-        "SELECT r.id, r.rating, r.comment, r.created_at, u.display_name FROM book_reviews r JOIN app_users u ON u.id = r.user_id WHERE r.book_id=%s ORDER BY r.created_at DESC",
-        (book_id,),
-    )
-    return {"items": [{"id": row["id"], "rating": row["rating"], "comment": row["comment"], "created_at": row["created_at"], "display_name": row["display_name"]} for row in rows]}
+    try:
+        rows = fetch_all(
+            """
+            SELECT r.id, r.user_id, r.rating, r.comment, r.created_at,
+                   r.title, r.plot_rating, r.style_rating, r.tech_rating,
+                   u.display_name, u.photo_url
+            FROM book_reviews r
+            JOIN app_users u ON u.id = r.user_id
+            WHERE r.book_id=%s
+            ORDER BY r.created_at DESC
+            """,
+            (book_id,),
+        )
+    except Exception:
+        rows = fetch_all(
+            """
+            SELECT r.id, r.user_id, r.rating, r.comment, r.created_at,
+                   u.display_name
+            FROM book_reviews r
+            JOIN app_users u ON u.id = r.user_id
+            WHERE r.book_id=%s
+            ORDER BY r.created_at DESC
+            """,
+            (book_id,),
+        )
+    items = []
+    for row in rows or []:
+        comment = str(_row_get(row, "comment") or "")
+        title = str(_row_get(row, "title") or "").strip()
+        if not title and "\n\n" in comment:
+            parts = comment.split("\n\n", 1)
+            title = parts[0].strip()
+            comment = parts[1].strip() if len(parts) > 1 else comment
+        items.append(
+            {
+                "id": _row_get(row, "id"),
+                "user_id": _row_get(row, "user_id"),
+                "rating": _row_get(row, "rating"),
+                "comment": comment,
+                "title": title,
+                "plot_rating": _row_get(row, "plot_rating"),
+                "style_rating": _row_get(row, "style_rating"),
+                "tech_rating": _row_get(row, "tech_rating"),
+                "created_at": _row_get(row, "created_at"),
+                "display_name": _row_get(row, "display_name") or "Reader",
+                "photo_url": _row_get(row, "photo_url") or "",
+            }
+        )
+    return {"items": items}
 
 
 @app.post("/api/books/{book_id}/reviews")
@@ -3545,10 +3593,53 @@ def create_book_review(
 ):
     if payload.rating < 1 or payload.rating > 5:
         raise HTTPException(status_code=400, detail="Rating must be between 1 and 5")
-    execute_write(
-        "INSERT INTO book_reviews (book_id, user_id, rating, comment) VALUES (%s, %s, %s, %s)",
-        (book_id, user["user_id"], payload.rating, payload.comment.strip()),
-    )
+    title = (payload.title or "").strip()
+    body = (payload.comment or "").strip()
+    # Require ~20 words like Inkitt UI
+    if len(body.split()) < 20 and len(body) < 80:
+        raise HTTPException(status_code=400, detail="Review must be at least 20 words")
+    plot = int(payload.plot_rating or payload.rating)
+    style = int(payload.style_rating or payload.rating)
+    tech = int(payload.tech_rating or payload.rating)
+    for v in (plot, style, tech):
+        if v < 1 or v > 5:
+            raise HTTPException(status_code=400, detail="Ratings must be between 1 and 5")
+    # Best-effort extra columns (title / sub-ratings)
+    for sql in (
+        "ALTER TABLE book_reviews ADD COLUMN title VARCHAR(255) NULL",
+        "ALTER TABLE book_reviews ADD COLUMN plot_rating INT NULL",
+        "ALTER TABLE book_reviews ADD COLUMN style_rating INT NULL",
+        "ALTER TABLE book_reviews ADD COLUMN tech_rating INT NULL",
+    ):
+        try:
+            execute_write(sql)
+        except Exception:
+            pass
+    stored_comment = body if not title else f"{title}\n\n{body}"
+    try:
+        execute_write(
+            """
+            INSERT INTO book_reviews
+              (book_id, user_id, rating, comment, title, plot_rating, style_rating, tech_rating)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (book_id, user["user_id"], payload.rating, stored_comment, title or None, plot, style, tech),
+        )
+    except Exception:
+        execute_write(
+            "INSERT INTO book_reviews (book_id, user_id, rating, comment) VALUES (%s, %s, %s, %s)",
+            (book_id, user["user_id"], payload.rating, stored_comment),
+        )
+    # Update book average rating
+    try:
+        rows = fetch_all(
+            "SELECT AVG(rating) AS avg_r FROM book_reviews WHERE book_id=%s",
+            (book_id,),
+        )
+        avg = float(_row_get(rows[0], "avg_r") or 0) if rows else 0.0
+        execute_write("UPDATE books SET rating=%s WHERE id=%s", (round(avg, 2), book_id))
+    except Exception:
+        pass
     bump_content_version()
     return {"ok": True}
 

@@ -179,7 +179,10 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    // First-time only — cannot skip until saved (sets profile_complete).
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
@@ -355,6 +358,7 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 }

@@ -1547,34 +1547,96 @@ class _WriteReviewScreen extends StatefulWidget {
 }
 
 class _WriteReviewScreenState extends State<_WriteReviewScreen> {
-  final _controller = TextEditingController();
-  int _rating = 5;
+  final _titleCtrl = TextEditingController();
+  final _bodyCtrl = TextEditingController();
+  int _overall = 0;
+  int _plot = 0;
+  int _style = 0;
+  int _tech = 0;
   bool _saving = false;
 
   @override
   void dispose() {
-    _controller.dispose();
+    _titleCtrl.dispose();
+    _bodyCtrl.dispose();
     super.dispose();
   }
 
+  Widget _starRow(String label, int value, ValueChanged<int> onChanged) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: List.generate(5, (i) {
+              final star = i + 1;
+              return GestureDetector(
+                onTap: () => onChanged(star),
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: Icon(
+                    star <= value ? Icons.star_rounded : Icons.star_outline_rounded,
+                    size: 34,
+                    color: star <= value
+                        ? const Color(0xFFF3C623)
+                        : const Color(0xFFCCCCCC),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _submit() async {
+    if (_overall < 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please rate this novel')),
+      );
+      return;
+    }
+    final title = _titleCtrl.text.trim();
+    if (title.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Title is required')),
+      );
+      return;
+    }
+    final body = _bodyCtrl.text.trim();
+    final words = body.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length;
+    if (words < 20) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Review must be 20 words or more')),
+      );
+      return;
+    }
     setState(() => _saving = true);
     try {
       await widget.apiService.createBookReview(widget.bookId, {
-        'rating': _rating,
-        'comment': _controller.text.trim(),
+        'rating': _overall,
+        'title': title,
+        'comment': body,
+        'plot_rating': _plot > 0 ? _plot : _overall,
+        'style_rating': _style > 0 ? _style : _overall,
+        'tech_rating': _tech > 0 ? _tech : _overall,
       });
       if (!mounted) return;
-      Navigator.pop(context);
+      Navigator.pop(context, true);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Review submitted')),
+        const SnackBar(content: Text('Review posted')),
       );
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to submit review — please sign in'),
-        ),
+        SnackBar(content: Text('Failed to post review: $e')),
       );
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -1584,52 +1646,106 @@ class _WriteReviewScreenState extends State<_WriteReviewScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Write a review')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        foregroundColor: Colors.black87,
+        title: const Text('Write Review'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
           children: [
-            const Text('Rating', style: TextStyle(fontWeight: FontWeight.w600)),
+            Text(
+              'Remember, we write reviews in order to help others find good novels. Keep this in mind when writing your review. Describe what you found special about this novel, and why you think someone else should read it.',
+              style: TextStyle(
+                fontSize: 13.5,
+                height: 1.4,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 20),
+            _starRow(
+              'How do you rate this novel so far?',
+              _overall,
+              (v) => setState(() => _overall = v),
+            ),
+            _starRow(
+              'How do you rate the plot of this novel?',
+              _plot,
+              (v) => setState(() => _plot = v),
+            ),
+            _starRow(
+              "How do you rate the author's writing style?",
+              _style,
+              (v) => setState(() => _style = v),
+            ),
+            _starRow(
+              "How do you rate the author's technical writing skills?\n(Punctuation, Grammar etc.)",
+              _tech,
+              (v) => setState(() => _tech = v),
+            ),
             const SizedBox(height: 8),
-            Row(
-              children: List.generate(5, (i) {
-                final star = i + 1;
-                return IconButton(
-                  onPressed: () => setState(() => _rating = star),
-                  icon: Icon(
-                    star <= _rating ? Icons.star : Icons.star_border,
-                    color: Colors.amber,
-                  ),
-                );
-              }),
+            TextField(
+              controller: _titleCtrl,
+              decoration: InputDecoration(
+                hintText: 'Title (required)',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 14,
+                ),
+              ),
             ),
             const SizedBox(height: 12),
             TextField(
-              controller: _controller,
-              maxLines: 5,
-              decoration: const InputDecoration(
-                hintText: 'Share your thoughts…',
-                border: OutlineInputBorder(),
+              controller: _bodyCtrl,
+              maxLines: 6,
+              decoration: InputDecoration(
+                hintText:
+                    'Review (20 words or more required)\n- What did you like or dislike?\n- Whom would you recommend this book to?\n- Why did you choose this rating?',
+                alignLabelWithHint: true,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                contentPadding: const EdgeInsets.all(14),
               ),
             ),
-            const Spacer(),
+            const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
+              height: 50,
+              child: FilledButton(
                 onPressed: _saving ? null : _submit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFE85D4C),
-                  foregroundColor: Colors.white,
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF00A88E),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(28),
+                  ),
                 ),
                 child: _saving
                     ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
                       )
-                    : const Text('Submit review'),
+                    : const Text(
+                        'Post',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
               ),
             ),
           ],
