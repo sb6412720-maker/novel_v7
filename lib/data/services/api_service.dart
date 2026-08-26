@@ -570,7 +570,10 @@ class ApiService {
           'min_rating': minRating.toString(),
         },
       );
-      final response = await _get('${uri.path}?${uri.query}');
+      final response = await _get(
+        '${uri.path}?${uri.query}',
+        timeout: const Duration(seconds: 45),
+      );
       if (response.statusCode != 200) return const <Map<String, dynamic>>[];
       final decoded = jsonDecode(response.body);
       if (decoded is List) {

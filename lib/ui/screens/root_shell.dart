@@ -170,9 +170,9 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       setState(() {
         _session = session;
       });
-      // Google / incomplete profiles: COMPLETE PROFILE BEFORE Discover
+      // Only incomplete profiles (e.g. brand-new Google) — never after normal login
       if (!session.isGuest) {
-        await _maybeShowOnboarding(session, forceForGoogle: session.isGoogle);
+        await _maybeShowOnboarding(session);
         if (!mounted) return;
       }
       if (!mounted) return;
@@ -225,24 +225,29 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   final bool _onboardingChecked = false;
 
 
-  Future<void> _maybeShowOnboarding(
-    AuthSession session, {
-    bool forceForGoogle = false,
-  }) async {
+  Future<void> _maybeShowOnboarding(AuthSession session) async {
     if (session.isGuest) return;
     try {
       final me = await _apiService.fetchMe();
       final complete = me['profile_complete'] == true ||
           me['profile_complete'] == 1 ||
           me['profile_complete'] == '1';
-      // Google must finish profile (username etc.) at least once
-      if (complete && !forceForGoogle) return;
-      if (complete && forceForGoogle) {
-        // Still show if username empty
-        final uname = (me['username'] ?? '').toString().trim();
-        if (uname.isNotEmpty) return;
+      // Profile already completed during signup / prior onboarding — skip
+      if (complete) return;
+      final name = (me['display_name'] ?? '').toString().trim();
+      final uname = (me['username'] ?? '').toString().trim();
+      // Heuristic: has real name + username → treat as complete
+      if (name.isNotEmpty &&
+          name.toLowerCase() != 'reader' &&
+          uname.isNotEmpty) {
+        try {
+          await _apiService.updateMe({'profile_complete': 1});
+        } catch (_) {}
+        return;
       }
-      final name = (me['display_name'] ?? session.displayName).toString().trim();
+      final display = name.isNotEmpty
+          ? name
+          : (me['display_name'] ?? session.displayName).toString().trim();
       final photo =
           (me['photo_url'] ?? me['avatar_url'] ?? session.photoUrl ?? '').toString();
       if (!mounted) return;
@@ -251,7 +256,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
           fullscreenDialog: true,
           builder: (_) => OnboardingProfileScreen(
             apiService: _apiService,
-            initialDisplayName: name.toLowerCase() == 'reader' ? '' : name,
+            initialDisplayName: display.toLowerCase() == 'reader' ? '' : display,
             initialPhotoUrl: photo,
             onDone: () {
               if (Navigator.of(context).canPop()) {

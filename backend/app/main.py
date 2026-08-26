@@ -1598,6 +1598,13 @@ def register_user(payload: RegisterRequest):
             )
         except Exception:
             pass
+    try:
+        execute_write(
+            "UPDATE app_users SET profile_complete=1 WHERE id=%s",
+            (user_id,),
+        )
+    except Exception:
+        pass
     sent = _send_verification_email(email, token, display_name)
     return {
         "ok": True,
@@ -2516,12 +2523,40 @@ def search_stories(
     min_rating: float = Query(default=0.0),
     limit: int = Query(default=40, ge=1, le=100),
 ):
-    # Fast path: empty query → recent published books (avoids full-table LIKE scans)
-    q_raw = query.strip()
-    g = genre.strip()
+    """Fast search — lightweight cards, case-insensitive, no N+1 serialize."""
+    q_raw = (query or "").strip()
+    g = (genre or "").strip()
+
+    def _card(r: dict) -> dict:
+        return {
+            "id": r.get("id"),
+            "title": r.get("title") or "",
+            "author": r.get("author") or "",
+            "description": (r.get("description") or "")[:240],
+            "cover_path": _normalize_cover_path(r.get("cover_path") or ""),
+            "accent_hex": r.get("accent_hex") or "#6C63FF",
+            "status_text": r.get("status_text") or "",
+            "rating": float(r.get("rating") or 0),
+            "genre": r.get("genre") or "",
+            "primary_genre": r.get("primary_genre") or r.get("genre") or "",
+            "secondary_genre": r.get("secondary_genre") or "",
+            "is_completed": bool(int(r.get("is_completed") or 0)),
+            "section_name": r.get("section_name") or "featured",
+            "cta_label": r.get("cta_label") or "Read",
+            "author_user_id": r.get("user_id"),
+            "user_id": r.get("user_id"),
+        }
+
+    # Public-ish statuses: Ongoing / Completed / Published / empty (legacy)
+    # Draft / unpublished / private stay hidden from search.
+    status_ok = (
+        "LOWER(COALESCE(status_text, '')) NOT IN "
+        "('draft', 'unpublished', 'private', 'unlisted')"
+    )
+
     if not q_raw and not g and min_rating <= 0:
         rows = fetch_all(
-            """
+            f"""
             SELECT id, user_id, title, author, description, cover_path, accent_hex,
                    status_text, rating, genre,
                    COALESCE(primary_genre, genre) AS primary_genre,
@@ -2529,80 +2564,93 @@ def search_stories(
                    COALESCE(is_completed, 0) AS is_completed,
                    section_name, cta_label
             FROM books
-            WHERE LOWER(COALESCE(status_text, 'draft')) NOT IN ('draft', 'unpublished', 'private')
+            WHERE {status_ok}
             ORDER BY id DESC
             LIMIT %s
             """,
             (limit,),
         )
-        return {
-            "items": [
-                {
-                    "id": r["id"],
-                    "title": r.get("title") or "",
-                    "author": r.get("author") or "",
-                    "description": (r.get("description") or "")[:240],
-                    "cover_path": _normalize_cover_path(r.get("cover_path") or ""),
-                    "accent_hex": r.get("accent_hex") or "#6C63FF",
-                    "status_text": r.get("status_text") or "",
-                    "rating": float(r.get("rating") or 0),
-                    "genre": r.get("genre") or "",
-                    "primary_genre": r.get("primary_genre") or r.get("genre") or "",
-                    "secondary_genre": r.get("secondary_genre") or "",
-                    "is_completed": bool(r.get("is_completed")),
-                    "section_name": r.get("section_name") or "featured",
-                    "cta_label": r.get("cta_label") or "Read",
-                    "author_user_id": r.get("user_id"),
-                    "user_id": r.get("user_id"),
-                }
-                for r in (rows or [])
-            ]
-        }
+        return {"items": [_card(r) for r in (rows or [])]}
 
-    q = "%" + q_raw + "%"
-    if g:
-        g_like = "%" + g + "%"
+    q = "%" + q_raw.lower() + "%"
+    try:
+        if g:
+            g_like = "%" + g.lower() + "%"
+            rows = fetch_all(
+                f"""
+                SELECT id, user_id, title, author, description, cover_path, accent_hex,
+                       status_text, rating, genre,
+                       COALESCE(primary_genre, genre) AS primary_genre,
+                       COALESCE(secondary_genre, '') AS secondary_genre,
+                       COALESCE(is_completed, 0) AS is_completed,
+                       section_name, cta_label
+                FROM books
+                WHERE (
+                        LOWER(COALESCE(title, '')) LIKE %s
+                     OR LOWER(COALESCE(author, '')) LIKE %s
+                     OR LOWER(COALESCE(description, '')) LIKE %s
+                     OR LOWER(COALESCE(genre, '')) LIKE %s
+                     OR LOWER(COALESCE(primary_genre, '')) LIKE %s
+                     OR LOWER(COALESCE(secondary_genre, '')) LIKE %s
+                )
+                  AND (
+                        LOWER(COALESCE(genre, '')) LIKE %s
+                     OR LOWER(COALESCE(primary_genre, '')) LIKE %s
+                     OR LOWER(COALESCE(secondary_genre, '')) LIKE %s
+                  )
+                  AND COALESCE(rating, 0) >= %s
+                  AND {status_ok}
+                ORDER BY COALESCE(rating, 0) DESC, id DESC
+                LIMIT %s
+                """,
+                (q, q, q, q, q, q, g_like, g_like, g_like, min_rating, limit),
+            )
+        else:
+            rows = fetch_all(
+                f"""
+                SELECT id, user_id, title, author, description, cover_path, accent_hex,
+                       status_text, rating, genre,
+                       COALESCE(primary_genre, genre) AS primary_genre,
+                       COALESCE(secondary_genre, '') AS secondary_genre,
+                       COALESCE(is_completed, 0) AS is_completed,
+                       section_name, cta_label
+                FROM books
+                WHERE (
+                        LOWER(COALESCE(title, '')) LIKE %s
+                     OR LOWER(COALESCE(author, '')) LIKE %s
+                     OR LOWER(COALESCE(description, '')) LIKE %s
+                     OR LOWER(COALESCE(genre, '')) LIKE %s
+                     OR LOWER(COALESCE(primary_genre, '')) LIKE %s
+                     OR LOWER(COALESCE(secondary_genre, '')) LIKE %s
+                )
+                  AND COALESCE(rating, 0) >= %s
+                  AND {status_ok}
+                ORDER BY COALESCE(rating, 0) DESC, id DESC
+                LIMIT %s
+                """,
+                (q, q, q, q, q, q, min_rating, limit),
+            )
+    except Exception as exc:
+        LOGGER.exception("search failed: %s", exc)
+        # Last-resort simpler query
         rows = fetch_all(
             """
             SELECT id, user_id, title, author, description, cover_path, accent_hex,
-                   status_text, rating, genre,
-                   COALESCE(primary_genre, genre) AS primary_genre,
-                   COALESCE(secondary_genre, '') AS secondary_genre,
-                   COALESCE(is_completed, 0) AS is_completed,
-                   section_name, cta_label
+                   status_text, rating, genre, section_name, cta_label
             FROM books
-            WHERE (title LIKE %s OR author LIKE %s OR description LIKE %s)
-              AND (
-                    genre LIKE %s
-                 OR COALESCE(primary_genre, '') LIKE %s
-                 OR COALESCE(secondary_genre, '') LIKE %s
-              )
-              AND rating >= %s
-              AND LOWER(COALESCE(status_text, 'draft')) NOT IN ('draft', 'unpublished', 'private')
-            ORDER BY rating DESC, id DESC
+            WHERE LOWER(COALESCE(title, '')) LIKE %s
+               OR LOWER(COALESCE(author, '')) LIKE %s
+            ORDER BY id DESC
             LIMIT %s
             """,
-            (q, q, q, g_like, g_like, g_like, min_rating, limit),
+            (q, q, limit),
         )
-    else:
-        rows = fetch_all(
-            """
-            SELECT id, user_id, title, author, description, cover_path, accent_hex,
-                   status_text, rating, genre,
-                   COALESCE(primary_genre, genre) AS primary_genre,
-                   COALESCE(secondary_genre, '') AS secondary_genre,
-                   COALESCE(is_completed, 0) AS is_completed,
-                   section_name, cta_label
-            FROM books
-            WHERE (title LIKE %s OR author LIKE %s OR description LIKE %s)
-              AND rating >= %s
-              AND LOWER(COALESCE(status_text, 'draft')) NOT IN ('draft', 'unpublished', 'private')
-            ORDER BY rating DESC, id DESC
-            LIMIT %s
-            """,
-            (q, q, q, min_rating, limit),
-        )
-    return {"items": [_serialize_book(row) for row in rows]}
+        for r in rows or []:
+            r.setdefault("primary_genre", r.get("genre") or "")
+            r.setdefault("secondary_genre", "")
+            r.setdefault("is_completed", 0)
+
+    return {"items": [_card(r) for r in (rows or [])]}
 
 
 
