@@ -136,6 +136,8 @@ class BookCardModel {
     required this.sectionName,
     required this.isCompleted,
     required this.cta,
+    this.viewCount = 0,
+    this.likesCount = 0,
   });
 
   final int id;
@@ -153,13 +155,16 @@ class BookCardModel {
   final String sectionName;
   final bool isCompleted;
   final String cta;
+  final int viewCount;
+  final int likesCount;
 
   factory BookCardModel.fromMap(Map<String, dynamic> map) {
     return BookCardModel(
       id: (map['id'] as num?)?.toInt() ?? 0,
       title: map['title']?.toString() ?? '',
       author: map['author'] as String? ?? '',
-      authorUserId: (map['author_user_id'] as num?)?.toInt(),
+      authorUserId: (map['author_user_id'] as num?)?.toInt() ??
+          (map['user_id'] as num?)?.toInt(),
       authorPhotoUrl: (map['author_photo_url'] as String?) ??
           (map['author_photo'] as String?) ??
           (map['photo_url'] as String?),
@@ -174,6 +179,12 @@ class BookCardModel {
       sectionName: map['section_name'] as String? ?? '',
       isCompleted: (map['is_completed'] as num?) == 1,
       cta: map['cta_label'] as String? ?? map['cta'] as String? ?? 'Read now',
+      viewCount: (map['view_count'] as num?)?.toInt() ??
+          (map['views'] as num?)?.toInt() ??
+          0,
+      likesCount: (map['likes_count'] as num?)?.toInt() ??
+          (map['likes'] as num?)?.toInt() ??
+          0,
     );
   }
 }
@@ -193,6 +204,7 @@ class BookDetailModel {
     this.authorUserId,
     this.contentWarnings = '',
     this.lastUpdated = '',
+    this.viewCount = 0,
   });
 
   final int id;
@@ -206,6 +218,7 @@ class BookDetailModel {
   final String coverPath;
   final List<String> tags;
   final int? authorUserId;
+  final int viewCount;
   /// Free-text content warnings, e.g. "child abuse, drug use overdose".
   final String contentWarnings;
   final String lastUpdated;
@@ -235,6 +248,9 @@ class BookDetailModel {
       authorUserId: (map['author_user_id'] as num?)?.toInt() ??
           (map['user_id'] as num?)?.toInt(),
       contentWarnings: warnings,
+      viewCount: (map['view_count'] as num?)?.toInt() ??
+          (map['views'] as num?)?.toInt() ??
+          0,
       lastUpdated: (map['last_updated'] ?? map['updated_at'] ?? map['updated_text'] ?? '').toString(),
     );
   }

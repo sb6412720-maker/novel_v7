@@ -252,46 +252,19 @@ class _DynamicStoryRail extends StatefulWidget {
 }
 
 class _DynamicStoryRailState extends State<_DynamicStoryRail> {
-  late final ScrollController _scrollController;
+  late final PageController _pageController;
   int _activeIndex = 0;
-  static const double _cardW = 136;
-  static const double _gap = 12;
 
   @override
   void initState() {
     super.initState();
-    _scrollController = ScrollController();
-    _scrollController.addListener(_onScroll);
-  }
-
-  void _onScroll() {
-    if (!_scrollController.hasClients) return;
-    final offset = _scrollController.offset;
-    final idx = ((offset + _cardW / 2) / (_cardW + _gap)).round();
-    final valid = widget.section.books
-        .where((e) => e.id > 0 && e.title.trim().isNotEmpty)
-        .toList();
-    final clamped = idx.clamp(0, valid.isEmpty ? 0 : valid.length - 1);
-    if (clamped != _activeIndex && mounted) {
-      setState(() => _activeIndex = clamped);
-    }
-  }
-
-  Future<void> _scrollToIndex(int index) async {
-    if (!_scrollController.hasClients) return;
-    final target = index * (_cardW + _gap);
-    await _scrollController.animateTo(
-      target.clamp(0.0, _scrollController.position.maxScrollExtent),
-      duration: const Duration(milliseconds: 280),
-      curve: Curves.easeOutCubic,
-    );
-    if (mounted) setState(() => _activeIndex = index);
+    // Match the first Discover slider format (no leading blank gap)
+    _pageController = PageController(viewportFraction: 0.42, initialPage: 0);
   }
 
   @override
   void dispose() {
-    _scrollController.removeListener(_onScroll);
-    _scrollController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -306,8 +279,6 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
         .toList();
     if (valid.isEmpty) return const SizedBox.shrink();
     final book = valid[_activeIndex.clamp(0, valid.length - 1)];
-    // Side padding so FIRST and LAST cards can fully scroll into view and be selected
-    final sidePad = MediaQuery.sizeOf(context).width * 0.28;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -349,55 +320,58 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         SizedBox(
-          height: 200,
-          child: ListView.separated(
-            controller: _scrollController,
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            padding: EdgeInsets.symmetric(horizontal: sidePad),
+          height: 210,
+          child: PageView.builder(
+            controller: _pageController,
+            // Same as first slider — no large leading blank space
+            padEnds: false,
             itemCount: valid.length,
-            separatorBuilder: (_, __) => const SizedBox(width: _gap),
+            onPageChanged: (index) => setState(() => _activeIndex = index),
             itemBuilder: (context, index) {
               final item = valid[index];
               final isActive = index == _activeIndex;
-              return GestureDetector(
-                onTap: () {
-                  if (!isActive) {
-                    _scrollToIndex(index);
-                    return;
-                  }
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => StoryDetailScreen(
-                        apiService: widget.apiService,
-                        book: BookDetailModel(
-                          id: item.id,
-                          title: item.title,
-                          author: item.author,
-                          description: item.description,
-                          statusText: item.statusText,
-                          rating: item.rating,
-                          genre: item.primaryGenre,
-                          cta: item.cta,
-                          coverPath: item.coverPath,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-                child: AnimatedScale(
-                  scale: isActive ? 1.06 : 0.9,
-                  duration: const Duration(milliseconds: 200),
-                  child: AnimatedOpacity(
-                    opacity: isActive ? 1.0 : 0.45,
-                    duration: const Duration(milliseconds: 200),
-                    child: SizedBox(
-                      width: _cardW,
+              return AnimatedScale(
+                scale: isActive ? 1.08 : 0.88,
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                child: AnimatedOpacity(
+                  opacity: isActive ? 1.0 : 0.35,
+                  duration: const Duration(milliseconds: 220),
+                  child: GestureDetector(
+                    onTap: () {
+                      if (!isActive) {
+                        _pageController.animateToPage(
+                          index,
+                          duration: const Duration(milliseconds: 280),
+                          curve: Curves.easeOutCubic,
+                        );
+                      } else {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => StoryDetailScreen(
+                              apiService: widget.apiService,
+                              book: BookDetailModel(
+                                id: item.id,
+                                title: item.title,
+                                author: item.author,
+                                description: item.description,
+                                statusText: item.statusText,
+                                rating: item.rating,
+                                genre: item.primaryGenre,
+                                cta: item.cta,
+                                coverPath: item.coverPath,
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+                    },
+                    child: Center(
                       child: _StoryCard(
                         book: item,
-                        width: _cardW,
+                        width: isActive ? 148 : 124,
                         apiService: widget.apiService,
                       ),
                     ),
@@ -436,6 +410,7 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
     );
   }
 }
+
 
 class _ActiveStoryDetail extends StatelessWidget {
   const _ActiveStoryDetail({required this.book, this.onRead, this.apiService});
@@ -506,6 +481,21 @@ class _ActiveStoryDetail extends StatelessWidget {
                   book.statusText.isEmpty
                       ? 'Updated recently'
                       : book.statusText,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.visibility_outlined,
+                  size: 14,
+                  color: AppTheme.muted,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '${book.viewCount}',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
@@ -819,7 +809,7 @@ class _AuthorsStripState extends State<_AuthorsStrip> {
     for (final book in ranked) {
       final name = book.author.trim().isEmpty ? 'Unknown' : book.author;
       byAuthor.putIfAbsent(name, () => book);
-      if (byAuthor.length >= 10) break;
+      if (byAuthor.length >= 5) break;
     }
 
     final authors = byAuthor.entries.toList();
@@ -828,14 +818,42 @@ class _AuthorsStripState extends State<_AuthorsStrip> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'New Authors on Inkitt',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: Theme.of(context).brightness == Brightness.dark
-                ? Colors.white
-                : null,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'New Authors',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white
+                      : null,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => _AuthorsSeeAllScreen(
+                      books: widget.books,
+                      apiService: widget.apiService,
+                    ),
+                  ),
+                );
+              },
+              style: TextButton.styleFrom(
+                foregroundColor: AppTheme.brand,
+                padding: const EdgeInsets.only(left: 0, right: 8),
+                minimumSize: const Size(0, 32),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text(
+                'See all',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 10),
         SizedBox(
@@ -1691,6 +1709,82 @@ class _GenreBooksScreen extends StatelessWidget {
                 );
               },
             ),
+    );
+  }
+}
+
+
+class _AuthorsSeeAllScreen extends StatelessWidget {
+  const _AuthorsSeeAllScreen({required this.books, required this.apiService});
+  final List<BookCardModel> books;
+  final ApiService apiService;
+
+  @override
+  Widget build(BuildContext context) {
+    final ranked = List<BookCardModel>.from(
+      books.where((b) => b.author.trim().isNotEmpty),
+    );
+    ranked.sort((a, b) {
+      int score(BookCardModel x) {
+        var s = 0;
+        if (x.authorUserId != null && x.authorUserId! > 0) s += 1;
+        if (x.isCompleted) s += 2;
+        return s;
+      }
+      return score(b).compareTo(score(a));
+    });
+    final byAuthor = <String, BookCardModel>{};
+    for (final book in ranked) {
+      final name = book.author.trim().isEmpty ? 'Unknown' : book.author;
+      byAuthor.putIfAbsent(name, () => book);
+    }
+    final authors = byAuthor.entries.toList();
+    return Scaffold(
+      appBar: AppBar(title: const Text('Authors')),
+      body: ListView.separated(
+        padding: const EdgeInsets.all(16),
+        itemCount: authors.length,
+        separatorBuilder: (_, __) => const Divider(height: 1),
+        itemBuilder: (context, index) {
+          final author = authors[index].key;
+          final book = authors[index].value;
+          final authorId = book.authorUserId;
+          return ListTile(
+            leading: CircleAvatar(
+              child: Text(author.isNotEmpty ? author[0].toUpperCase() : 'A'),
+            ),
+            title: Text(author),
+            subtitle: Text(book.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+            onTap: authorId == null
+                ? null
+                : () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ProfileScreen(
+                          apiService: apiService,
+                          viewingUserId: authorId,
+                          achievements: const [],
+                          profile: ProfileModel(
+                            id: authorId,
+                            displayName: author,
+                            username: author.toLowerCase().replaceAll(' ', ''),
+                            photoUrl: book.authorPhotoUrl ?? '',
+                            coverUrl: '',
+                            following: 0,
+                            followers: 0,
+                            blocked: 0,
+                            chaptersRead: 0,
+                            socialKarma: 0,
+                            dayStreak: 0,
+                            readingLists: const [],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+          );
+        },
+      ),
     );
   }
 }

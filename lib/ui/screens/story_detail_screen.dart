@@ -34,6 +34,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
   List<String> _tags = const [];
   List<Map<String, dynamic>> _reviews = const [];
   bool _loadingReviews = true;
+  int _viewCount = 0;
   String? _error;
   int _likesCount = 0;
   bool _liked = false;
@@ -48,6 +49,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
     super.initState();
     _book = widget.book;
     _tags = List<String>.from(widget.book.tags);
+    _viewCount = widget.book.viewCount;
     _bootstrap();
   }
 
@@ -65,6 +67,9 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
           _likesCount = (detail['likes_count'] as num?)?.toInt() ??
               (detail['likes'] as num?)?.toInt() ??
               0;
+          _viewCount = (detail['view_count'] as num?)?.toInt() ??
+              (detail['views'] as num?)?.toInt() ??
+              _viewCount;
           final photo = (detail['author_photo_url'] ??
                   detail['author_photo'] ??
                   detail['photo_url'] ??
@@ -590,6 +595,26 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                           : (_book.statusText.isNotEmpty
                               ? _book.statusText
                               : 'Ongoing'),
+                    ),
+                    Column(
+                      children: [
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.visibility_outlined, size: 16, color: Colors.black54),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${_viewCount}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        const Text('Views', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                      ],
                     ),
                     _statCell(
                       'Reviews',

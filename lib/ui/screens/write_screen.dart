@@ -379,7 +379,7 @@ class _ManageStoriesTab extends StatelessWidget {
                       statusText.contains('publish');
                 }
 
-                final stories = all.where((story) {
+                var stories = all.where((story) {
                   final done = isCompletedStatus(story);
                   // index 0 Submitted, index 1 Drafts
                   if (storySubTabs.index == 0 && !done) return false;
@@ -391,6 +391,16 @@ class _ManageStoriesTab extends StatelessWidget {
                   final author =
                       story['author']?.toString().toLowerCase() ?? '';
                   return title.contains(q) || author.contains(q);
+                }).toList();
+
+                // One card per story (never list same book twice after chapter saves)
+                final seenIds = <int>{};
+                stories = stories.where((s) {
+                  final id = (s['id'] as num?)?.toInt() ?? 0;
+                  if (id <= 0) return true;
+                  if (seenIds.contains(id)) return false;
+                  seenIds.add(id);
+                  return true;
                 }).toList();
 
                 if (stories.isEmpty) {

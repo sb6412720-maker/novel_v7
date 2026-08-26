@@ -580,6 +580,28 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
           title: const Text('Edit Chapter'),
           actions: [
             IconButton(
+              icon: const Icon(Icons.add_circle_outline_rounded),
+              tooltip: 'Add chapter',
+              onPressed: _isSaving
+                  ? null
+                  : () async {
+                      // Save current first, then open next chapter editor
+                      await _saveChapter(successMessage: 'Saved');
+                      if (!mounted) return;
+                      final nextNo = (_chapterNumber ?? 1) + 1;
+                      await Navigator.of(context).pushReplacement(
+                        MaterialPageRoute<void>(
+                          builder: (_) => EditChapterScreen(
+                            apiService: widget.apiService,
+                            storyId: widget.storyId,
+                            createNew: true,
+                            chapterTitle: 'Chapter $nextNo',
+                          ),
+                        ),
+                      );
+                    },
+            ),
+            IconButton(
               icon: _isSaving
                   ? const SizedBox(
                       width: 18,

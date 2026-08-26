@@ -1922,6 +1922,7 @@ def bootstrap(user: dict[str, Any] | None = Depends(optional_user)):
                COALESCE(b.primary_genre, b.genre) AS primary_genre,
                COALESCE(b.secondary_genre, '') AS secondary_genre,
                COALESCE(b.is_completed, 0) AS is_completed,
+               COALESCE(b.view_count, 0) AS view_count,
                u.photo_url AS author_photo_url
         FROM books b
         LEFT JOIN app_users u ON u.id = b.user_id
@@ -1968,6 +1969,8 @@ def bootstrap(user: dict[str, Any] | None = Depends(optional_user)):
             "cta_label": book.get("cta_label") or "Read now",
             "likes_count": live,
             "likes": live,
+            "view_count": int(book.get("view_count") or 0),
+            "views": int(book.get("view_count") or 0),
         }
 
     recently_updated = [
@@ -3591,6 +3594,18 @@ def create_book_review(
     payload: ReviewCreateRequest,
     user: dict[str, Any] = Depends(require_user),
 ):
+    # Owner cannot review own book
+    owner_rows = fetch_all("SELECT user_id FROM books WHERE id=%s LIMIT 1", (book_id,))
+    owner_id = int(_row_get(owner_rows[0], "user_id") or 0) if owner_rows else 0
+    if owner_id and owner_id == int(user["user_id"]):
+        raise HTTPException(status_code=400, detail="You cannot review your own story")
+    # One review per user per book
+    existing = fetch_all(
+        "SELECT id FROM book_reviews WHERE book_id=%s AND user_id=%s LIMIT 1",
+        (book_id, user["user_id"]),
+    )
+    if existing:
+        raise HTTPException(status_code=400, detail="You already reviewed this book")
     if payload.rating < 1 or payload.rating > 5:
         raise HTTPException(status_code=400, detail="Rating must be between 1 and 5")
     title = (payload.title or "").strip()
@@ -3802,8 +3817,12 @@ def create_chapter_comment(
     payload: ChapterCommentCreateRequest,
     user: dict[str, Any] = Depends(require_user),
 ):
-    """Post a comment on a chapter. Requires auth."""
+    """Post a comment on a chapter. Requires auth. Owner cannot comment own story."""
     _ensure_chapter_comments_table()
+    owner_rows = fetch_all("SELECT user_id FROM books WHERE id=%s LIMIT 1", (book_id,))
+    owner_id = int(_row_get(owner_rows[0], "user_id") or 0) if owner_rows else 0
+    if owner_id and owner_id == int(user["user_id"]):
+        raise HTTPException(status_code=400, detail="You cannot comment on your own story")
     body = (payload.body or "").strip()
     if not body:
         raise HTTPException(status_code=400, detail="Comment cannot be empty")
@@ -4048,8 +4067,22 @@ def get_book_like(book_id: int, user: dict[str, Any] | None = Depends(optional_u
 
 @app.post("/api/books/{book_id}/like")
 def like_book(book_id: int, user: dict[str, Any] = Depends(require_user)):
-    """One like per user; repeated calls stay idempotent."""
+    """One like per user; repeated calls stay idempotent. Owner cannot like own book."""
     _ensure_book_likes_table()
+    owner_rows = fetch_all("SELECT user_id FROM books WHERE id=%s LIMIT 1", (book_id,))
+    owner_id = int(_row_get(owner_rows[0], "user_id") or 0) if owner_rows else 0
+    if owner_id and owner_id == int(user["user_id"]):
+        count_rows = fetch_all(
+            "SELECT COUNT(*) AS c FROM book_likes WHERE book_id=%s",
+            (book_id,),
+        )
+        return {
+            "ok": False,
+            "liked": False,
+            "likes_count": int(count_rows[0]["c"]) if count_rows else 0,
+            "self": True,
+            "detail": "You cannot like your own story",
+        }
     if _live_use_sqlite():
         execute_write(
             "INSERT OR IGNORE INTO book_likes (user_id, book_id) VALUES (%s, %s)",
