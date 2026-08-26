@@ -2754,18 +2754,51 @@ def delete_reading_list(
 
 @app.get("/api/write/stories")
 def get_writer_stories(user: dict[str, Any] = Depends(require_user)):
+    """Fast path for Manage Stories / Profile.
+
+    Do NOT call full `_serialize_book` here — it runs tags/likes/reviews
+    queries per row (N+1) and was taking 100s+ on Vercel cold MySQL, so the
+    Flutter client timed out at 30s and showed an empty list after create.
+    """
+    # Keep SELECT minimal — only columns that always exist on books
     rows = fetch_all(
         """
-        SELECT id, title, author, description, genre, status_text, cover_path, accent_hex, content_warnings
+        SELECT id, user_id, title, author, description, genre, status_text,
+               cover_path, accent_hex, content_warnings
         FROM books
         WHERE user_id = %s
         ORDER BY id DESC
         """,
         (user["user_id"],),
     )
-    return {
-        "items": [_serialize_book(row) for row in rows]
-    }
+    items: list[dict[str, Any]] = []
+    for row in rows or []:
+        status = str(_row_get(row, "status_text") or "Draft")
+        genre = str(_row_get(row, "genre") or "")
+        items.append(
+            {
+                "id": _row_get(row, "id"),
+                "user_id": _row_get(row, "user_id"),
+                "author_user_id": _row_get(row, "user_id"),
+                "title": _row_get(row, "title") or "Untitled",
+                "author": _row_get(row, "author") or "",
+                "description": _row_get(row, "description") or "",
+                "genre": genre,
+                "primary_genre": genre,
+                "status_text": status,
+                "cover_path": _normalize_cover_path(_row_get(row, "cover_path")),
+                "accent_hex": _row_get(row, "accent_hex") or "#A1A1A1",
+                "content_warnings": str(
+                    _row_get(row, "content_warnings") or ""
+                ).strip(),
+                "cta_label": "Read now",
+                "rating": 0.0,
+                "tags": [],
+                "likes_count": 0,
+                "reviews_count": 0,
+            }
+        )
+    return {"items": items}
 
 
 @app.get("/api/write/stories/{story_id}/chapters")

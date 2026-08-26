@@ -709,9 +709,10 @@ class ApiService {
 
   Future<List<Map<String, dynamic>>> fetchWriterStories() async {
     try {
+      // Backend list was 100s+ with N+1 serialize; timeout raised as safety net.
       final response = await _get(
         '/api/write/stories',
-        timeout: const Duration(seconds: 30),
+        timeout: const Duration(seconds: 60),
       );
       if (response.statusCode == 401 || response.statusCode == 403) {
         debugPrint('fetchWriterStories: auth required (${response.statusCode})');

@@ -196,7 +196,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   }
 
 
-  bool _onboardingChecked = false;
+  final bool _onboardingChecked = false;
 
 
   Future<void> _maybeShowOnboarding(AuthSession session) async {

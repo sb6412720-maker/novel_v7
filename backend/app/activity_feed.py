@@ -73,13 +73,15 @@ def register_activity_routes(
         # Comments on this user's chapters (by others)
         try:
             _ensure_chapter_comments_table()
+            # chapters table uses story_id (not book_id)
             comments = fetch_all(
                 """
                 SELECT cc.id, cc.user_id, cc.chapter_id, cc.body, cc.created_at,
-                       c.title AS chapter_title, c.book_id, b.title AS book_title, b.cover_path
+                       c.title AS chapter_title, c.story_id AS book_id,
+                       b.title AS book_title, b.cover_path
                 FROM chapter_comments cc
                 JOIN chapters c ON c.id = cc.chapter_id
-                JOIN books b ON b.id = c.book_id
+                JOIN books b ON b.id = c.story_id
                 WHERE b.user_id=%s AND cc.user_id != %s
                 ORDER BY cc.id DESC
                 LIMIT 40
@@ -146,9 +148,10 @@ def register_activity_routes(
         # Follows
         try:
             _ensure_author_follows_table()
+            # author_follows schema: user_id (follower) + author_id
             follows = fetch_all(
                 """
-                SELECT id, follower_id, created_at
+                SELECT id, user_id AS follower_id, created_at
                 FROM author_follows
                 WHERE author_id=%s
                 ORDER BY id DESC
@@ -157,7 +160,8 @@ def register_activity_routes(
                 (user_id,),
             )
             for row in follows or []:
-                aname, aphoto = _actor(_row_get(row, "follower_id"))
+                fid = _row_get(row, "follower_id") or _row_get(row, "user_id")
+                aname, aphoto = _actor(fid)
                 items.append({
                     "id": f"follow-{_row_get(row, 'id')}",
                     "type": "follow",
@@ -165,7 +169,7 @@ def register_activity_routes(
                     "message": f"{aname} is now following you",
                     "actor_name": aname,
                     "actor_photo": aphoto,
-                    "actor_user_id": _row_get(row, "follower_id"),
+                    "actor_user_id": fid,
                     "cover_path": "",
                     "book_id": None,
                     "created_at": str(_row_get(row, "created_at") or ""),

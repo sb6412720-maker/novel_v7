@@ -1308,7 +1308,7 @@ def _run_startup_migrations_sqlite(connection) -> dict[str, int]:
     if cursor.fetchone() is None:
         cursor.execute(
             "INSERT INTO write_screen (manage_tabs, story_tabs, filter_label, sort_label, empty_title, empty_cta) VALUES (?, ?, ?, ?, ?, ?)",
-            ("Drafts,Published", "Stories,Series", "Filter", "Sort", "Nothing here yet", "Create story"),
+            ("Drafts,Published", "Submitted,Drafts", "Filter", "Sort", "Nothing here yet", "Create story"),
         )
 
     cursor.execute("SELECT id FROM profiles LIMIT 1")
@@ -1820,7 +1820,7 @@ def run_startup_migrations() -> dict[str, int]:
     if cursor.fetchone() is None:
         cursor.execute(
             "INSERT INTO write_screen (manage_tabs, story_tabs, filter_label, sort_label, empty_title, empty_cta) VALUES (%s, %s, %s, %s, %s, %s)",
-            ("Drafts,Published", "Stories,Series", "Filter", "Sort", "Nothing here yet", "Create story"),
+            ("Drafts,Published", "Submitted,Drafts", "Filter", "Sort", "Nothing here yet", "Create story"),
         )
 
     cursor.execute("SELECT id FROM profiles LIMIT 1")
