@@ -40,7 +40,8 @@ class _DiscoverScreenState extends State<DiscoverScreen>
   int _shuffleToken = 0;
 
   void _reshuffleBooks() {
-    final pool = widget.data.books.where(_isValidBook).toList();
+    // AppBootstrap uses discoverBooks / recentlyUpdated — not `.books`
+    final pool = _booksForDiscover();
     pool.shuffle(math.Random(DateTime.now().millisecondsSinceEpoch + _shuffleToken));
     _shuffledBooks = pool;
     _shuffleToken++;
@@ -84,7 +85,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
     // Prefer shuffled catalog so pull-to-refresh changes order
     final catalog = _shuffledBooks.isNotEmpty
         ? _shuffledBooks
-        : widget.data.books.where(_isValidBook).toList();
+        : _booksForDiscover();
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -264,7 +265,9 @@ class _DiscoverScreenState extends State<DiscoverScreen>
 
   Widget _buildTabContent(int tabIndex) {
     final tabLabel = _tabs[tabIndex].toLowerCase();
-    final allBooks = _booksForDiscover();
+    // Use shuffled list when available so refresh changes rail order
+    final allBooks =
+        _shuffledBooks.isNotEmpty ? _shuffledBooks : _booksForDiscover();
     final sections = _discoverSectionsForTab(tabLabel, allBooks);
     final showExploreLead = tabLabel == 'new' && sections.isNotEmpty;
 
