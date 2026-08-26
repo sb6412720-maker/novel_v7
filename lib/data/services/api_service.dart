@@ -449,12 +449,35 @@ class ApiService {
     String? username,
   }) async {
     if (mode == 'login') {
-      final response = await _post('/api/auth/login', {
+      // Primary: dedicated login (username OR email). Long timeout for cold start.
+      try {
+        final response = await _post('/api/auth/login', {
+          'email': email,
+          'password': password,
+          if (username != null && username.trim().isNotEmpty)
+            'username': username.trim(),
+        }, timeout: const Duration(seconds: 60));
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          return jsonDecode(response.body) as Map<String, dynamic>;
+        }
+        // Fall through to legacy email auth on 404 only
+        if (response.statusCode != 404) {
+          throw Exception(_authErrorBody(response));
+        }
+      } on Exception catch (e) {
+        final msg = e.toString().toLowerCase();
+        final isTimeout = msg.contains('timeout') || msg.contains('timed out');
+        if (!isTimeout && !msg.contains('404')) rethrow;
+        // Fallback below
+      }
+      // Legacy fallback: /api/auth/email
+      final response = await _post('/api/auth/email', {
         'email': email,
         'password': password,
+        'mode': 'login',
         if (username != null && username.trim().isNotEmpty)
           'username': username.trim(),
-      }, timeout: const Duration(seconds: 30));
+      }, timeout: const Duration(seconds: 60));
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw Exception(_authErrorBody(response));
       }
@@ -1255,14 +1278,23 @@ class ApiService {
     int storyId,
     Map<String, dynamic> payload,
   ) async {
+    if (storyId <= 0) {
+      throw Exception('Invalid story id — cannot create chapter');
+    }
     final response = await _post(
       '/api/write/stories/$storyId/chapters',
       payload,
       timeout: const Duration(seconds: 90),
     );
-    if (response.statusCode < 200 || response.statusCode >= 300) return null;
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(_authErrorBody(response));
+    }
     final data = jsonDecode(response.body) as Map<String, dynamic>;
-    return data['id'] as int?;
+    final id = (data['id'] as num?)?.toInt();
+    if (id == null) {
+      throw Exception('Server did not return chapter id');
+    }
+    return id;
   }
 
   Future<void> updateStoryChapter(

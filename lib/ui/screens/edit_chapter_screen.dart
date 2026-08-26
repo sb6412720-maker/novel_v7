@@ -172,6 +172,15 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
       );
       return;
     }
+    // CRITICAL: chapters must attach to existing book — never create a new book here
+    if (widget.storyId <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Missing story id. Open the story again and retry.'),
+        ),
+      );
+      return;
+    }
 
     setState(() => _isSaving = true);
     try {
@@ -184,13 +193,22 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
         'notes': _chapterNotes,
         'submission_status': nextSubmissionStatus,
         'scheduled_for': nextScheduledFor?.toIso8601String(),
+        // Explicit link — backend must use path story_id, not create a book
+        'story_id': widget.storyId,
       };
 
       if (_chapterId == null) {
-        _chapterId = await widget.apiService.createStoryChapter(
+        final newId = await widget.apiService.createStoryChapter(
           widget.storyId,
           payload,
         );
+        if (newId == null) {
+          throw Exception(
+            'Could not save chapter for story #${widget.storyId}. '
+            'Check network and try again.',
+          );
+        }
+        _chapterId = newId;
       } else {
         await widget.apiService.updateStoryChapter(_chapterId!, payload);
       }
@@ -225,13 +243,14 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
           ),
         );
         if (addNext == true && mounted) {
-          final nextNo = (_chapterNumber ?? 1) + 1;
+          final nextNo = _chapterNumber + 1;
           await Navigator.of(context).pushReplacement(
             MaterialPageRoute<void>(
               builder: (_) => EditChapterScreen(
                 apiService: widget.apiService,
-                storyId: widget.storyId,
+                storyId: widget.storyId, // SAME book
                 createNew: true,
+                chapterNumber: nextNo,
                 chapterTitle: 'Chapter $nextNo',
               ),
             ),
@@ -587,16 +606,17 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
               onPressed: _isSaving
                   ? null
                   : () async {
-                      // Save current first, then open next chapter editor
+                      // Save current first, then open NEXT chapter on SAME book
                       await _saveChapter(successMessage: 'Saved');
                       if (!mounted) return;
-                      final nextNo = (_chapterNumber ?? 1) + 1;
+                      final nextNo = _chapterNumber + 1;
                       await Navigator.of(context).pushReplacement(
                         MaterialPageRoute<void>(
                           builder: (_) => EditChapterScreen(
                             apiService: widget.apiService,
                             storyId: widget.storyId,
                             createNew: true,
+                            chapterNumber: nextNo,
                             chapterTitle: 'Chapter $nextNo',
                           ),
                         ),

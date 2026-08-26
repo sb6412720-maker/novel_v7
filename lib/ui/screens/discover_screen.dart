@@ -606,10 +606,21 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Future<void> _runSearch({bool recordHistory = true}) async {
-    setState(() => _loading = true);
     final q = _searchQuery.trim();
+    // No query → only recent history chips, no random book list
+    if (q.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _results = <Map<String, dynamic>>[];
+          _loading = false;
+          _showRecent = true;
+        });
+      }
+      return;
+    }
+    setState(() => _loading = true);
     // Persist every non-empty search per scope (title / tag / profile)
-    if (recordHistory && q.isNotEmpty) {
+    if (recordHistory) {
       await _saveSearchHistory(q);
     }
     List<Map<String, dynamic>> rows = <Map<String, dynamic>>[];
@@ -735,8 +746,12 @@ class _SearchScreenState extends State<SearchScreen> {
     if (widget.initialQuery.trim().isNotEmpty) {
       _runSearch(recordHistory: true);
     } else {
-      setState(() => _showRecent = true);
-      _runSearch();
+      // Empty query: show recent searches only (no books until user searches)
+      setState(() {
+        _showRecent = true;
+        _results = <Map<String, dynamic>>[];
+        _loading = false;
+      });
     }
   }
 

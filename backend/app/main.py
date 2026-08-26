@@ -1612,44 +1612,49 @@ def register_user(payload: RegisterRequest):
 
 @app.post("/api/auth/login")
 def login_user(payload: EmailAuthRequest):
-    """Login with username OR email + password. Requires verified email for email accounts."""
-    _ensure_password_hash_column()
-    _ensure_auth_profile_columns()
+    """Login with username OR email + password. Fast path — no ALTER TABLE."""
     ident = (payload.email or payload.username or "").strip()
     password = (payload.password or "").strip()
     if not ident or not password:
         raise HTTPException(status_code=400, detail="Username/email and password required")
+
+    # Prefer simple SELECT first (email). Avoid username column if schema lag.
     rows = None
-    if "@" in ident:
-        rows = fetch_all(
-            """
-            SELECT id, password_hash, display_name, email, username,
-                   COALESCE(email_verified, 1) AS email_verified, provider
-            FROM app_users WHERE LOWER(email)=%s LIMIT 1
-            """,
-            (ident.lower(),),
-        )
-    if not rows:
-        try:
+    try:
+        if "@" in ident:
             rows = fetch_all(
                 """
-                SELECT id, password_hash, display_name, email, username,
-                       COALESCE(email_verified, 1) AS email_verified, provider
-                FROM app_users WHERE LOWER(username)=%s LIMIT 1
+                SELECT id, password_hash, display_name, email, provider
+                FROM app_users WHERE LOWER(email)=%s LIMIT 1
                 """,
-                (ident.lower().lstrip("@"),),
+                (ident.lower(),),
             )
-        except Exception:
-            rows = None
-    if not rows:
-        # fallback: username stored only in display_name historically
-        rows = fetch_all(
-            """
-            SELECT id, password_hash, display_name, email, provider
-            FROM app_users WHERE LOWER(email)=%s OR LOWER(display_name)=%s LIMIT 1
-            """,
-            (ident.lower(), ident.lower()),
-        )
+        if not rows:
+            # try username column when present
+            try:
+                rows = fetch_all(
+                    """
+                    SELECT id, password_hash, display_name, email, provider
+                    FROM app_users WHERE LOWER(username)=%s LIMIT 1
+                    """,
+                    (ident.lower().lstrip("@"),),
+                )
+            except Exception:
+                rows = None
+        if not rows:
+            rows = fetch_all(
+                """
+                SELECT id, password_hash, display_name, email, provider
+                FROM app_users
+                WHERE LOWER(email)=%s OR LOWER(display_name)=%s
+                LIMIT 1
+                """,
+                (ident.lower(), ident.lower().lstrip("@")),
+            )
+    except Exception as exc:
+        LOGGER.exception("login query failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Login temporarily unavailable") from exc
+
     if not rows:
         raise HTTPException(status_code=401, detail="Invalid username or password")
     user = rows[0]
@@ -1658,15 +1663,28 @@ def login_user(payload: EmailAuthRequest):
     if not stored or not _verify_password(password, stored):
         raise HTTPException(status_code=401, detail="Invalid username or password")
     provider = str(_row_get(user, "provider") or "email")
-    verified = int(_row_get(user, "email_verified") if _row_get(user, "email_verified") is not None else 1)
-    # Only enforce verification for email provider accounts created after this feature
-    if provider == "email" and verified == 0:
-        raise HTTPException(
-            status_code=403,
-            detail="Email not verified. Check your inbox for the verification code.",
-            headers={"X-Needs-Verification": "1"},
+    # Soft verification: only block if column exists AND explicitly 0
+    try:
+        vrows = fetch_all(
+            "SELECT COALESCE(email_verified, 1) AS email_verified FROM app_users WHERE id=%s LIMIT 1",
+            (user_id,),
         )
-    _assert_user_can_login(user_id)
+        verified = int(_row_get(vrows[0], "email_verified") if vrows else 1)
+        if provider == "email" and verified == 0:
+            raise HTTPException(
+                status_code=403,
+                detail="Email not verified. Check your inbox for the verification code.",
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        pass  # column missing — allow login
+    try:
+        _assert_user_can_login(user_id)
+    except HTTPException:
+        raise
+    except Exception:
+        pass
     try:
         execute_write(
             "UPDATE app_users SET last_login_at=CURRENT_TIMESTAMP WHERE id=%s",

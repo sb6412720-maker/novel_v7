@@ -169,15 +169,18 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       if (!mounted) return;
       setState(() {
         _session = session;
+      });
+      // Google / incomplete profiles: COMPLETE PROFILE BEFORE Discover
+      if (!session.isGuest) {
+        await _maybeShowOnboarding(session, forceForGoogle: session.isGoogle);
+        if (!mounted) return;
+      }
+      if (!mounted) return;
+      setState(() {
         _showLoginOverlay = false;
       });
       await _loadBootstrap();
       if (!mounted) return;
-      // Prompt profile completion for real accounts (not guest)
-      if (!session.isGuest) {
-        await _maybeShowOnboarding(session);
-        if (!mounted) return;
-      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -222,14 +225,23 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   final bool _onboardingChecked = false;
 
 
-  Future<void> _maybeShowOnboarding(AuthSession session) async {
+  Future<void> _maybeShowOnboarding(
+    AuthSession session, {
+    bool forceForGoogle = false,
+  }) async {
     if (session.isGuest) return;
     try {
       final me = await _apiService.fetchMe();
       final complete = me['profile_complete'] == true ||
           me['profile_complete'] == 1 ||
           me['profile_complete'] == '1';
-      if (complete) return;
+      // Google must finish profile (username etc.) at least once
+      if (complete && !forceForGoogle) return;
+      if (complete && forceForGoogle) {
+        // Still show if username empty
+        final uname = (me['username'] ?? '').toString().trim();
+        if (uname.isNotEmpty) return;
+      }
       final name = (me['display_name'] ?? session.displayName).toString().trim();
       final photo =
           (me['photo_url'] ?? me['avatar_url'] ?? session.photoUrl ?? '').toString();
