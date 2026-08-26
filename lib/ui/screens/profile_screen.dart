@@ -461,7 +461,8 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
     bool isCompleted(Map<String, dynamic> s) {
       final st = _s(s['status_text']).toLowerCase();
-      return st.contains('complete') || st.contains('publish') || st.contains('submitted');
+      // Only story-level Completed/Published — not chapter "submitted"
+      return st.contains('complete') || st.contains('publish');
     }
     if (_storyFilter == 'Completed') {
       list = list.where(isCompleted).toList();

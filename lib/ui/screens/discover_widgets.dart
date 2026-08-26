@@ -252,19 +252,46 @@ class _DynamicStoryRail extends StatefulWidget {
 }
 
 class _DynamicStoryRailState extends State<_DynamicStoryRail> {
-  late final PageController _pageController;
+  late final ScrollController _scrollController;
   int _activeIndex = 0;
+  static const double _cardW = 136;
+  static const double _gap = 12;
 
   @override
   void initState() {
     super.initState();
-    // Slightly denser carousel (Inkitt-like card density)
-    _pageController = PageController(viewportFraction: 0.42, initialPage: 0);
+    _scrollController = ScrollController();
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final offset = _scrollController.offset;
+    final idx = ((offset + _cardW / 2) / (_cardW + _gap)).round();
+    final valid = widget.section.books
+        .where((e) => e.id > 0 && e.title.trim().isNotEmpty)
+        .toList();
+    final clamped = idx.clamp(0, valid.isEmpty ? 0 : valid.length - 1);
+    if (clamped != _activeIndex && mounted) {
+      setState(() => _activeIndex = clamped);
+    }
+  }
+
+  Future<void> _scrollToIndex(int index) async {
+    if (!_scrollController.hasClients) return;
+    final target = index * (_cardW + _gap);
+    await _scrollController.animateTo(
+      target.clamp(0.0, _scrollController.position.maxScrollExtent),
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+    );
+    if (mounted) setState(() => _activeIndex = index);
   }
 
   @override
   void dispose() {
-    _pageController.dispose();
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -277,9 +304,11 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
     final valid = widget.section.books
         .where((e) => e.id > 0 && e.title.trim().isNotEmpty)
         .toList();
-    final book = valid.isEmpty
-        ? widget.section.books[_activeIndex.clamp(0, widget.section.books.length - 1)]
-        : valid[_activeIndex.clamp(0, valid.length - 1)];
+    if (valid.isEmpty) return const SizedBox.shrink();
+    final book = valid[_activeIndex.clamp(0, valid.length - 1)];
+    // Side padding so FIRST and LAST cards can fully scroll into view and be selected
+    final sidePad = MediaQuery.sizeOf(context).width * 0.28;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -321,84 +350,63 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
           ],
         ),
         const SizedBox(height: 12),
-        if (widget.section.books.isEmpty)
-          SizedBox(
-            height: 80,
-            child: Center(
-              child: Text(
-                'No stories yet',
-                style: TextStyle(
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? Colors.white54
-                      : Colors.grey,
-                ),
-              ),
-            ),
-          )
-        else
-          SizedBox(
-            height: 200,
-            child: PageView.builder(
-              controller: _pageController,
-              // padEnds: true so the LAST card can scroll fully into the
-              // active (center) slot and be selected / opened.
-              padEnds: true,
-              allowImplicitScrolling: true,
-              itemCount: widget.section.books.where((e) => e.id > 0).length,
-              onPageChanged: (index) => setState(() => _activeIndex = index),
-              itemBuilder: (context, index) {
-                final valid = widget.section.books.where((e) => e.id > 0).toList();
-                final item = valid[index];
-                final isActive = index == _activeIndex;
-                return AnimatedScale(
-                  scale: isActive ? 1.08 : 0.88,
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  child: AnimatedOpacity(
-                    opacity: isActive ? 1.0 : 0.35,
-                    duration: const Duration(milliseconds: 220),
-                    child: GestureDetector(
-                      onTap: () {
-                        if (!isActive) {
-                          _pageController.animateToPage(
-                            index,
-                            duration: const Duration(milliseconds: 280),
-                            curve: Curves.easeOutCubic,
-                          );
-                        } else {
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => StoryDetailScreen(
-                                apiService: widget.apiService,
-                                book: BookDetailModel(
-                                  id: item.id,
-                                  title: item.title,
-                                  author: item.author,
-                                  description: item.description,
-                                  statusText: item.statusText,
-                                  rating: item.rating,
-                                  genre: item.primaryGenre,
-                                  cta: item.cta,
-                                  coverPath: item.coverPath,
-                                ),
-                              ),
-                            ),
-                          );
-                        }
-                      },
-                      child: Center(
-                        child: _StoryCard(
-                          book: item,
-                          width: isActive ? 148 : 124,
-                          apiService: widget.apiService,
+        SizedBox(
+          height: 200,
+          child: ListView.separated(
+            controller: _scrollController,
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            padding: EdgeInsets.symmetric(horizontal: sidePad),
+            itemCount: valid.length,
+            separatorBuilder: (_, __) => const SizedBox(width: _gap),
+            itemBuilder: (context, index) {
+              final item = valid[index];
+              final isActive = index == _activeIndex;
+              return GestureDetector(
+                onTap: () {
+                  if (!isActive) {
+                    _scrollToIndex(index);
+                    return;
+                  }
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => StoryDetailScreen(
+                        apiService: widget.apiService,
+                        book: BookDetailModel(
+                          id: item.id,
+                          title: item.title,
+                          author: item.author,
+                          description: item.description,
+                          statusText: item.statusText,
+                          rating: item.rating,
+                          genre: item.primaryGenre,
+                          cta: item.cta,
+                          coverPath: item.coverPath,
                         ),
                       ),
                     ),
+                  );
+                },
+                child: AnimatedScale(
+                  scale: isActive ? 1.06 : 0.9,
+                  duration: const Duration(milliseconds: 200),
+                  child: AnimatedOpacity(
+                    opacity: isActive ? 1.0 : 0.45,
+                    duration: const Duration(milliseconds: 200),
+                    child: SizedBox(
+                      width: _cardW,
+                      child: _StoryCard(
+                        book: item,
+                        width: _cardW,
+                        apiService: widget.apiService,
+                      ),
+                    ),
                   ),
-                );
-              },
-            ),
+                ),
+              );
+            },
           ),
+        ),
         const SizedBox(height: 10),
         _ActiveStoryDetail(
           book: book,

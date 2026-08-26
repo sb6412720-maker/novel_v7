@@ -579,9 +579,10 @@ class _SearchScreenState extends State<SearchScreen> {
     } catch (_) {}
   }
 
-  Future<void> _runSearch({bool recordHistory = false}) async {
+  Future<void> _runSearch({bool recordHistory = true}) async {
     setState(() => _loading = true);
     final q = _searchQuery.trim();
+    // Persist every non-empty search per scope (title / tag / profile)
     if (recordHistory && q.isNotEmpty) {
       await _saveSearchHistory(q);
     }
@@ -748,7 +749,8 @@ class _SearchScreenState extends State<SearchScreen> {
               _searchQuery = value;
               _showRecent = value.trim().isEmpty;
             });
-            _runSearch();
+            // Don't pollute history while typing
+            _runSearch(recordHistory: false);
           },
           onSubmitted: (value) {
             setState(() {
@@ -813,7 +815,7 @@ class _SearchScreenState extends State<SearchScreen> {
                           _searchScope = entry['id']!;
                           _showRecent = _searchQuery.trim().isEmpty;
                         });
-                        _runSearch();
+                        _runSearch(recordHistory: _searchQuery.trim().isNotEmpty);
                       },
                       selectedColor: const Color(0xFF00A88E).withValues(alpha: 0.18),
                       labelStyle: TextStyle(

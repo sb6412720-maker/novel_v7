@@ -713,10 +713,34 @@ class ApiService {
         '/api/write/stories',
         timeout: const Duration(seconds: 30),
       );
-      if (response.statusCode != 200) return const <Map<String, dynamic>>[];
-      final payload = jsonDecode(response.body) as Map<String, dynamic>;
-      return List<Map<String, dynamic>>.from(payload['items'] as List<dynamic>);
-    } catch (_) {
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        debugPrint('fetchWriterStories: auth required (${response.statusCode})');
+        return const <Map<String, dynamic>>[];
+      }
+      if (response.statusCode != 200) {
+        debugPrint('fetchWriterStories: HTTP ${response.statusCode}');
+        return const <Map<String, dynamic>>[];
+      }
+      final decoded = jsonDecode(response.body);
+      if (decoded is List) {
+        return decoded
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      if (decoded is Map) {
+        final payload = Map<String, dynamic>.from(decoded);
+        final items = payload['items'] ?? payload['stories'] ?? payload['data'];
+        if (items is List) {
+          return items
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
+        }
+      }
+      return const <Map<String, dynamic>>[];
+    } catch (e) {
+      debugPrint('fetchWriterStories error: $e');
       return const <Map<String, dynamic>>[];
     }
   }

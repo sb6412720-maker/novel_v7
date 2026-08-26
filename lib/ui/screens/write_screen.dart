@@ -32,20 +32,20 @@ class _WriteScreenState extends State<WriteScreen>
   void initState() {
     super.initState();
     _mainTabs = TabController(length: 2, vsync: this);
-    final storyTabCount = widget.data.writeScreen.storyTabs.isNotEmpty
-        ? widget.data.writeScreen.storyTabs.length
-        : 2;
-    // Default to Drafts tab (index 1) so Ongoing/Draft stories are visible
-    // right after create + chapter save.
+    // ALWAYS use fixed Submitted / Drafts tabs.
+    // Backend bootstrap used to send "Stories,Series" which broke filtering
+    // so lists looked empty after creating a chapter.
     _storySubTabs = TabController(
-      length: storyTabCount,
+      length: 2,
       vsync: this,
-      initialIndex: storyTabCount > 1 ? 1 : 0,
+      initialIndex: 1, // Drafts — where Ongoing/Draft stories land
     );
     _analyticsSubTabs = TabController(length: 2, vsync: this);
     _storiesFuture = widget.apiService.fetchWriterStories();
     _mainTabs.addListener(() => setState(() {}));
-    _storySubTabs.addListener(() => setState(() {}));
+    _storySubTabs.addListener(() {
+      if (!_storySubTabs.indexIsChanging) setState(() {});
+    });
   }
 
   @override
@@ -310,9 +310,11 @@ class _ManageStoriesTab extends StatelessWidget {
             labelColor: AppTheme.brand,
             unselectedLabelColor: AppTheme.muted,
             indicatorColor: AppTheme.brand,
-            tabs: writeModel.storyTabs.isNotEmpty
-                ? writeModel.storyTabs.map((e) => Tab(text: e)).toList()
-                : const [Tab(text: 'Submitted'), Tab(text: 'Drafts')],
+            // Fixed labels — do not use bootstrap "Stories/Series"
+            tabs: const [
+              Tab(text: 'Submitted'),
+              Tab(text: 'Drafts'),
+            ],
           ),
         ),
         Padding(
@@ -367,32 +369,36 @@ class _ManageStoriesTab extends StatelessWidget {
                 }
 
                 // Tab 0 = Submitted → Completed / Published only
-                // Tab 1 = Drafts → Draft + Ongoing (in-progress writing)
-                final stories = (snapshot.data ?? <Map<String, dynamic>>[])
-                    .where((story) {
-                      final statusText =
-                          story['status_text']?.toString().toLowerCase() ?? '';
-                      final isSubmitted = statusText.contains('complete') ||
-                          statusText.contains('publish');
-                      // "submitted" alone (chapter state) is NOT story-submitted
-                      final isDraftOrOngoing = !isSubmitted;
-                      if (storySubTabs.index == 0 && isDraftOrOngoing) {
-                        return false;
-                      }
-                      if (storySubTabs.index == 1 && isSubmitted) {
-                        return false;
-                      }
-                      if (query.trim().isEmpty) return true;
-                      final q = query.trim().toLowerCase();
-                      final title =
-                          story['title']?.toString().toLowerCase() ?? '';
-                      final author =
-                          story['author']?.toString().toLowerCase() ?? '';
-                      return title.contains(q) || author.contains(q);
-                    })
-                    .toList();
+                // Tab 1 = Drafts → Draft + Ongoing (+ anything not completed)
+                final all = snapshot.data ?? <Map<String, dynamic>>[];
+                bool isCompletedStatus(Map<String, dynamic> story) {
+                  final statusText =
+                      story['status_text']?.toString().toLowerCase().trim() ??
+                          '';
+                  return statusText.contains('complete') ||
+                      statusText.contains('publish');
+                }
+
+                final stories = all.where((story) {
+                  final done = isCompletedStatus(story);
+                  // index 0 Submitted, index 1 Drafts
+                  if (storySubTabs.index == 0 && !done) return false;
+                  if (storySubTabs.index == 1 && done) return false;
+                  if (query.trim().isEmpty) return true;
+                  final q = query.trim().toLowerCase();
+                  final title =
+                      story['title']?.toString().toLowerCase() ?? '';
+                  final author =
+                      story['author']?.toString().toLowerCase() ?? '';
+                  return title.contains(q) || author.contains(q);
+                }).toList();
 
                 if (stories.isEmpty) {
+                  final onDrafts = storySubTabs.index == 1;
+                  final otherCount = all.where((s) {
+                    final done = isCompletedStatus(s);
+                    return onDrafts ? done : !done;
+                  }).length;
                   return ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     children: [
@@ -407,15 +413,32 @@ class _ManageStoriesTab extends StatelessWidget {
                             ),
                             const SizedBox(height: 10),
                             Text(
-                              writeModel.emptyTitle,
+                              onDrafts
+                                  ? 'No draft or ongoing stories'
+                                  : 'No submitted / completed stories',
                               style: Theme.of(context).textTheme.titleMedium,
                               textAlign: TextAlign.center,
                             ),
+                            if (otherCount > 0) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                onDrafts
+                                    ? '$otherCount completed story(ies) are under Submitted'
+                                    : '$otherCount ongoing/draft story(ies) are under Drafts',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: AppTheme.muted,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
                             const SizedBox(height: 6),
                             GestureDetector(
                               onTap: onCreateStory,
                               child: Text(
-                                writeModel.emptyCta,
+                                writeModel.emptyCta.isNotEmpty
+                                    ? writeModel.emptyCta
+                                    : 'Create story',
                                 style: const TextStyle(
                                   fontSize: 14,
                                   color: AppTheme.brand,
