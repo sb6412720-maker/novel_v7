@@ -278,7 +278,10 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       );
       return;
     }
-    if (_selectedTags.any((t) => t.toLowerCase() == match.toLowerCase())) return;
+    final tagName = match; // promote to non-null String for analyzer
+    if (_selectedTags.any((t) => t.toLowerCase() == tagName.toLowerCase())) {
+      return;
+    }
     if (_selectedTags.length >= 3) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Maximum 3 hashtags per story')),
@@ -286,7 +289,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       return;
     }
     setState(() {
-      _selectedTags.add(match);
+      _selectedTags.add(tagName);
       _tagInputController.clear();
     });
   }

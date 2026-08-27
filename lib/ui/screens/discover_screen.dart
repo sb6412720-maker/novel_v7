@@ -626,98 +626,117 @@ class _SearchScreenState extends State<SearchScreen> {
     List<Map<String, dynamic>> rows = <Map<String, dynamic>>[];
     try {
       if (_searchScope == 'tag') {
-        if (q.isEmpty) {
-          // Show available tags as results when query is empty
-          final tags = await widget.apiService.fetchTags();
-          rows = tags
-              .map((e) {
-                final name = (e['name'] ?? e['tag'] ?? e['label'] ?? '').toString();
-                return <String, dynamic>{
-                  '_kind': 'tag',
-                  'id': e['id'] ?? name.hashCode,
-                  'title': name.startsWith('#') ? name : '#$name',
-                  'author': 'Hashtag',
-                  'cover_path': '',
-                  'rating': '',
-                  'tag_name': name.replaceFirst('#', ''),
-                };
-              })
-              .where((m) => (m['title'] as String).length > 1)
-              .toList();
+        // TAG scope: only hashtag matches (not story titles)
+        final tags = await widget.apiService.fetchTags(query: q);
+        final qLower = q.toLowerCase().replaceFirst('#', '');
+        rows = tags
+            .map((e) {
+              final name =
+                  (e['name'] ?? e['tag'] ?? e['label'] ?? '').toString();
+              return <String, dynamic>{
+                '_kind': 'tag',
+                'id': e['id'] ?? name.hashCode,
+                'title': name.startsWith('#') ? name : '#$name',
+                'author': 'Hashtag',
+                'cover_path': '',
+                'rating': '',
+                'tag_name': name.replaceFirst('#', ''),
+              };
+            })
+            .where((e) {
+              final name =
+                  (e['tag_name'] ?? '').toString().toLowerCase();
+              // Prefer contains match on tag name only
+              return name.contains(qLower) || name == qLower;
+            })
+            .toList();
+      } else if (_searchScope == 'profile') {
+        // PROFILE scope: only author/user profiles
+        List<Map<String, dynamic>> users = const [];
+        try {
+          users = await widget.apiService.searchUsers(query: q);
+        } catch (_) {
+          users = const [];
+        }
+        if (users.isNotEmpty) {
+          rows = users.map((u) {
+            final name = (u['display_name'] ??
+                    u['username'] ??
+                    u['name'] ??
+                    '')
+                .toString()
+                .trim();
+            final username = (u['username'] ?? '').toString();
+            final uid = u['id'] ?? u['user_id'];
+            final photo =
+                (u['photo_url'] ?? u['avatar_url'] ?? '').toString();
+            return <String, dynamic>{
+              '_kind': 'profile',
+              'id': uid ?? name.hashCode,
+              'title': name.isEmpty ? username : name,
+              'author': username.isNotEmpty ? '@$username' : 'Author',
+              'cover_path': photo,
+              'rating': '',
+              'author_user_id': uid,
+              'photo_url': photo,
+            };
+          }).toList();
         } else {
-          final tagged = await widget.apiService.fetchBooksByTag(q);
-          if (tagged.isNotEmpty) {
-            rows = tagged
-                .map((e) => <String, dynamic>{...Map<String, dynamic>.from(e), '_kind': 'book'})
-                .toList();
-          } else {
-            // Fallback: story search filtered later + tag list match
-            final tags = await widget.apiService.fetchTags(query: q);
-            rows = tags
-                .map((e) {
-                  final name = (e['name'] ?? e['tag'] ?? e['label'] ?? '').toString();
-                  return <String, dynamic>{
-                    '_kind': 'tag',
-                    'id': e['id'] ?? name.hashCode,
-                    'title': name.startsWith('#') ? name : '#$name',
-                    'author': 'Hashtag',
-                    'cover_path': '',
-                    'rating': '',
-                    'tag_name': name.replaceFirst('#', ''),
-                  };
-                })
-                .toList();
-            if (rows.isEmpty) {
-              final stories = await widget.apiService.searchStories(
-                query: q,
-                genre: _genre,
-                minRating: _minRating,
-              );
-              rows = stories
-                  .map((e) => <String, dynamic>{...Map<String, dynamic>.from(e), '_kind': 'book'})
-                  .toList();
-            }
+          // Fallback: authors from story search, profile rows only
+          final stories = await widget.apiService.searchStories(query: q);
+          final seen = <String>{};
+          for (final s in stories) {
+            final author =
+                (s['author'] ?? s['display_name'] ?? '').toString().trim();
+            if (author.isEmpty) continue;
+            final key = author.toLowerCase();
+            if (seen.contains(key)) continue;
+            if (!key.contains(q.toLowerCase())) continue;
+            seen.add(key);
+            final uid =
+                s['author_user_id'] ?? s['user_id'] ?? s['author_id'];
+            rows.add(<String, dynamic>{
+              '_kind': 'profile',
+              'id': uid ?? author.hashCode,
+              'title': author,
+              'author': (s['username'] ?? '').toString().isNotEmpty
+                  ? '@${s['username']}'
+                  : 'Author',
+              'cover_path': (s['author_photo'] ??
+                      s['photo_url'] ??
+                      s['avatar_url'] ??
+                      '')
+                  .toString(),
+              'rating': '',
+              'author_user_id': uid,
+              'photo_url': (s['author_photo'] ??
+                      s['photo_url'] ??
+                      s['avatar_url'] ??
+                      '')
+                  .toString(),
+            });
+            if (rows.length >= 30) break;
           }
         }
-      } else if (_searchScope == 'profile') {
-        final stories = await widget.apiService.searchStories(
-          query: q,
-          genre: '',
-          minRating: 0,
-        );
-        // Dedupe by author → people rows
-        final seen = <String>{};
-        for (final s in stories) {
-          final author = (s['author'] ?? s['display_name'] ?? '').toString().trim();
-          if (author.isEmpty) continue;
-          final key = author.toLowerCase();
-          if (seen.contains(key)) continue;
-          if (q.isNotEmpty && !key.contains(q.toLowerCase())) continue;
-          seen.add(key);
-          final uid = (s['author_user_id'] ?? s['user_id'] ?? s['author_id']);
-          rows.add(<String, dynamic>{
-            '_kind': 'profile',
-            'id': uid ?? author.hashCode,
-            'title': author,
-            'author': (s['username'] ?? '').toString().isNotEmpty
-                ? '@${s['username']}'
-                : 'Author',
-            'cover_path': (s['author_photo'] ?? s['photo_url'] ?? s['avatar_url'] ?? '').toString(),
-            'rating': '',
-            'author_user_id': uid,
-            'photo_url': (s['author_photo'] ?? s['photo_url'] ?? s['avatar_url'] ?? '').toString(),
-          });
-          if (rows.length >= 30) break;
-        }
       } else {
-        // title (default)
+        // TITLE scope: exact title match only (case-insensitive)
         final stories = await widget.apiService.searchStories(
           query: q,
           genre: _genre,
           minRating: _minRating,
         );
+        final qLower = q.toLowerCase();
         rows = stories
-            .map((e) => <String, dynamic>{...Map<String, dynamic>.from(e), '_kind': 'book'})
+            .where((e) {
+              final title = (e['title'] ?? '').toString().trim().toLowerCase();
+              return title == qLower;
+            })
+            .map(
+              (e) => <String, dynamic>{
+                ...Map<String, dynamic>.from(e),
+                '_kind': 'book',
+              },
+            )
             .toList();
       }
     } catch (_) {
@@ -727,6 +746,7 @@ class _SearchScreenState extends State<SearchScreen> {
     setState(() {
       _results = rows;
       _loading = false;
+      _showRecent = false;
     });
   }
 
