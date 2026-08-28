@@ -949,17 +949,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     final birth = _s(_userProfile?['birth_date']);
     // shown in details below
 
-    final lists = _readingLists.isNotEmpty
-        ? _readingLists
-        : widget.profile.readingLists
-              .map(
-                (l) => {
-                  'name': l.name,
-                  'story_count': l.storyCount,
-                  'cover_path': l.coverPath,
-                },
-              )
-              .toList();
+    final lists = _readingLists;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
@@ -981,36 +971,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             ),
           const SizedBox(height: 8),
         ],
-        // Stat cards — 2 top + 1 full width (video layout)
-        Row(
-          children: [
-            Expanded(
-              child: _statCard(
-                icon: Icons.menu_book_rounded,
-                iconColor: const Color(0xFF9B59B6),
-                label: 'CHAPTERS READ',
-                value: '$_chaptersRead',
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _statCard(
-                icon: Icons.campaign_outlined,
-                iconColor: brand,
-                label: 'SOCIAL KARMA',
-                value: '$_karma',
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        _statCard(
-          icon: Icons.blur_on,
-          iconColor: const Color(0xFF5B9BD5),
-          label: 'DAY READING STREAK',
-          value: '$_streak',
-        ),
-        const SizedBox(height: 22),
+        const SizedBox(height: 12),
         Text(
           'About $_displayName',
           style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),

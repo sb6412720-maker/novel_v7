@@ -235,8 +235,11 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
           me['profile_complete'] == true ||
           me['profile_complete'] == 1 ||
           me['profile_complete'] == '1';
-      // Profile already completed during signup / prior onboarding — skip
-      if (complete) return;
+      // Profile already completed during signup / prior onboarding — skip entirely
+      if (complete) {
+        if (mounted) setState(() => _showLoginOverlay = false);
+        return;
+      }
       final name = (me['display_name'] ?? '').toString().trim();
       final display = name.isNotEmpty
           ? name

@@ -1345,7 +1345,7 @@ class _ContinueReadingSectionState extends State<_ContinueReadingSection> {
                                     right: 0,
                                     bottom: 0,
                                     child: Container(
-                                      height: 4,
+                                      height: 6,
                                       color: Colors.black.withValues(
                                         alpha: 0.35,
                                       ),
@@ -1615,7 +1615,7 @@ class _BrowseGenresSection extends StatelessWidget {
                         Image.network(
                           apiService.resolveAssetUrl(coverPath),
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(color: color),
+                          errorBuilder: (_, __, _) => Container(color: color),
                         )
                       else
                         Container(
@@ -1922,16 +1922,29 @@ class _GenreBooksScreenState extends State<_GenreBooksScreen> {
     var list = List<Map<String, dynamic>>.from(
       _books.isEmpty && widget.books.isNotEmpty ? widget.books : _books,
     );
-    // Filter by genre field match
+    // Filter by genre field match (exact genre only, not substring)
     final g = widget.genre.toLowerCase();
     list = list.where((b) {
       final pg = (b['primary_genre'] ?? b['genre'] ?? '')
           .toString()
-          .toLowerCase();
-      final sg = (b['secondary_genre'] ?? '').toString().toLowerCase();
-      return pg.contains(g) || sg.contains(g) || g.isEmpty;
+          .toLowerCase()
+          .trim();
+      final sg = (b['secondary_genre'] ?? '').toString().toLowerCase().trim();
+      return pg == g || sg == g;
     }).toList();
 
+    // Apply period filter (created date)
+    if (_period == 'Last 30 days') {
+      final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
+      // Filter books created in last 30 days (approximate: lower ids are newer)
+      final recentId = (thirtyDaysAgo.millisecondsSinceEpoch ~/ 1000).toInt();
+      list = list.where((b) {
+        final id = (b['id'] as num?)?.toInt() ?? 0;
+        return id >= recentId;
+      }).toList();
+    }
+
+    // Apply sort filter
     if (_sort == 'Completed') {
       list = list.where((b) {
         final st = (b['status_text'] ?? '').toString().toLowerCase();
@@ -2020,7 +2033,7 @@ class _GenreBooksScreenState extends State<_GenreBooksScreen> {
                             (_books.first['cover_path'] ?? '').toString(),
                           ),
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                          errorBuilder: (_, __, _) => const SizedBox.shrink(),
                         ),
                       ),
                     Container(
@@ -2100,8 +2113,12 @@ class _GenreBooksScreenState extends State<_GenreBooksScreen> {
                   final cover = (item['cover_path'] ?? '').toString();
                   final rating = (item['rating'] as num?)?.toDouble() ?? 0.0;
                   final genreLabel =
-                      (item['primary_genre'] ?? item['genre'] ?? widget.genre)
-                          .toString();
+                      (item['primary_genre'] ?? item['genre'] ?? '')
+                          .toString()
+                          .isEmpty
+                      ? widget.genre
+                      : (item['primary_genre'] ?? item['genre'] ?? '')
+                            .toString();
                   final status = (item['status_text'] ?? '').toString();
                   final completed =
                       item['is_completed'] == true ||
@@ -2135,7 +2152,7 @@ class _GenreBooksScreenState extends State<_GenreBooksScreen> {
                                 ? Image.network(
                                     widget.apiService.resolveAssetUrl(cover),
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => Container(
+                                    errorBuilder: (_, __, _) => Container(
                                       color: const Color(0xFFE8E8E8),
                                       child: const Icon(
                                         Icons.menu_book_rounded,
