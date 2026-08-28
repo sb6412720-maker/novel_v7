@@ -377,70 +377,212 @@ class _EntriesList extends StatelessWidget {
             )
           else
             ...entries.map(
-              (e) => ListTile(
-                contentPadding: EdgeInsets.zero,
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => StoryDetailScreen(
-                        apiService: api,
-                        book: BookDetailModel(
-                          id: e.book.id,
-                          title: e.book.title,
-                          author: e.book.author,
-                          description: e.book.description,
-                          statusText: e.book.statusText,
-                          rating: e.book.rating,
-                          genre: e.book.primaryGenre,
-                          cta: e.book.cta,
-                          coverPath: e.book.coverPath,
-                          authorUserId: e.book.authorUserId,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-                leading: SizedBox(
-                  width: 48,
-                  height: 64,
-                  child: e.book.coverPath.isNotEmpty
-                      ? Image.network(
-                          api.resolveAssetUrl(e.book.coverPath),
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => ColoredBox(
+              (e) {
+                final coverUrl = e.book.coverPath.isNotEmpty
+                    ? api.resolveAssetUrl(e.book.coverPath)
+                    : '';
+                final desc = e.book.description.trim();
+                final progress = e.progressFraction.clamp(0.0, 1.0);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: Material(
+                    color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    elevation: 0,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => StoryDetailScreen(
+                              apiService: api,
+                              book: BookDetailModel(
+                                id: e.book.id,
+                                title: e.book.title,
+                                author: e.book.author,
+                                description: e.book.description,
+                                statusText: e.book.statusText,
+                                rating: e.book.rating,
+                                genre: e.book.primaryGenre,
+                                cta: e.book.cta,
+                                coverPath: e.book.coverPath,
+                                authorUserId: e.book.authorUserId,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
                             color: isDark
                                 ? const Color(0xFF2C2C2C)
-                                : const Color(0xFFE4E4E4),
+                                : const Color(0xFFE8E8E8),
                           ),
-                        )
-                      : ColoredBox(
-                          color: isDark
-                              ? const Color(0xFF2C2C2C)
-                              : const Color(0xFFE4E4E4),
                         ),
-                ),
-                title: Text(
-                  e.book.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: Text('${e.readingStatus} · ${e.primaryGenre}'),
-                trailing: PopupMenuButton<String>(
-                  onSelected: (v) {
-                    if (v == 'status') onToggle(e);
-                    if (v == 'delete') onDelete(e);
-                  },
-                  itemBuilder: (_) => [
-                    PopupMenuItem(
-                      value: 'status',
-                      child: Text(
-                        history ? 'Mark as Ongoing' : 'Mark as Completed',
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: SizedBox(
+                                width: 72,
+                                height: 102,
+                                child: coverUrl.isNotEmpty
+                                    ? Image.network(
+                                        coverUrl,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, _, _) =>
+                                            ColoredBox(
+                                          color: isDark
+                                              ? const Color(0xFF2C2C2C)
+                                              : const Color(0xFFE4E4E4),
+                                          child: const Icon(
+                                            Icons.menu_book_rounded,
+                                          ),
+                                        ),
+                                      )
+                                    : ColoredBox(
+                                        color: isDark
+                                            ? const Color(0xFF2C2C2C)
+                                            : const Color(0xFFE4E4E4),
+                                        child: const Icon(
+                                          Icons.menu_book_rounded,
+                                        ),
+                                      ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    e.book.title,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    e.book.author.isNotEmpty
+                                        ? 'By ${e.book.author}'
+                                        : e.readingStatus,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      color: muted,
+                                    ),
+                                  ),
+                                  if (desc.isNotEmpty) ...[
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      desc,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        height: 1.3,
+                                        color: muted,
+                                      ),
+                                    ),
+                                  ],
+                                  const SizedBox(height: 6),
+                                  Row(
+                                    children: [
+                                      if (e.book.rating > 0) ...[
+                                        const Icon(
+                                          Icons.star_rounded,
+                                          size: 14,
+                                          color: Color(0xFFFFC107),
+                                        ),
+                                        const SizedBox(width: 2),
+                                        Text(
+                                          e.book.rating.toStringAsFixed(1),
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                      ],
+                                      if (e.primaryGenre.isNotEmpty ||
+                                          e.book.primaryGenre.isNotEmpty)
+                                        Flexible(
+                                          child: Text(
+                                            e.primaryGenre.isNotEmpty
+                                                ? e.primaryGenre
+                                                : e.book.primaryGenre,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 11.5,
+                                              color: muted,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  if (!history) ...[
+                                    const SizedBox(height: 8),
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(3),
+                                      child: LinearProgressIndicator(
+                                        value: progress < 0.05 ? 0.05 : progress,
+                                        minHeight: 4,
+                                        backgroundColor: isDark
+                                            ? const Color(0xFF333333)
+                                            : const Color(0xFFE8E8E8),
+                                        color: const Color(0xFFFF5722),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      e.updatedText.isNotEmpty
+                                          ? e.updatedText
+                                          : 'Ch. ${e.lastChapterNumber}',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: muted,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            PopupMenuButton<String>(
+                              onSelected: (v) {
+                                if (v == 'status') onToggle(e);
+                                if (v == 'delete') onDelete(e);
+                              },
+                              itemBuilder: (_) => [
+                                PopupMenuItem(
+                                  value: 'status',
+                                  child: Text(
+                                    history
+                                        ? 'Mark as Ongoing'
+                                        : 'Mark as Completed',
+                                  ),
+                                ),
+                                const PopupMenuItem(
+                                  value: 'delete',
+                                  child: Text('Delete'),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                    const PopupMenuItem(value: 'delete', child: Text('Delete')),
-                  ],
-                ),
-              ),
+                  ),
+                );
+              },
             ),
           if (!history) ...[
             const SizedBox(height: 20),

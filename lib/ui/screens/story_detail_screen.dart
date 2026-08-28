@@ -39,6 +39,8 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
   int _likesCount = 0;
   bool _liked = false;
   bool _likeBusy = false;
+  bool _saved = false;
+  bool _hasMyReview = false;
   List<Map<String, dynamic>> _authorStories = const [];
   List<Map<String, dynamic>> _youMayAlsoLike = const [];
   String? _authorPhotoUrl;
@@ -51,6 +53,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
     _tags = List<String>.from(widget.book.tags);
     _viewCount = widget.book.viewCount;
     _bootstrap();
+    unawaited(_checkSavedAndReviewed());
   }
 
   Future<void> _bootstrap() async {
@@ -213,6 +216,25 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
     }
   }
 
+  Future<void> _checkSavedAndReviewed() async {
+    try {
+      final lib = await widget.apiService.fetchLibraryEntries();
+      final saved = lib.any((e) {
+        final bid = (e['book_id'] as num?)?.toInt() ??
+            ((e['book'] as Map?)?['id'] as num?)?.toInt() ??
+            0;
+        return bid == _book.id;
+      });
+      if (mounted) setState(() => _saved = saved);
+    } catch (_) {}
+    try {
+      final reviews = await widget.apiService.fetchBookReviews(_book.id);
+      // If current user review exists API may mark mine; else after post we set
+      final mine = reviews.any((r) => r['is_mine'] == true || r['mine'] == true);
+      if (mounted && mine) setState(() => _hasMyReview = true);
+    } catch (_) {}
+  }
+
   Future<void> _openReadingListPicker() async {
     try {
       var lists = await widget.apiService.fetchReadingLists();
@@ -313,6 +335,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
             ),
           ),
         );
+        if (mounted) setState(() => _saved = true);
         return;
       }
 
@@ -323,6 +346,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Saved to ${choice['name'] ?? 'reading list'}')),
       );
+      if (mounted) setState(() => _saved = true);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -770,10 +794,15 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                   ),
                   TextButton.icon(
                     onPressed: _openReadingListPicker,
-                    icon: const Icon(Icons.bookmark_border, size: 20),
-                    label: const Text('Save'),
+                    icon: Icon(
+                      _saved ? Icons.bookmark : Icons.bookmark_border,
+                      size: 20,
+                      color: _saved ? const Color(0xFF1A73E8) : null,
+                    ),
+                    label: Text(_saved ? 'Saved' : 'Save'),
                     style: TextButton.styleFrom(
-                      foregroundColor: Colors.black87,
+                      foregroundColor:
+                          _saved ? const Color(0xFF1A73E8) : Colors.black87,
                     ),
                   ),
                   TextButton.icon(
@@ -791,14 +820,20 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                       );
                       if (mounted) setState(() => _reviews = reviews);
                     },
-                    icon: const Icon(Icons.star_border, size: 20),
+                    icon: Icon(
+                      _hasMyReview ? Icons.star : Icons.star_border,
+                      size: 20,
+                      color: _hasMyReview ? const Color(0xFFFFC107) : null,
+                    ),
                     label: Text(
                       _reviews.isEmpty
                           ? 'Reviews'
                           : '${_reviews.length} Reviews',
                     ),
                     style: TextButton.styleFrom(
-                      foregroundColor: Colors.black87,
+                      foregroundColor: _hasMyReview
+                          ? const Color(0xFFF9A825)
+                          : Colors.black87,
                     ),
                   ),
                 ],

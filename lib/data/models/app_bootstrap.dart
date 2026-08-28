@@ -335,13 +335,17 @@ class LibraryEntryModel {
   double get progressFraction {
     final t = chapters > 0 ? chapters : 0;
     if (t <= 0) {
-      // If we only know chapter number
-      return lastChapterNumber > 0 ? 0.15 : 0.0;
+      return lastChapterNumber > 0 ? 0.2 : 0.08;
     }
-    final read = chaptersRead > 0
-        ? chaptersRead
-        : (lastChapterNumber > 0 ? lastChapterNumber - 1 : 0);
-    return (read / t).clamp(0.0, 1.0);
+    double read = chaptersRead > 0
+        ? chaptersRead.toDouble()
+        : (lastChapterNumber > 0 ? (lastChapterNumber - 1).toDouble() : 0.0);
+    if (lastParagraphIndex > 0) {
+      read += (lastParagraphIndex.clamp(0, 20) / 20.0) * 0.85;
+    } else if (lastChapterNumber > 0) {
+      read += 0.25;
+    }
+    return (read / t).clamp(0.05, 1.0);
   }
 
   factory LibraryEntryModel.fromMap(Map<String, dynamic> map) {

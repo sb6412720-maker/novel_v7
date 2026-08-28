@@ -119,24 +119,37 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
   }
 
   void _scrollToParagraph(int index) {
-    if (index <= 0 || !_scrollController.hasClients) return;
-    // Approximate jump; refined if key is available
-    final target = (index * 140.0).clamp(
-      0.0,
-      _scrollController.position.maxScrollExtent,
-    );
-    try {
-      _scrollController.jumpTo(target);
-    } catch (_) {}
-    final key = _paragraphKeys[index];
-    final ctx = key?.currentContext;
-    if (ctx != null) {
-      Scrollable.ensureVisible(
-        ctx,
-        duration: const Duration(milliseconds: 300),
-        alignment: 0.1,
-      );
+    if (index < 0) return;
+    void tryScroll() {
+      if (!mounted) return;
+      final key = _paragraphKeys[index];
+      final ctx = key?.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 450),
+          alignment: 0.08,
+          curve: Curves.easeOutCubic,
+        );
+        return;
+      }
+      if (_scrollController.hasClients) {
+        final max = _scrollController.position.maxScrollExtent;
+        final target = (index * 160.0).clamp(0.0, max);
+        _scrollController.animateTo(
+          target,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOutCubic,
+        );
+      }
     }
+    // Retry a few frames — content/keys may not be built yet
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      tryScroll();
+      Future<void>.delayed(const Duration(milliseconds: 120), tryScroll);
+      Future<void>.delayed(const Duration(milliseconds: 350), tryScroll);
+      Future<void>.delayed(const Duration(milliseconds: 700), tryScroll);
+    });
   }
 
   Future<void> _markLibraryProgress({bool completed = false}) async {
@@ -195,13 +208,30 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
 
   void _updateVisibleParagraphFromScroll() {
     if (!_scrollController.hasClients) return;
-    final offset = _scrollController.offset;
-    // Approximate: each paragraph ~140px; clamp
     final paras = _paragraphs();
     if (paras.isEmpty) return;
-    final approx = (offset / 140).floor().clamp(0, paras.length - 1);
-    if (approx != _lastParagraphIndex) {
-      _lastParagraphIndex = approx;
+    // Prefer GlobalKey positions when available
+    int best = _lastParagraphIndex;
+    double bestDy = double.infinity;
+    for (var i = 0; i < paras.length; i++) {
+      final ctx = _paragraphKeys[i]?.currentContext;
+      if (ctx == null) continue;
+      final box = ctx.findRenderObject() as RenderBox?;
+      if (box == null || !box.hasSize) continue;
+      final y = box.localToGlobal(Offset.zero).dy;
+      // Closest paragraph near top third of screen
+      final score = (y - 120).abs();
+      if (score < bestDy) {
+        bestDy = score;
+        best = i;
+      }
+    }
+    if (bestDy == double.infinity) {
+      final offset = _scrollController.offset;
+      best = (offset / 160).floor().clamp(0, paras.length - 1);
+    }
+    if (best != _lastParagraphIndex) {
+      _lastParagraphIndex = best;
       unawaited(_markLibraryProgress(completed: false));
     }
   }
@@ -222,11 +252,20 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
       if (!mounted || list.isEmpty) return;
       setState(() {
         _chapters = list;
+        // Prefer resume chapter from library (widget.chapterNumber)
         final idx = list.indexWhere(
           (c) => (c['chapter_number'] as num?)?.toInt() == widget.chapterNumber,
         );
-        _chapterIndex = idx >= 0 ? idx : 0;
+        _chapterIndex = idx >= 0
+            ? idx
+            : (widget.initialChapterIndex < list.length
+                ? widget.initialChapterIndex
+                : 0);
         _applyChapter(_chapters[_chapterIndex]);
+      });
+      // Restore paragraph after content paints
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToParagraph(widget.initialParagraphIndex);
       });
     } catch (_) {}
   }
