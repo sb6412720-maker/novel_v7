@@ -64,27 +64,31 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
         setState(() {
           _book = BookDetailModel.fromMap(detail);
           _tags = List<String>.from(_book.tags);
-          _likesCount = (detail['likes_count'] as num?)?.toInt() ??
+          _likesCount =
+              (detail['likes_count'] as num?)?.toInt() ??
               (detail['likes'] as num?)?.toInt() ??
               0;
-          _viewCount = (detail['view_count'] as num?)?.toInt() ??
+          _viewCount =
+              (detail['view_count'] as num?)?.toInt() ??
               (detail['views'] as num?)?.toInt() ??
               _viewCount;
-          final photo = (detail['author_photo_url'] ??
-                  detail['author_photo'] ??
-                  detail['photo_url'] ??
-                  detail['authorPhotoUrl'] ??
-                  '')
-              .toString();
+          final photo =
+              (detail['author_photo_url'] ??
+                      detail['author_photo'] ??
+                      detail['photo_url'] ??
+                      detail['authorPhotoUrl'] ??
+                      '')
+                  .toString();
           if (photo.isNotEmpty) {
             _authorPhotoUrl = photo;
           }
-          final cw = (detail['content_warnings'] ??
-                  detail['content_warning'] ??
-                  detail['contentWarnings'] ??
-                  '')
-              .toString()
-              .trim();
+          final cw =
+              (detail['content_warnings'] ??
+                      detail['content_warning'] ??
+                      detail['contentWarnings'] ??
+                      '')
+                  .toString()
+                  .trim();
           if (cw.isNotEmpty) {
             _contentWarningsExtra = cw;
           }
@@ -113,11 +117,12 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
         if (_authorPhotoUrl == null || _authorPhotoUrl!.isEmpty) {
           try {
             final profile = await widget.apiService.fetchProfile(aid);
-            final photo = (profile['photo_url'] ??
-                    profile['photoUrl'] ??
-                    profile['avatar_url'] ??
-                    '')
-                .toString();
+            final photo =
+                (profile['photo_url'] ??
+                        profile['photoUrl'] ??
+                        profile['avatar_url'] ??
+                        '')
+                    .toString();
             if (photo.isNotEmpty && mounted) {
               setState(() => _authorPhotoUrl = photo);
             }
@@ -131,7 +136,6 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
           _loadingReviews = false;
         });
       }
-
 
       try {
         final likeState = await widget.apiService.fetchBookLike(_book.id);
@@ -154,7 +158,10 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
           // fallback: search by genre via bootstrap-style or tag
           related = await widget.apiService.fetchBooksByTag(_book.genre);
         }
-        related = related.where((b) => (b['id'] as num?)?.toInt() != _book.id).take(12).toList();
+        related = related
+            .where((b) => (b['id'] as num?)?.toInt() != _book.id)
+            .take(12)
+            .toList();
         if (mounted) setState(() => _youMayAlsoLike = related);
       } catch (_) {}
     } catch (e) {
@@ -173,22 +180,33 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
     if (aid == null || _loadingFollow) return;
     setState(() => _loadingFollow = true);
     try {
+      late final Map<String, dynamic> result;
       if (_isFollowing) {
-        await widget.apiService.unfollowAuthor(aid);
+        result = await widget.apiService.unfollowAuthor(aid);
       } else {
-        await widget.apiService.followAuthor(aid);
+        result = await widget.apiService.followAuthor(aid);
       }
       if (!mounted) return;
-      setState(() => _isFollowing = !_isFollowing);
+      if (result['self'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('You cannot follow yourself')),
+        );
+        return;
+      }
+      setState(() => _isFollowing = result['following'] == true);
     } catch (e) {
       if (mounted) {
         final msg = e.toString().toLowerCase();
         final text = (msg.contains('timeout') || msg.contains('timed out'))
             ? 'Server busy — tap Follow again in a moment'
-            : (msg.contains('401') || msg.contains('unauthorized') || msg.contains('sign'))
-                ? 'Please sign in to follow authors'
-                : 'Could not update follow — try again';
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+            : (msg.contains('401') ||
+                  msg.contains('unauthorized') ||
+                  msg.contains('sign'))
+            ? 'Please sign in to follow authors'
+            : 'Could not update follow — try again';
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(text)));
       }
     } finally {
       if (mounted) setState(() => _loadingFollow = false);
@@ -303,9 +321,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
       await widget.apiService.addReadingListItem(listId, _book.id);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Saved to ${choice['name'] ?? 'reading list'}'),
-        ),
+        SnackBar(content: Text('Saved to ${choice['name'] ?? 'reading list'}')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -341,7 +357,8 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
     final chapterTitle = chapter['title'] as String? ?? 'Untitled chapter';
     final chapterNumber = (chapter['chapter_number'] as num?)?.toInt() ?? 1;
     final chapterContent = chapter['content'] as String? ?? '';
-    final idx = index ??
+    final idx =
+        index ??
         _chapters.indexWhere(
           (c) =>
               identical(c, chapter) ||
@@ -482,8 +499,9 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                         ),
                       ),
                     );
-                    final reviews =
-                        await widget.apiService.fetchBookReviews(_book.id);
+                    final reviews = await widget.apiService.fetchBookReviews(
+                      _book.id,
+                    );
                     if (mounted) setState(() => _reviews = reviews);
                   } else if (action == 'report') {
                     try {
@@ -593,15 +611,19 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                       _book.lastUpdated.trim().isNotEmpty
                           ? _book.lastUpdated.trim()
                           : (_book.statusText.isNotEmpty
-                              ? _book.statusText
-                              : 'Ongoing'),
+                                ? _book.statusText
+                                : 'Ongoing'),
                     ),
                     Column(
                       children: [
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.visibility_outlined, size: 16, color: Colors.black54),
+                            const Icon(
+                              Icons.visibility_outlined,
+                              size: 16,
+                              color: Colors.black54,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               '$_viewCount',
@@ -613,7 +635,10 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                           ],
                         ),
                         const SizedBox(height: 2),
-                        const Text('Views', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                        const Text(
+                          'Views',
+                          style: TextStyle(fontSize: 12, color: Colors.black54),
+                        ),
                       ],
                     ),
                     _statCell(
@@ -692,9 +717,19 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                                   : await widget.apiService.likeBook(_book.id);
                               if (!mounted) return;
                               setState(() {
+                                if (res['self'] == true) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'You cannot like your own story',
+                                      ),
+                                    ),
+                                  );
+                                  return;
+                                }
                                 _liked = (res['liked'] as bool?) ?? !_liked;
-                                _likesCount = (res['likes_count'] as num?)
-                                        ?.toInt() ??
+                                _likesCount =
+                                    (res['likes_count'] as num?)?.toInt() ??
                                     _likesCount;
                               });
                             } catch (e) {
@@ -708,13 +743,15 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                                   lower.contains('sign in')) {
                                 text = 'Sign in to like stories';
                               } else if (lower.contains('timeout')) {
-                                text = 'Server busy — try like again in a moment';
+                                text =
+                                    'Server busy — try like again in a moment';
                               } else {
-                                text = 'Could not update like: ${msg.length > 80 ? msg.substring(0, 80) : msg}';
+                                text =
+                                    'Could not update like: ${msg.length > 80 ? msg.substring(0, 80) : msg}';
                               }
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(text)),
-                              );
+                              ScaffoldMessenger.of(
+                                context,
+                              ).showSnackBar(SnackBar(content: Text(text)));
                             } finally {
                               if (mounted) setState(() => _likeBusy = false);
                             }
@@ -749,8 +786,9 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                           ),
                         ),
                       );
-                      final reviews =
-                          await widget.apiService.fetchBookReviews(_book.id);
+                      final reviews = await widget.apiService.fetchBookReviews(
+                        _book.id,
+                      );
                       if (mounted) setState(() => _reviews = reviews);
                     },
                     icon: const Icon(Icons.star_border, size: 20),
@@ -840,7 +878,9 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                                 decoration: BoxDecoration(
                                   color: Colors.white,
                                   borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: Colors.grey.shade300),
+                                  border: Border.all(
+                                    color: Colors.grey.shade300,
+                                  ),
                                 ),
                                 child: Text(
                                   g,
@@ -947,7 +987,8 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                         child: CircleAvatar(
                           radius: 22,
                           backgroundColor: Colors.grey.shade300,
-                          backgroundImage: (_authorPhotoUrl != null &&
+                          backgroundImage:
+                              (_authorPhotoUrl != null &&
                                   _authorPhotoUrl!.isNotEmpty)
                               ? NetworkImage(
                                   widget.apiService.resolveAssetUrl(
@@ -955,7 +996,8 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                                   ),
                                 )
                               : null,
-                          child: (_authorPhotoUrl == null ||
+                          child:
+                              (_authorPhotoUrl == null ||
                                   _authorPhotoUrl!.isEmpty)
                               ? Text(
                                   _book.author.isNotEmpty
@@ -1019,8 +1061,9 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                           height: 36,
                           child: _isFollowing
                               ? OutlinedButton(
-                                  onPressed:
-                                      _loadingFollow ? null : _toggleFollow,
+                                  onPressed: _loadingFollow
+                                      ? null
+                                      : _toggleFollow,
                                   style: OutlinedButton.styleFrom(
                                     side: BorderSide(
                                       color: Colors.grey.shade400,
@@ -1039,8 +1082,9 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                                   ),
                                 )
                               : ElevatedButton(
-                                  onPressed:
-                                      _loadingFollow ? null : _toggleFollow,
+                                  onPressed: _loadingFollow
+                                      ? null
+                                      : _toggleFollow,
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color(0xFF00C853),
                                     foregroundColor: Colors.white,
@@ -1090,8 +1134,9 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                           ),
                         ),
                       );
-                      final reviews =
-                          await widget.apiService.fetchBookReviews(_book.id);
+                      final reviews = await widget.apiService.fetchBookReviews(
+                        _book.id,
+                      );
                       if (mounted) setState(() => _reviews = reviews);
                     },
                     child: const Text('Write'),
@@ -1116,103 +1161,102 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
             )
           else
             SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final r = _reviews[index];
-                  final rating = (r['rating'] as num?)?.toInt() ?? 0;
-                  final comment = r['comment'] as String? ??
-                      r['body'] as String? ??
-                      '';
-                  final author = r['display_name'] as String? ??
-                      r['author'] as String? ??
-                      'Reader';
-                  final avatarRaw = (r['avatar_url'] ??
-                          r['photo_url'] ??
-                          r['user_avatar'] ??
-                          '')
-                      .toString();
-                  final avatarUrl = avatarRaw.isEmpty
-                      ? ''
-                      : widget.apiService.resolveAssetUrl(avatarRaw);
-                  final reviewerId = (r['user_id'] as num?)?.toInt() ??
-                      (r['author_id'] as num?)?.toInt();
-                  return ListTile(
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 20),
-                    leading: CircleAvatar(
-                      radius: 20,
-                      backgroundColor: Colors.grey.shade200,
-                      backgroundImage: avatarUrl.isNotEmpty
-                          ? NetworkImage(avatarUrl)
-                          : null,
-                      child: avatarUrl.isEmpty
-                          ? Text(
-                              author.isNotEmpty
-                                  ? author[0].toUpperCase()
-                                  : '?',
-                              style: TextStyle(
-                                color: Colors.grey.shade700,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            )
-                          : null,
-                    ),
-                    title: Row(
-                      children: [
-                        Flexible(
-                          child: GestureDetector(
-                            onTap: reviewerId != null && reviewerId > 0
-                                ? () {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute<void>(
-                                        builder: (_) => ProfileScreen(
-                                          apiService: widget.apiService,
-                                          viewingUserId: reviewerId,
-                                          achievements: const [],
-                                          profile: ProfileModel(
-                                            id: reviewerId,
-                                            displayName: author,
-                                            username: author
-                                                .toLowerCase()
-                                                .replaceAll(' ', ''),
-                                            photoUrl: avatarRaw,
-                                            coverUrl: '',
-                                            following: 0,
-                                            followers: 0,
-                                            blocked: 0,
-                                            chaptersRead: 0,
-                                            socialKarma: 0,
-                                            dayStreak: 0,
-                                            readingLists: const [],
-                                          ),
+              delegate: SliverChildBuilderDelegate((context, index) {
+                final r = _reviews[index];
+                final rating = (r['rating'] as num?)?.toInt() ?? 0;
+                final comment =
+                    r['comment'] as String? ?? r['body'] as String? ?? '';
+                final author =
+                    r['display_name'] as String? ??
+                    r['author'] as String? ??
+                    'Reader';
+                final avatarRaw =
+                    (r['avatar_url'] ??
+                            r['photo_url'] ??
+                            r['user_avatar'] ??
+                            '')
+                        .toString();
+                final avatarUrl = avatarRaw.isEmpty
+                    ? ''
+                    : widget.apiService.resolveAssetUrl(avatarRaw);
+                final reviewerId =
+                    (r['user_id'] as num?)?.toInt() ??
+                    (r['author_id'] as num?)?.toInt();
+                return ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                  leading: CircleAvatar(
+                    radius: 20,
+                    backgroundColor: Colors.grey.shade200,
+                    backgroundImage: avatarUrl.isNotEmpty
+                        ? NetworkImage(avatarUrl)
+                        : null,
+                    child: avatarUrl.isEmpty
+                        ? Text(
+                            author.isNotEmpty ? author[0].toUpperCase() : '?',
+                            style: TextStyle(
+                              color: Colors.grey.shade700,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          )
+                        : null,
+                  ),
+                  title: Row(
+                    children: [
+                      Flexible(
+                        child: GestureDetector(
+                          onTap: reviewerId != null && reviewerId > 0
+                              ? () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => ProfileScreen(
+                                        apiService: widget.apiService,
+                                        viewingUserId: reviewerId,
+                                        achievements: const [],
+                                        profile: ProfileModel(
+                                          id: reviewerId,
+                                          displayName: author,
+                                          username: author
+                                              .toLowerCase()
+                                              .replaceAll(' ', ''),
+                                          photoUrl: avatarRaw,
+                                          coverUrl: '',
+                                          following: 0,
+                                          followers: 0,
+                                          blocked: 0,
+                                          chaptersRead: 0,
+                                          socialKarma: 0,
+                                          dayStreak: 0,
+                                          readingLists: const [],
                                         ),
                                       ),
-                                    );
-                                  }
-                                : null,
-                            child: Text(
-                              author,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                decoration: TextDecoration.underline,
-                                decorationColor: Colors.transparent,
-                              ),
+                                    ),
+                                  );
+                                }
+                              : null,
+                          child: Text(
+                            author,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              decoration: TextDecoration.underline,
+                              decorationColor: Colors.transparent,
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        ...List.generate(
-                          rating.clamp(0, 5),
-                          (_) => const Icon(Icons.star,
-                              size: 14, color: Colors.amber),
+                      ),
+                      const SizedBox(width: 8),
+                      ...List.generate(
+                        rating.clamp(0, 5),
+                        (_) => const Icon(
+                          Icons.star,
+                          size: 14,
+                          color: Colors.amber,
                         ),
-                      ],
-                    ),
-                    subtitle: comment.isEmpty ? null : Text(comment),
-                  );
-                },
-                childCount: _reviews.length,
-              ),
+                      ),
+                    ],
+                  ),
+                  subtitle: comment.isEmpty ? null : Text(comment),
+                );
+              }, childCount: _reviews.length),
             ),
 
           // Chapters
@@ -1243,55 +1287,49 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
             )
           else
             SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final chapter = _chapters[index];
-                  final rawTitle =
-                      (chapter['title'] as String? ?? '').trim();
-                  final number =
-                      (chapter['chapter_number'] as num?)?.toInt() ??
-                          index + 1;
-                  // Never show "Chapter 1 Chapter 1" (video / Galatea)
-                  String displayTitle;
-                  final lower = rawTitle.toLowerCase().trim();
-                  // Strip leading "Chapter N" / "Chapter N:" / "Chapter N -"
-                  final stripPrefix = RegExp(
-                    r'^chapter\s*\d+\s*[:.\-–—]?\s*',
-                    caseSensitive: false,
-                  );
-                  final stripped = rawTitle.replaceFirst(stripPrefix, '').trim();
-                  final chapterOnly = RegExp(r'^chapter\s*\d+$');
-                  if (rawTitle.isEmpty || chapterOnly.hasMatch(lower)) {
-                    displayTitle = 'Chapter $number';
-                  } else if (stripped.isEmpty) {
-                    displayTitle = 'Chapter $number';
-                  } else if (lower.startsWith('chapter ') &&
-                      stripped.toLowerCase() != lower) {
-                    // Had "Chapter N Something" → show Chapter N · Something
-                    displayTitle = 'Chapter $number · $stripped';
-                  } else if (lower.startsWith('chapter ')) {
-                    displayTitle = rawTitle;
-                  } else {
-                    displayTitle = 'Chapter $number · $rawTitle';
-                  }
-                  return ListTile(
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 20),
-                    title: Text(
-                      displayTitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
+              delegate: SliverChildBuilderDelegate((context, index) {
+                final chapter = _chapters[index];
+                final rawTitle = (chapter['title'] as String? ?? '').trim();
+                final number =
+                    (chapter['chapter_number'] as num?)?.toInt() ?? index + 1;
+                // Never show "Chapter 1 Chapter 1" (video / Galatea)
+                String displayTitle;
+                final lower = rawTitle.toLowerCase().trim();
+                // Strip leading "Chapter N" / "Chapter N:" / "Chapter N -"
+                final stripPrefix = RegExp(
+                  r'^chapter\s*\d+\s*[:.\-–—]?\s*',
+                  caseSensitive: false,
+                );
+                final stripped = rawTitle.replaceFirst(stripPrefix, '').trim();
+                final chapterOnly = RegExp(r'^chapter\s*\d+$');
+                if (rawTitle.isEmpty || chapterOnly.hasMatch(lower)) {
+                  displayTitle = 'Chapter $number';
+                } else if (stripped.isEmpty) {
+                  displayTitle = 'Chapter $number';
+                } else if (lower.startsWith('chapter ') &&
+                    stripped.toLowerCase() != lower) {
+                  // Had "Chapter N Something" → show Chapter N · Something
+                  displayTitle = 'Chapter $number · $stripped';
+                } else if (lower.startsWith('chapter ')) {
+                  displayTitle = rawTitle;
+                } else {
+                  displayTitle = 'Chapter $number · $rawTitle';
+                }
+                return ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                  title: Text(
+                    displayTitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
                     ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => _openChapter(chapter, index: index),
-                  );
-                },
-                childCount: _chapters.length,
-              ),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _openChapter(chapter, index: index),
+                );
+              }, childCount: _chapters.length),
             ),
           // More Stories by Author (matches video)
           if (_authorStories.isNotEmpty) ...[
@@ -1317,7 +1355,8 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                   itemBuilder: (context, index) {
                     final b = _authorStories[index];
                     final title = b['title'] as String? ?? '';
-                    final cover = b['cover_path'] as String? ??
+                    final cover =
+                        b['cover_path'] as String? ??
                         b['cover_url'] as String? ??
                         '';
                     final coverResolved = cover.isEmpty
@@ -1353,8 +1392,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                                       width: 100,
                                       height: 140,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (_, _, _) =>
-                                          Container(
+                                      errorBuilder: (_, _, _) => Container(
                                         width: 100,
                                         height: 140,
                                         color: Colors.grey.shade300,
@@ -1406,7 +1444,8 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                   itemBuilder: (context, index) {
                     final b = _youMayAlsoLike[index];
                     final title = b['title'] as String? ?? '';
-                    final cover = b['cover_path'] as String? ??
+                    final cover =
+                        b['cover_path'] as String? ??
                         b['cover_url'] as String? ??
                         '';
                     final coverResolved = cover.isEmpty
@@ -1442,8 +1481,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                                       width: 100,
                                       height: 140,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (_, _, _) =>
-                                          Container(
+                                      errorBuilder: (_, _, _) => Container(
                                         width: 100,
                                         height: 140,
                                         color: Colors.grey.shade300,
@@ -1559,10 +1597,7 @@ class _TagBooksScreen extends StatelessWidget {
 }
 
 class _WriteReviewScreen extends StatefulWidget {
-  const _WriteReviewScreen({
-    required this.bookId,
-    required this.apiService,
-  });
+  const _WriteReviewScreen({required this.bookId, required this.apiService});
 
   final int bookId;
   final ApiService apiService;
@@ -1606,7 +1641,9 @@ class _WriteReviewScreenState extends State<_WriteReviewScreen> {
                 child: Padding(
                   padding: const EdgeInsets.only(right: 6),
                   child: Icon(
-                    star <= value ? Icons.star_rounded : Icons.star_outline_rounded,
+                    star <= value
+                        ? Icons.star_rounded
+                        : Icons.star_outline_rounded,
                     size: 34,
                     color: star <= value
                         ? const Color(0xFFF3C623)
@@ -1623,16 +1660,16 @@ class _WriteReviewScreenState extends State<_WriteReviewScreen> {
 
   Future<void> _submit() async {
     if (_overall < 1) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please rate this novel')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please rate this novel')));
       return;
     }
     final title = _titleCtrl.text.trim();
     if (title.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Title is required')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Title is required')));
       return;
     }
     final body = _bodyCtrl.text.trim();
@@ -1655,14 +1692,14 @@ class _WriteReviewScreenState extends State<_WriteReviewScreen> {
       });
       if (!mounted) return;
       Navigator.pop(context, true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Review posted')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Review posted')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to post review: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to post review: $e')));
     } finally {
       if (mounted) setState(() => _saving = false);
     }

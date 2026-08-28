@@ -156,10 +156,12 @@ class _ExploreStoriesSectionState extends State<_ExploreStoriesSection> {
           children: [
             Expanded(
               child: Text(
-                lead.primaryGenre.isEmpty ? 'Portal Fantasy' : lead.primaryGenre,
+                lead.primaryGenre.isEmpty
+                    ? 'Portal Fantasy'
+                    : lead.primaryGenre,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: isDark ? Colors.white70 : null,
-                    ),
+                  color: isDark ? Colors.white70 : null,
+                ),
               ),
             ),
             TextButton(
@@ -234,7 +236,6 @@ class _ExploreStoriesSectionState extends State<_ExploreStoriesSection> {
           onRead: () => _openBook(lead),
         ),
         const SizedBox(height: 16),
-
       ],
     );
   }
@@ -424,7 +425,6 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
   }
 }
 
-
 class _ActiveStoryDetail extends StatelessWidget {
   const _ActiveStoryDetail({required this.book, this.onRead, this.apiService});
 
@@ -588,7 +588,11 @@ class _GenreTag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2C2C2C) : const Color(0xFFE0E0E0)),
+        border: Border.all(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? const Color(0xFF2C2C2C)
+              : const Color(0xFFE0E0E0),
+        ),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
@@ -651,20 +655,11 @@ class _StoryCardState extends State<_StoryCard> {
         height: height,
         cacheWidth: (width * 2).round().clamp(80, 600),
         cacheHeight: (height * 2).round().clamp(80, 800),
-        errorBuilder: (_, _, _) => Image.asset(
-          asset,
-          fit: BoxFit.cover,
-          width: width,
-          height: height,
-        ),
+        errorBuilder: (_, _, _) =>
+            Image.asset(asset, fit: BoxFit.cover, width: width, height: height),
       );
     }
-    return Image.asset(
-      asset,
-      fit: BoxFit.cover,
-      width: width,
-      height: height,
-    );
+    return Image.asset(asset, fit: BoxFit.cover, width: width, height: height);
   }
 
   @override
@@ -708,10 +703,15 @@ class _StoryCardState extends State<_StoryCard> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(16),
+              ),
               child: AspectRatio(
                 aspectRatio: 0.72,
-                child: _coverImage(width: widget.width, height: widget.width / 0.72),
+                child: _coverImage(
+                  width: widget.width,
+                  height: widget.width / 0.72,
+                ),
               ),
             ),
             Padding(
@@ -724,17 +724,17 @@ class _StoryCardState extends State<_StoryCard> {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'by ${widget.book.author}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppTheme.muted,
-                        ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: AppTheme.muted),
                   ),
                 ],
               ),
@@ -745,7 +745,6 @@ class _StoryCardState extends State<_StoryCard> {
     );
   }
 }
-
 
 class _AuthorsStrip extends StatefulWidget {
   const _AuthorsStrip({required this.books, required this.apiService});
@@ -903,7 +902,10 @@ class _AuthorsStripState extends State<_AuthorsStrip> {
                                   profile: ProfileModel(
                                     id: authorId,
                                     displayName: author,
-                                    username: author.toLowerCase().replaceAll(' ', ''),
+                                    username: author.toLowerCase().replaceAll(
+                                      ' ',
+                                      '',
+                                    ),
                                     photoUrl: rawPhoto,
                                     coverUrl: '',
                                     following: 0,
@@ -927,7 +929,8 @@ class _AuthorsStripState extends State<_AuthorsStrip> {
                       children: [
                         CircleAvatar(
                           radius: 28,
-                          backgroundColor: Theme.of(context).brightness == Brightness.dark
+                          backgroundColor:
+                              Theme.of(context).brightness == Brightness.dark
                               ? const Color(0xFF2A3344)
                               : const Color(0xFFE8EEF9),
                           backgroundImage: photoUrl.isNotEmpty
@@ -962,7 +965,9 @@ class _AuthorsStripState extends State<_AuthorsStrip> {
                                     : Colors.black.withValues(alpha: 0.6),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                  color: Theme.of(context).scaffoldBackgroundColor,
+                                  color: Theme.of(
+                                    context,
+                                  ).scaffoldBackgroundColor,
                                   width: 1.5,
                                 ),
                               ),
@@ -991,7 +996,8 @@ class _AuthorsStripState extends State<_AuthorsStrip> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -1001,10 +1007,8 @@ class _AuthorsStripState extends State<_AuthorsStrip> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                fontSize: 9,
-                                color: AppTheme.muted,
-                              ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(fontSize: 9, color: AppTheme.muted),
                         ),
                       ],
                     ),
@@ -1057,7 +1061,9 @@ class _GenrePillRow extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              backgroundColor: isDark ? const Color(0xFF2A3344) : const Color(0xFFE8EEF9),
+              backgroundColor: isDark
+                  ? const Color(0xFF2A3344)
+                  : const Color(0xFFE8EEF9),
               onPressed: onOpenExplore,
             );
           }
@@ -1078,19 +1084,21 @@ class _GenrePillRow extends StatelessWidget {
                       return b.primaryGenre.toLowerCase().contains(g) ||
                           b.secondaryGenre.toLowerCase().contains(g);
                     })
-                    .map((b) => {
-                          'id': b.id,
-                          'title': b.title,
-                          'author': b.author,
-                          'description': b.description,
-                          'status_text': b.statusText,
-                          'rating': b.rating,
-                          'genre': b.primaryGenre,
-                          'primary_genre': b.primaryGenre,
-                          'cover_path': b.coverPath,
-                          'cta_label': b.cta,
-                          'author_user_id': b.authorUserId,
-                        })
+                    .map(
+                      (b) => {
+                        'id': b.id,
+                        'title': b.title,
+                        'author': b.author,
+                        'description': b.description,
+                        'status_text': b.statusText,
+                        'rating': b.rating,
+                        'genre': b.primaryGenre,
+                        'primary_genre': b.primaryGenre,
+                        'cover_path': b.coverPath,
+                        'cta_label': b.cta,
+                        'author_user_id': b.authorUserId,
+                      },
+                    )
                     .toList();
               }
               if (!context.mounted) return;
@@ -1112,10 +1120,7 @@ class _GenrePillRow extends StatelessWidget {
   }
 }
 
-
-
 /// Horizontal "Browse genres" carousel (video-style genre cards).
-
 
 /// Wattpad-style Continue reading strip (always visible).
 class _ContinueReadingSection extends StatefulWidget {
@@ -1234,8 +1239,9 @@ class _ContinueReadingSectionState extends State<_ContinueReadingSection> {
     if (!context.mounted) return;
 
     int chapterIndex = 0;
-    int chapterNumber =
-        entry.lastChapterNumber > 0 ? entry.lastChapterNumber : 1;
+    int chapterNumber = entry.lastChapterNumber > 0
+        ? entry.lastChapterNumber
+        : 1;
     String chapterTitle = 'Chapter $chapterNumber';
     String chapterContent = '';
 
@@ -1245,8 +1251,7 @@ class _ContinueReadingSectionState extends State<_ContinueReadingSection> {
       );
       chapterIndex = idx >= 0 ? idx : 0;
       final ch = chapters[chapterIndex];
-      chapterNumber =
-          (ch['chapter_number'] as num?)?.toInt() ?? chapterNumber;
+      chapterNumber = (ch['chapter_number'] as num?)?.toInt() ?? chapterNumber;
       chapterTitle = (ch['title'] ?? chapterTitle).toString();
       chapterContent = (ch['content'] ?? '').toString();
     }
@@ -1287,11 +1292,11 @@ class _ContinueReadingSectionState extends State<_ContinueReadingSection> {
               child: Text(
                 'Continue reading',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 17,
-                      letterSpacing: -0.2,
-                      color: isDark ? Colors.white : null,
-                    ),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 17,
+                  letterSpacing: -0.2,
+                  color: isDark ? Colors.white : null,
+                ),
               ),
             ),
             if (_loading)
@@ -1341,14 +1346,14 @@ class _ContinueReadingSectionState extends State<_ContinueReadingSection> {
                                     bottom: 0,
                                     child: Container(
                                       height: 4,
-                                      color: Colors.black.withValues(alpha: 0.35),
+                                      color: Colors.black.withValues(
+                                        alpha: 0.35,
+                                      ),
                                       alignment: Alignment.centerLeft,
                                       child: FractionallySizedBox(
                                         widthFactor: entry.progressFraction
                                             .clamp(0.05, 1.0),
-                                        child: Container(
-                                          color: const Color(0xFFFF5722),
-                                        ),
+                                        child: Container(color: AppTheme.brand),
                                       ),
                                     ),
                                   ),
@@ -1366,8 +1371,7 @@ class _ContinueReadingSectionState extends State<_ContinueReadingSection> {
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
-                              color:
-                                  isDark ? Colors.white70 : Colors.black54,
+                              color: isDark ? Colors.white70 : Colors.black54,
                             ),
                           ),
                         ],
@@ -1407,12 +1411,16 @@ class _ContinueReadingSectionState extends State<_ContinueReadingSection> {
                           backgroundColor: const Color(0xFF1A1A1A),
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 8),
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
                           minimumSize: const Size(0, 36),
                         ),
                         icon: const Icon(Icons.search, size: 16),
-                        label: const Text('Browse stories',
-                            style: TextStyle(fontSize: 12)),
+                        label: const Text(
+                          'Browse stories',
+                          style: TextStyle(fontSize: 12),
+                        ),
                       ),
                     ],
                   ),
@@ -1425,10 +1433,6 @@ class _ContinueReadingSectionState extends State<_ContinueReadingSection> {
     );
   }
 }
-
-
-
-
 
 class _BrowseGenresSection extends StatelessWidget {
   const _BrowseGenresSection({
@@ -1492,11 +1496,11 @@ class _BrowseGenresSection extends StatelessWidget {
               child: Text(
                 'Browse genres',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 17,
-                      letterSpacing: -0.2,
-                      color: isDark ? Colors.white : null,
-                    ),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 17,
+                  letterSpacing: -0.2,
+                  color: isDark ? Colors.white : null,
+                ),
               ),
             ),
             if (onOpenExplore != null)
@@ -1528,8 +1532,12 @@ class _BrowseGenresSection extends StatelessWidget {
               // Prefer a cover from a book in this genre for Inkitt-style cards
               String coverPath = '';
               for (final b in books) {
-                if (b.primaryGenre.toLowerCase().contains(label.toLowerCase()) ||
-                    b.secondaryGenre.toLowerCase().contains(label.toLowerCase())) {
+                if (b.primaryGenre.toLowerCase().contains(
+                      label.toLowerCase(),
+                    ) ||
+                    b.secondaryGenre.toLowerCase().contains(
+                      label.toLowerCase(),
+                    )) {
                   if (b.coverPath.isNotEmpty) {
                     coverPath = b.coverPath;
                     break;
@@ -1558,19 +1566,21 @@ class _BrowseGenresSection extends StatelessWidget {
                           return b.primaryGenre.toLowerCase().contains(g) ||
                               b.secondaryGenre.toLowerCase().contains(g);
                         })
-                        .map((b) => {
-                              'id': b.id,
-                              'title': b.title,
-                              'author': b.author,
-                              'description': b.description,
-                              'status_text': b.statusText,
-                              'rating': b.rating,
-                              'genre': b.primaryGenre,
-                              'primary_genre': b.primaryGenre,
-                              'cover_path': b.coverPath,
-                              'cta_label': b.cta,
-                              'author_user_id': b.authorUserId,
-                            })
+                        .map(
+                          (b) => {
+                            'id': b.id,
+                            'title': b.title,
+                            'author': b.author,
+                            'description': b.description,
+                            'status_text': b.statusText,
+                            'rating': b.rating,
+                            'genre': b.primaryGenre,
+                            'primary_genre': b.primaryGenre,
+                            'cover_path': b.coverPath,
+                            'cta_label': b.cta,
+                            'author_user_id': b.authorUserId,
+                          },
+                        )
                         .toList();
                   }
                   if (!context.mounted) return;
@@ -1605,8 +1615,7 @@ class _BrowseGenresSection extends StatelessWidget {
                         Image.network(
                           apiService.resolveAssetUrl(coverPath),
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              Container(color: color),
+                          errorBuilder: (_, __, ___) => Container(color: color),
                         )
                       else
                         Container(
@@ -1691,8 +1700,8 @@ class _CategoryTabs extends StatelessWidget {
                     color: isSelected
                         ? AppTheme.brand
                         : (Theme.of(context).brightness == Brightness.dark
-                            ? Colors.white70
-                            : AppTheme.muted),
+                              ? Colors.white70
+                              : AppTheme.muted),
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -1737,7 +1746,6 @@ class _TabBarDelegate extends SliverPersistentHeaderDelegate {
   @override
   bool shouldRebuild(_TabBarDelegate oldDelegate) => false;
 }
-
 
 class _SectionBooksScreen extends StatelessWidget {
   const _SectionBooksScreen({
@@ -1917,7 +1925,9 @@ class _GenreBooksScreenState extends State<_GenreBooksScreen> {
     // Filter by genre field match
     final g = widget.genre.toLowerCase();
     list = list.where((b) {
-      final pg = (b['primary_genre'] ?? b['genre'] ?? '').toString().toLowerCase();
+      final pg = (b['primary_genre'] ?? b['genre'] ?? '')
+          .toString()
+          .toLowerCase();
       final sg = (b['secondary_genre'] ?? '').toString().toLowerCase();
       return pg.contains(g) || sg.contains(g) || g.isEmpty;
     }).toList();
@@ -1997,10 +2007,7 @@ class _GenreBooksScreenState extends State<_GenreBooksScreen> {
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
-                          colors: [
-                            Color(0xFF2D4A6F),
-                            Color(0xFF1A1A2E),
-                          ],
+                          colors: [Color(0xFF2D4A6F), Color(0xFF1A1A2E)],
                         ),
                       ),
                     ),
@@ -2068,216 +2075,209 @@ class _GenreBooksScreenState extends State<_GenreBooksScreen> {
         body: _loading
             ? const Center(child: CircularProgressIndicator())
             : _books.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text('No stories in this genre yet'),
-                        if (widget.onExploreMore != null)
-                          TextButton(
-                            onPressed: widget.onExploreMore,
-                            child: const Text('Explore more'),
-                          ),
-                      ],
-                    ),
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
-                    itemCount: _books.length,
-                    separatorBuilder: (_, __) => const Divider(height: 20),
-                    itemBuilder: (context, index) {
-                      final item = _books[index];
-                      final title = (item['title'] ?? 'Untitled').toString();
-                      final author = (item['author'] ?? '').toString();
-                      final desc = (item['description'] ?? '').toString();
-                      final cover = (item['cover_path'] ?? '').toString();
-                      final rating =
-                          (item['rating'] as num?)?.toDouble() ?? 0.0;
-                      final genreLabel = (item['primary_genre'] ??
-                              item['genre'] ??
-                              widget.genre)
+            ? Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('No stories in this genre yet'),
+                    if (widget.onExploreMore != null)
+                      TextButton(
+                        onPressed: widget.onExploreMore,
+                        child: const Text('Explore more'),
+                      ),
+                  ],
+                ),
+              )
+            : ListView.separated(
+                padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
+                itemCount: _books.length,
+                separatorBuilder: (_, __) => const Divider(height: 20),
+                itemBuilder: (context, index) {
+                  final item = _books[index];
+                  final title = (item['title'] ?? 'Untitled').toString();
+                  final author = (item['author'] ?? '').toString();
+                  final desc = (item['description'] ?? '').toString();
+                  final cover = (item['cover_path'] ?? '').toString();
+                  final rating = (item['rating'] as num?)?.toDouble() ?? 0.0;
+                  final genreLabel =
+                      (item['primary_genre'] ?? item['genre'] ?? widget.genre)
                           .toString();
-                      final status =
-                          (item['status_text'] ?? '').toString();
-                      final completed = item['is_completed'] == true ||
-                          item['is_completed'] == 1 ||
-                          status.toLowerCase().contains('complete') ||
-                          status.toLowerCase().contains('published');
-                      final chapters =
-                          (item['chapters_count'] as num?)?.toInt() ??
-                              (item['chapter_count'] as num?)?.toInt();
+                  final status = (item['status_text'] ?? '').toString();
+                  final completed =
+                      item['is_completed'] == true ||
+                      item['is_completed'] == 1 ||
+                      status.toLowerCase().contains('complete') ||
+                      status.toLowerCase().contains('published');
+                  final chapters =
+                      (item['chapters_count'] as num?)?.toInt() ??
+                      (item['chapter_count'] as num?)?.toInt();
 
-                      return InkWell(
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => StoryDetailScreen(
-                                book: _toBook(item),
-                                apiService: widget.apiService,
-                              ),
-                            ),
-                          );
-                        },
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(6),
-                              child: SizedBox(
-                                width: 78,
-                                height: 110,
-                                child: cover.isNotEmpty
-                                    ? Image.network(
-                                        widget.apiService
-                                            .resolveAssetUrl(cover),
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) =>
-                                            Container(
-                                          color: const Color(0xFFE8E8E8),
-                                          child: const Icon(
-                                              Icons.menu_book_rounded),
-                                        ),
-                                      )
-                                    : Container(
-                                        color: const Color(0xFFE8E8E8),
-                                        child: const Icon(
-                                            Icons.menu_book_rounded),
+                  return InkWell(
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => StoryDetailScreen(
+                            book: _toBook(item),
+                            apiService: widget.apiService,
+                          ),
+                        ),
+                      );
+                    },
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: SizedBox(
+                            width: 78,
+                            height: 110,
+                            child: cover.isNotEmpty
+                                ? Image.network(
+                                    widget.apiService.resolveAssetUrl(cover),
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Container(
+                                      color: const Color(0xFFE8E8E8),
+                                      child: const Icon(
+                                        Icons.menu_book_rounded,
                                       ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          title,
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 15,
-                                            height: 1.25,
-                                          ),
-                                        ),
-                                      ),
-                                      const Icon(
-                                        Icons.bookmark_border_rounded,
-                                        size: 20,
-                                        color: Colors.black45,
-                                      ),
-                                    ],
+                                    ),
+                                  )
+                                : Container(
+                                    color: const Color(0xFFE8E8E8),
+                                    child: const Icon(Icons.menu_book_rounded),
                                   ),
-                                  if (desc.isNotEmpty) ...[
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      desc,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      title,
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
-                                        fontSize: 12.5,
-                                        color: Color(0xFF666666),
-                                        height: 1.35,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 15,
+                                        height: 1.25,
+                                      ),
+                                    ),
+                                  ),
+                                  const Icon(
+                                    Icons.bookmark_border_rounded,
+                                    size: 20,
+                                    color: Colors.black45,
+                                  ),
+                                ],
+                              ),
+                              if (desc.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  desc,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12.5,
+                                    color: Color(0xFF666666),
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.star_rounded,
+                                    size: 16,
+                                    color: Color(0xFFFFC107),
+                                  ),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    rating > 0
+                                        ? rating.toStringAsFixed(1)
+                                        : '—',
+                                    style: const TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      border: Border.all(
+                                        color: const Color(0xFFDDDDDD),
+                                      ),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      genreLabel,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: Color(0xFF555555),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  if (completed) ...[
+                                    const Icon(
+                                      Icons.check_circle,
+                                      size: 14,
+                                      color: Color(0xFF00A88E),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    const Text(
+                                      'Completed',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Color(0xFF00A88E),
+                                        fontWeight: FontWeight.w600,
                                       ),
                                     ),
                                   ],
-                                  const SizedBox(height: 6),
-                                  Row(
-                                    children: [
-                                      const Icon(Icons.star_rounded,
-                                          size: 16,
-                                          color: Color(0xFFFFC107)),
-                                      const SizedBox(width: 2),
-                                      Text(
-                                        rating > 0
-                                            ? rating.toStringAsFixed(1)
-                                            : '—',
-                                        style: const TextStyle(
-                                          fontSize: 12.5,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Container(
-                                        padding:
-                                            const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 2,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          border: Border.all(
-                                            color:
-                                                const Color(0xFFDDDDDD),
-                                          ),
-                                          borderRadius:
-                                              BorderRadius.circular(12),
-                                        ),
-                                        child: Text(
-                                          genreLabel,
-                                          style: const TextStyle(
-                                            fontSize: 11,
-                                            color: Color(0xFF555555),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      if (completed) ...[
-                                        const Icon(
-                                          Icons.check_circle,
-                                          size: 14,
-                                          color: Color(0xFF00A88E),
-                                        ),
-                                        const SizedBox(width: 4),
-                                        const Text(
-                                          'Completed',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Color(0xFF00A88E),
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ],
-                                      if (chapters != null) ...[
-                                        Text(
-                                          completed
-                                              ? ' · $chapters Chapters'
-                                              : '$chapters Chapters',
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            color: Color(0xFF888888),
-                                          ),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                  if (author.isNotEmpty) ...[
-                                    const SizedBox(height: 2),
+                                  if (chapters != null) ...[
                                     Text(
-                                      'By $author',
+                                      completed
+                                          ? ' · $chapters Chapters'
+                                          : '$chapters Chapters',
                                       style: const TextStyle(
                                         fontSize: 12,
-                                        color: Color(0xFF999999),
+                                        color: Color(0xFF888888),
                                       ),
                                     ),
                                   ],
                                 ],
                               ),
-                            ),
-                          ],
+                              if (author.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  'By $author',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF999999),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
-                      );
-                    },
-                  ),
+                      ],
+                    ),
+                  );
+                },
+              ),
       ),
     );
   }
@@ -2299,12 +2299,7 @@ class _FilterChipBtn extends StatelessWidget {
     return PopupMenuButton<String>(
       onSelected: onSelected,
       itemBuilder: (ctx) => options
-          .map(
-            (o) => PopupMenuItem<String>(
-              value: o,
-              child: Text(o),
-            ),
-          )
+          .map((o) => PopupMenuItem<String>(value: o, child: Text(o)))
           .toList(),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -2317,10 +2312,7 @@ class _FilterChipBtn extends StatelessWidget {
           children: [
             Text(
               label,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
             const SizedBox(width: 4),
             const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
@@ -2330,9 +2322,6 @@ class _FilterChipBtn extends StatelessWidget {
     );
   }
 }
-
-
-
 
 class _AuthorsSeeAllScreen extends StatelessWidget {
   const _AuthorsSeeAllScreen({required this.books, required this.apiService});
@@ -2351,6 +2340,7 @@ class _AuthorsSeeAllScreen extends StatelessWidget {
         if (x.isCompleted) s += 2;
         return s;
       }
+
       return score(b).compareTo(score(a));
     });
     final byAuthor = <String, BookCardModel>{};
@@ -2374,7 +2364,11 @@ class _AuthorsSeeAllScreen extends StatelessWidget {
               child: Text(author.isNotEmpty ? author[0].toUpperCase() : 'A'),
             ),
             title: Text(author),
-            subtitle: Text(book.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+            subtitle: Text(
+              book.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
             onTap: authorId == null
                 ? null
                 : () {

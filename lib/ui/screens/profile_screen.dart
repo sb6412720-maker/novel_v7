@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../data/models/app_bootstrap.dart';
 import '../../data/services/api_service.dart';
@@ -86,9 +87,14 @@ class _ProfileScreenState extends State<ProfileScreen>
         if (me.isNotEmpty) {
           _userProfile = {
             ...me,
-            'display_name': (me['display_name'] ?? me['name'] ?? widget.profile.displayName).toString(),
-            'photo_url': (me['photo_url'] ?? me['avatar_url'] ?? widget.profile.photoUrl).toString(),
-            'cover_url': (me['cover_url'] ?? widget.profile.coverUrl).toString(),
+            'display_name':
+                (me['display_name'] ?? me['name'] ?? widget.profile.displayName)
+                    .toString(),
+            'photo_url':
+                (me['photo_url'] ?? me['avatar_url'] ?? widget.profile.photoUrl)
+                    .toString(),
+            'cover_url': (me['cover_url'] ?? widget.profile.coverUrl)
+                .toString(),
             'bio': (me['bio'] ?? '').toString(),
             'gender': (me['gender'] ?? '').toString(),
             'birth_date': (me['birth_date'] ?? '').toString(),
@@ -130,8 +136,12 @@ class _ProfileScreenState extends State<ProfileScreen>
                   ? widget.apiService.fetchWriterStories()
                   : widget.apiService.fetchUserStories(targetId))
               .catchError((_) => <Map<String, dynamic>>[]),
-          widget.apiService.fetchUserWall(targetId).catchError((_) => <Map<String, dynamic>>[]),
-          widget.apiService.fetchUserActivity(targetId).catchError((_) => <Map<String, dynamic>>[]),
+          widget.apiService
+              .fetchUserWall(targetId)
+              .catchError((_) => <Map<String, dynamic>>[]),
+          widget.apiService
+              .fetchUserActivity(targetId)
+              .catchError((_) => <Map<String, dynamic>>[]),
           (_isOwnProfile
                   ? widget.apiService.fetchMyReviews()
                   : widget.apiService.fetchUserReviews(targetId))
@@ -194,9 +204,7 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   String get _aboutLong {
     final a = _s(_userProfile?['about'] ?? _userProfile?['bio']);
-    return a.isNotEmpty
-        ? a
-        : _bio;
+    return a.isNotEmpty ? a : _bio;
   }
 
   int get _following =>
@@ -266,8 +274,8 @@ class _ProfileScreenState extends State<ProfileScreen>
       final text = (msg.contains('timeout') || msg.contains('timed out'))
           ? 'Server busy — tap Follow again'
           : (msg.contains('401') || msg.contains('unauthorized'))
-              ? 'Sign in to follow authors'
-              : 'Could not update follow';
+          ? 'Sign in to follow authors'
+          : 'Could not update follow';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
     }
   }
@@ -280,15 +288,24 @@ class _ProfileScreenState extends State<ProfileScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              title: const Text('Share profile', style: TextStyle(color: Color(0xFF2B6CB0))),
+              title: const Text(
+                'Share profile',
+                style: TextStyle(color: Color(0xFF2B6CB0)),
+              ),
               onTap: () => Navigator.pop(ctx),
             ),
             ListTile(
-              title: const Text('Block user', style: TextStyle(color: Color(0xFF2B6CB0))),
+              title: const Text(
+                'Block user',
+                style: TextStyle(color: Color(0xFF2B6CB0)),
+              ),
               onTap: () => Navigator.pop(ctx),
             ),
             ListTile(
-              title: const Text('Report user', style: TextStyle(color: Color(0xFF2B6CB0))),
+              title: const Text(
+                'Report user',
+                style: TextStyle(color: Color(0xFF2B6CB0)),
+              ),
               onTap: () => Navigator.pop(ctx),
             ),
             ListTile(
@@ -305,7 +322,9 @@ class _ProfileScreenState extends State<ProfileScreen>
     if (!_isOwnProfile) return;
     final nameCtrl = TextEditingController(text: _displayName);
     final bioCtrl = TextEditingController(text: _bio);
-    String photoUrl = _s(_userProfile?['photo_url'] ?? _userProfile?['avatar_url']);
+    String photoUrl = _s(
+      _userProfile?['photo_url'] ?? _userProfile?['avatar_url'],
+    );
     String coverUrl = _s(_userProfile?['cover_url']);
     bool uploading = false;
     await showModalBottomSheet<void>(
@@ -315,134 +334,203 @@ class _ProfileScreenState extends State<ProfileScreen>
         builder: (ctx, setModal) {
           return SafeArea(
             child: Padding(
-            padding: EdgeInsets.only(
-              left: 20,
-              right: 20,
-              top: 20,
-              bottom: MediaQuery.of(ctx).viewInsets.bottom + 40,
-            ),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text('Edit profile', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 12),
-                  TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Display name')),
-                  TextField(controller: bioCtrl, maxLines: 3, decoration: const InputDecoration(labelText: 'Bio')),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: uploading
-                              ? null
-                              : () async {
-                                  final picked = await _imagePicker.pickImage(source: ImageSource.gallery);
-                                  if (picked == null) return;
-                                  setModal(() => uploading = true);
-                                  try {
-                                    final bytes = await picked.readAsBytes();
-                                    final res = await widget.apiService.uploadUserImage(bytes, picked.name);
-                                    final path = (res['path'] ?? res['photo_url'] ?? res['url'] ?? '').toString();
-                                    if (path.isNotEmpty) {
-                                      setModal(() => photoUrl = path);
-                                      if (ctx.mounted) {
-                                        ScaffoldMessenger.of(ctx).showSnackBar(
-                                          const SnackBar(content: Text('Profile photo updated — tap Save')),
-                                        );
-                                      }
-                                    }
-                                  } catch (e) {
-                                    if (ctx.mounted) {
-                                      ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
-                                    }
-                                  } finally {
-                                    setModal(() => uploading = false);
-                                  }
-                                },
-                          icon: const Icon(Icons.person),
-                          label: Text(uploading ? 'Uploading…' : 'Profile photo'),
-                        ),
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 40,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'Edit profile',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: uploading
-                              ? null
-                              : () async {
-                                  final picked = await _imagePicker.pickImage(source: ImageSource.gallery);
-                                  if (picked == null) return;
-                                  setModal(() => uploading = true);
-                                  try {
-                                    final bytes = await picked.readAsBytes();
-                                    final res = await widget.apiService.uploadUserImage(bytes, picked.name);
-                                    final path = (res['path'] ?? res['cover_url'] ?? res['photo_url'] ?? res['url'] ?? '').toString();
-                                    if (path.isNotEmpty) {
-                                      setModal(() => coverUrl = path);
-                                      if (ctx.mounted) {
-                                        ScaffoldMessenger.of(ctx).showSnackBar(
-                                          const SnackBar(content: Text('Cover updated — tap Save')),
-                                        );
-                                      }
-                                    }
-                                  } catch (e) {
-                                    if (ctx.mounted) {
-                                      ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
-                                    }
-                                  } finally {
-                                    setModal(() => uploading = false);
-                                  }
-                                },
-                          icon: const Icon(Icons.image),
-                          label: const Text('Cover'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: brand,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      onPressed: uploading
-                          ? null
-                          : () async {
-                              try {
-                                await widget.apiService.updateMe({
-                                  'display_name': nameCtrl.text.trim(),
-                                  'bio': bioCtrl.text.trim(),
-                                  if (photoUrl.isNotEmpty) 'photo_url': photoUrl,
-                                  if (coverUrl.isNotEmpty) 'cover_url': coverUrl,
-                                });
-                                if (ctx.mounted) Navigator.pop(ctx);
-                                await _loadAll();
-                              } catch (e) {
-                                if (ctx.mounted) {
-                                  ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('$e')));
-                                }
-                              }
-                            },
-                      child: uploading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                            )
-                          : const Text('Save', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: nameCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Display name',
+                      ),
+                    ),
+                    TextField(
+                      controller: bioCtrl,
+                      maxLines: 3,
+                      decoration: const InputDecoration(labelText: 'Bio'),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: uploading
+                                ? null
+                                : () async {
+                                    final picked = await _imagePicker.pickImage(
+                                      source: ImageSource.gallery,
+                                    );
+                                    if (picked == null) return;
+                                    setModal(() => uploading = true);
+                                    try {
+                                      final bytes = await picked.readAsBytes();
+                                      final res = await widget.apiService
+                                          .uploadUserImage(bytes, picked.name);
+                                      final path =
+                                          (res['path'] ??
+                                                  res['photo_url'] ??
+                                                  res['url'] ??
+                                                  '')
+                                              .toString();
+                                      if (path.isNotEmpty) {
+                                        setModal(() => photoUrl = path);
+                                        if (ctx.mounted) {
+                                          ScaffoldMessenger.of(
+                                            ctx,
+                                          ).showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                'Profile photo updated — tap Save',
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      }
+                                    } catch (e) {
+                                      if (ctx.mounted) {
+                                        ScaffoldMessenger.of(ctx).showSnackBar(
+                                          SnackBar(
+                                            content: Text('Upload failed: $e'),
+                                          ),
+                                        );
+                                      }
+                                    } finally {
+                                      setModal(() => uploading = false);
+                                    }
+                                  },
+                            icon: const Icon(Icons.person),
+                            label: Text(
+                              uploading ? 'Uploading…' : 'Profile photo',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: uploading
+                                ? null
+                                : () async {
+                                    final picked = await _imagePicker.pickImage(
+                                      source: ImageSource.gallery,
+                                    );
+                                    if (picked == null) return;
+                                    setModal(() => uploading = true);
+                                    try {
+                                      final bytes = await picked.readAsBytes();
+                                      final res = await widget.apiService
+                                          .uploadUserImage(bytes, picked.name);
+                                      final path =
+                                          (res['path'] ??
+                                                  res['cover_url'] ??
+                                                  res['photo_url'] ??
+                                                  res['url'] ??
+                                                  '')
+                                              .toString();
+                                      if (path.isNotEmpty) {
+                                        setModal(() => coverUrl = path);
+                                        if (ctx.mounted) {
+                                          ScaffoldMessenger.of(
+                                            ctx,
+                                          ).showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                'Cover updated — tap Save',
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      }
+                                    } catch (e) {
+                                      if (ctx.mounted) {
+                                        ScaffoldMessenger.of(ctx).showSnackBar(
+                                          SnackBar(
+                                            content: Text('Upload failed: $e'),
+                                          ),
+                                        );
+                                      }
+                                    } finally {
+                                      setModal(() => uploading = false);
+                                    }
+                                  },
+                            icon: const Icon(Icons.image),
+                            label: const Text('Cover'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: brand,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: uploading
+                            ? null
+                            : () async {
+                                try {
+                                  await widget.apiService.updateMe({
+                                    'display_name': nameCtrl.text.trim(),
+                                    'bio': bioCtrl.text.trim(),
+                                    if (photoUrl.isNotEmpty)
+                                      'photo_url': photoUrl,
+                                    if (coverUrl.isNotEmpty)
+                                      'cover_url': coverUrl,
+                                  });
+                                  if (ctx.mounted) Navigator.pop(ctx);
+                                  await _loadAll();
+                                } catch (e) {
+                                  if (ctx.mounted) {
+                                    ScaffoldMessenger.of(ctx).showSnackBar(
+                                      SnackBar(content: Text('$e')),
+                                    );
+                                  }
+                                }
+                              },
+                        child: uploading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text(
+                                'Save',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 16,
+                                ),
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
               ),
             ),
-          ),
           );
         },
       ),
@@ -464,15 +552,24 @@ class _ProfileScreenState extends State<ProfileScreen>
       // Only story-level Completed/Published — not chapter "submitted"
       return st.contains('complete') || st.contains('publish');
     }
+
     if (_storyFilter == 'Completed') {
       list = list.where(isCompleted).toList();
     } else if (_storyFilter == 'In progress') {
       list = list.where((s) => !isCompleted(s)).toList();
     }
     if (_storySort == 'Name') {
-      list.sort((a, b) => _s(a['title']).toLowerCase().compareTo(_s(b['title']).toLowerCase()));
+      list.sort(
+        (a, b) => _s(
+          a['title'],
+        ).toLowerCase().compareTo(_s(b['title']).toLowerCase()),
+      );
     } else if (_storySort == 'Last Read') {
-      list.sort((a, b) => _s(b['updated_at'] ?? b['created_at']).compareTo(_s(a['updated_at'] ?? a['created_at'])));
+      list.sort(
+        (a, b) => _s(
+          b['updated_at'] ?? b['created_at'],
+        ).compareTo(_s(a['updated_at'] ?? a['created_at'])),
+      );
     }
     // Recently Updated: keep API order (already newest-first when possible)
     return list;
@@ -493,12 +590,21 @@ class _ProfileScreenState extends State<ProfileScreen>
             children: [
               Row(
                 children: [
-                  const Text('Sort by', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  const Text(
+                    'Sort by',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  ),
                   const Spacer(),
-                  IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
                 ],
               ),
-              const Text('Sort by', style: TextStyle(fontWeight: FontWeight.w600)),
+              const Text(
+                'Sort by',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
               for (final opt in ['Recently Updated', 'Name', 'Last Read'])
                 RadioListTile<String>(
                   dense: true,
@@ -511,7 +617,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                     Navigator.pop(ctx);
                   },
                 ),
-              const Text('Filter', style: TextStyle(fontWeight: FontWeight.w600)),
+              const Text(
+                'Filter',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
               for (final opt in ['All stories', 'Completed', 'In progress'])
                 RadioListTile<String>(
                   dense: true,
@@ -559,71 +668,75 @@ class _ProfileScreenState extends State<ProfileScreen>
                     // Stack directly (not FlexibleSpaceBar) so clipBehavior: Clip.none
                     // keeps the avatar painted above the cover and slightly below the bar.
                     flexibleSpace: Stack(
-                        fit: StackFit.expand,
-                        clipBehavior: Clip.none,
-                        children: [
-                          if (_coverUrl.isNotEmpty)
-                            Image.network(
-                              _coverUrl,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) => _defaultCover(),
-                            )
-                          else
-                            _defaultCover(),
-                          Container(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Colors.black.withValues(alpha: 0.15),
-                                  Colors.black.withValues(alpha: 0.45),
+                      fit: StackFit.expand,
+                      clipBehavior: Clip.none,
+                      children: [
+                        if (_coverUrl.isNotEmpty)
+                          Image.network(
+                            _coverUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                _defaultCover(),
+                          )
+                        else
+                          _defaultCover(),
+                        Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.black.withValues(alpha: 0.15),
+                                Colors.black.withValues(alpha: 0.45),
+                              ],
+                            ),
+                          ),
+                        ),
+                        // Avatar sits on the bottom edge of the cover (above cover in z-order)
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: -44,
+                          child: Center(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 3,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.25),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 3),
+                                  ),
                                 ],
                               ),
-                            ),
-                          ),
-                          // Avatar sits on the bottom edge of the cover (above cover in z-order)
-                          Positioned(
-                            left: 0,
-                            right: 0,
-                            bottom: -44,
-                            child: Center(
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: Colors.white, width: 3),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.25),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 3),
-                                    ),
-                                  ],
-                                ),
-                                child: CircleAvatar(
-                                  radius: 48,
-                                  backgroundColor: const Color(0xFFE2E8F0),
-                                  backgroundImage: _avatarUrl.isNotEmpty
-                                      ? NetworkImage(_avatarUrl)
-                                      : null,
-                                  child: _avatarUrl.isEmpty
-                                      ? Text(
-                                          _displayName.isNotEmpty
-                                              ? _displayName[0].toUpperCase()
-                                              : '?',
-                                          style: const TextStyle(
-                                            fontSize: 34,
-                                            fontWeight: FontWeight.w700,
-                                            color: muted,
-                                          ),
-                                        )
-                                      : null,
-                                ),
+                              child: CircleAvatar(
+                                radius: 48,
+                                backgroundColor: const Color(0xFFE2E8F0),
+                                backgroundImage: _avatarUrl.isNotEmpty
+                                    ? NetworkImage(_avatarUrl)
+                                    : null,
+                                child: _avatarUrl.isEmpty
+                                    ? Text(
+                                        _displayName.isNotEmpty
+                                            ? _displayName[0].toUpperCase()
+                                            : '?',
+                                        style: const TextStyle(
+                                          fontSize: 34,
+                                          fontWeight: FontWeight.w700,
+                                          color: muted,
+                                        ),
+                                      )
+                                    : null,
                               ),
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
+                    ),
                   ),
                   // Space so content starts below the overlapping avatar
                   SliverToBoxAdapter(child: _buildIdentityBlock()),
@@ -639,7 +752,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                         unselectedLabelColor: muted,
                         indicatorColor: brand,
                         indicatorWeight: 2.5,
-                        labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                        labelStyle: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
                         tabs: const [
                           Tab(text: 'About'),
                           Tab(text: 'Stories'),
@@ -695,7 +811,11 @@ class _ProfileScreenState extends State<ProfileScreen>
             children: [
               Text(
                 _displayName,
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Color(0xFF1A1A1A)),
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1A1A1A),
+                ),
               ),
               // Pen badge for authors (no green check)
               if (_isAuthor) ...[
@@ -713,14 +833,21 @@ class _ProfileScreenState extends State<ProfileScreen>
             ],
           ),
           const SizedBox(height: 2),
-          Text('@$_username', style: const TextStyle(fontSize: 14, color: muted)),
+          Text(
+            '@$_username',
+            style: const TextStyle(fontSize: 14, color: muted),
+          ),
           const SizedBox(height: 10),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 28),
             child: Text(
               _bio,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 14, height: 1.35, color: Color(0xFF4A4A4A)),
+              style: const TextStyle(
+                fontSize: 14,
+                height: 1.35,
+                color: Color(0xFF4A4A4A),
+              ),
             ),
           ),
           const SizedBox(height: 14),
@@ -729,7 +856,12 @@ class _ProfileScreenState extends State<ProfileScreen>
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               _countCol('$_following', 'Following'),
-              Container(width: 1, height: 28, color: border, margin: const EdgeInsets.symmetric(horizontal: 20)),
+              Container(
+                width: 1,
+                height: 28,
+                color: border,
+                margin: const EdgeInsets.symmetric(horizontal: 20),
+              ),
               _countCol('$_followers', 'Followers'),
             ],
           ),
@@ -741,8 +873,13 @@ class _ProfileScreenState extends State<ProfileScreen>
               style: OutlinedButton.styleFrom(
                 foregroundColor: const Color(0xFF1A1A1A),
                 side: const BorderSide(color: Color(0xFFD0D5DD)),
-                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 40,
+                  vertical: 10,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
               ),
               child: const Text(
                 'Edit profile',
@@ -755,8 +892,13 @@ class _ProfileScreenState extends State<ProfileScreen>
               style: OutlinedButton.styleFrom(
                 foregroundColor: const Color(0xFF1A1A1A),
                 side: const BorderSide(color: Color(0xFFD0D5DD)),
-                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 40,
+                  vertical: 10,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
               ),
               child: const Text(
                 'Following',
@@ -770,8 +912,13 @@ class _ProfileScreenState extends State<ProfileScreen>
                 backgroundColor: brand,
                 foregroundColor: Colors.white,
                 elevation: 0,
-                padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 48,
+                  vertical: 10,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
               ),
               child: const Text(
                 'Follow',
@@ -787,7 +934,10 @@ class _ProfileScreenState extends State<ProfileScreen>
   Widget _countCol(String value, String label) {
     return Column(
       children: [
-        Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+        ),
         Text(label, style: const TextStyle(fontSize: 12, color: muted)),
       ],
     );
@@ -802,12 +952,14 @@ class _ProfileScreenState extends State<ProfileScreen>
     final lists = _readingLists.isNotEmpty
         ? _readingLists
         : widget.profile.readingLists
-            .map((l) => {
+              .map(
+                (l) => {
                   'name': l.name,
                   'story_count': l.storyCount,
                   'cover_path': l.coverPath,
-                })
-            .toList();
+                },
+              )
+              .toList();
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
@@ -866,15 +1018,28 @@ class _ProfileScreenState extends State<ProfileScreen>
         const SizedBox(height: 8),
         Text(
           _aboutLong,
-          style: const TextStyle(fontSize: 14, height: 1.45, color: Color(0xFF3A3A3A)),
+          style: const TextStyle(
+            fontSize: 14,
+            height: 1.45,
+            color: Color(0xFF3A3A3A),
+          ),
         ),
         const SizedBox(height: 24),
-        const Text('Reading Lists', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+        const Text(
+          'Reading Lists',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+        ),
         const SizedBox(height: 4),
-        const Text('Public Reading Lists', style: TextStyle(fontSize: 12, color: muted)),
+        const Text(
+          'Public Reading Lists',
+          style: TextStyle(fontSize: 12, color: muted),
+        ),
         const SizedBox(height: 12),
         if (lists.isEmpty)
-          const Text('No public reading lists yet.', style: TextStyle(color: muted))
+          const Text(
+            'No public reading lists yet.',
+            style: TextStyle(color: muted),
+          )
         else
           SizedBox(
             height: 210,
@@ -905,7 +1070,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                   onTap: listId > 0
                       ? () async {
                           try {
-                            final detail = await widget.apiService.fetchReadingListDetail(listId);
+                            final detail = await widget.apiService
+                                .fetchReadingListDetail(listId);
                             if (!context.mounted) return;
                             final items = detail['items'];
                             final itemList = items is List
@@ -916,7 +1082,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                               isScrollControlled: true,
                               backgroundColor: Colors.white,
                               shape: const RoundedRectangleBorder(
-                                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                                borderRadius: BorderRadius.vertical(
+                                  top: Radius.circular(16),
+                                ),
                               ),
                               builder: (ctx) {
                                 return DraggableScrollableSheet(
@@ -929,10 +1097,13 @@ class _ProfileScreenState extends State<ProfileScreen>
                                       children: [
                                         const SizedBox(height: 8),
                                         Container(
-                                          width: 40, height: 4,
+                                          width: 40,
+                                          height: 4,
                                           decoration: BoxDecoration(
                                             color: Colors.grey.shade300,
-                                            borderRadius: BorderRadius.circular(2),
+                                            borderRadius: BorderRadius.circular(
+                                              2,
+                                            ),
                                           ),
                                         ),
                                         Padding(
@@ -941,60 +1112,146 @@ class _ProfileScreenState extends State<ProfileScreen>
                                             children: [
                                               Expanded(
                                                 child: Text(
-                                                  name.isEmpty ? 'Reading List' : name,
-                                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                                                  name.isEmpty
+                                                      ? 'Reading List'
+                                                      : name,
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w700,
+                                                    fontSize: 16,
+                                                  ),
                                                 ),
                                               ),
-                                              Text('$count Stories', style: const TextStyle(color: muted, fontSize: 13)),
+                                              Text(
+                                                '$count Stories',
+                                                style: const TextStyle(
+                                                  color: muted,
+                                                  fontSize: 13,
+                                                ),
+                                              ),
                                             ],
                                           ),
                                         ),
                                         const Divider(height: 1),
                                         Expanded(
                                           child: itemList.isEmpty
-                                              ? const Center(child: Text('No stories in this list yet.'))
+                                              ? const Center(
+                                                  child: Text(
+                                                    'No stories in this list yet.',
+                                                  ),
+                                                )
                                               : ListView.builder(
                                                   controller: scrollCtrl,
                                                   itemCount: itemList.length,
                                                   itemBuilder: (_, i) {
                                                     final it = itemList[i];
-                                                    final book = it['book'] is Map
-                                                        ? Map<String, dynamic>.from(it['book'] as Map)
+                                                    final book =
+                                                        it['book'] is Map
+                                                        ? Map<
+                                                            String,
+                                                            dynamic
+                                                          >.from(
+                                                            it['book'] as Map,
+                                                          )
                                                         : it;
-                                                    final title = _s(book['title']);
-                                                    final author = _s(book['author']);
-                                                    final cPath = _s(book['cover_path'] ?? book['cover_url']);
-                                                    final bookId = _asInt(book['id'] ?? it['book_id']);
+                                                    final title = _s(
+                                                      book['title'],
+                                                    );
+                                                    final author = _s(
+                                                      book['author'],
+                                                    );
+                                                    final cPath = _s(
+                                                      book['cover_path'] ??
+                                                          book['cover_url'],
+                                                    );
+                                                    final bookId = _asInt(
+                                                      book['id'] ??
+                                                          it['book_id'],
+                                                    );
                                                     return ListTile(
                                                       leading: cPath.isNotEmpty
                                                           ? ClipRRect(
-                                                              borderRadius: BorderRadius.circular(4),
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
+                                                                    4,
+                                                                  ),
                                                               child: Image.network(
-                                                                widget.apiService.resolveAssetUrl(cPath),
-                                                                width: 40, height: 56, fit: BoxFit.cover,
-                                                                errorBuilder: (_, _, _) => const Icon(Icons.menu_book),
+                                                                widget
+                                                                    .apiService
+                                                                    .resolveAssetUrl(
+                                                                      cPath,
+                                                                    ),
+                                                                width: 40,
+                                                                height: 56,
+                                                                fit: BoxFit
+                                                                    .cover,
+                                                                errorBuilder:
+                                                                    (
+                                                                      _,
+                                                                      _,
+                                                                      _,
+                                                                    ) => const Icon(
+                                                                      Icons
+                                                                          .menu_book,
+                                                                    ),
                                                               ),
                                                             )
-                                                          : const Icon(Icons.menu_book),
-                                                      title: Text(title.isEmpty ? 'Story' : title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                                                      subtitle: Text(author, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                                          : const Icon(
+                                                              Icons.menu_book,
+                                                            ),
+                                                      title: Text(
+                                                        title.isEmpty
+                                                            ? 'Story'
+                                                            : title,
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                      ),
+                                                      subtitle: Text(
+                                                        author,
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                      ),
                                                       onTap: bookId > 0
                                                           ? () {
-                                                              Navigator.pop(ctx);
-                                                              Navigator.of(context).push(
-                                                                MaterialPageRoute<void>(
+                                                              Navigator.pop(
+                                                                ctx,
+                                                              );
+                                                              Navigator.of(
+                                                                context,
+                                                              ).push(
+                                                                MaterialPageRoute<
+                                                                  void
+                                                                >(
                                                                   builder: (_) => StoryDetailScreen(
-                                                                    apiService: widget.apiService,
+                                                                    apiService:
+                                                                        widget
+                                                                            .apiService,
                                                                     book: BookDetailModel(
                                                                       id: bookId,
-                                                                      title: title,
-                                                                      author: author,
-                                                                      description: _s(book['description']),
-                                                                      statusText: _s(book['status_text']),
-                                                                      rating: (book['rating'] as num?)?.toDouble() ?? 0,
-                                                                      genre: _s(book['genre'] ?? book['primary_genre']),
-                                                                      cta: 'Read',
-                                                                      coverPath: cPath,
+                                                                      title:
+                                                                          title,
+                                                                      author:
+                                                                          author,
+                                                                      description: _s(
+                                                                        book['description'],
+                                                                      ),
+                                                                      statusText: _s(
+                                                                        book['status_text'],
+                                                                      ),
+                                                                      rating:
+                                                                          (book['rating']
+                                                                                  as num?)
+                                                                              ?.toDouble() ??
+                                                                          0,
+                                                                      genre: _s(
+                                                                        book['genre'] ??
+                                                                            book['primary_genre'],
+                                                                      ),
+                                                                      cta:
+                                                                          'Read',
+                                                                      coverPath:
+                                                                          cPath,
                                                                     ),
                                                                   ),
                                                                 ),
@@ -1014,51 +1271,65 @@ class _ProfileScreenState extends State<ProfileScreen>
                           } catch (e) {
                             if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Could not open list: $e')),
+                              SnackBar(
+                                content: Text('Could not open list: $e'),
+                              ),
                             );
                           }
                         }
                       : null,
                   child: SizedBox(
-                  width: 130,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: coverList.isEmpty
-                              ? Container(
-                                  color: cardBg,
-                                  child: const Icon(Icons.collections_bookmark_outlined, color: muted),
-                                )
-                              : _ReadingListCollage(
-                                  covers: coverList
-                                      .map((c) => widget.apiService.resolveAssetUrl(c))
-                                      .toList(),
-                                ),
+                    width: 130,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: coverList.isEmpty
+                                ? Container(
+                                    color: cardBg,
+                                    child: const Icon(
+                                      Icons.collections_bookmark_outlined,
+                                      color: muted,
+                                    ),
+                                  )
+                                : _ReadingListCollage(
+                                    covers: coverList
+                                        .map(
+                                          (c) => widget.apiService
+                                              .resolveAssetUrl(c),
+                                        )
+                                        .toList(),
+                                  ),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        name.isEmpty ? 'List' : name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                      ),
-                      Text(
-                        '$count Stories',
-                        style: const TextStyle(fontSize: 12, color: muted),
-                      ),
-                    ],
+                        const SizedBox(height: 8),
+                        Text(
+                          name.isEmpty ? 'List' : name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                        Text(
+                          '$count Stories',
+                          style: const TextStyle(fontSize: 12, color: muted),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
                 );
               },
             ),
           ),
         const SizedBox(height: 28),
-        const Text('Achievements', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+        const Text(
+          'Achievements',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+        ),
         const SizedBox(height: 12),
         _buildAchievementsGrid(),
       ],
@@ -1078,7 +1349,11 @@ class _ProfileScreenState extends State<ProfileScreen>
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: border),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6, offset: const Offset(0, 2)),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
         ],
       ),
       child: Row(
@@ -1089,9 +1364,23 @@ class _ProfileScreenState extends State<ProfileScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: muted, letterSpacing: 0.3)),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: muted,
+                    letterSpacing: 0.3,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ],
             ),
           ),
@@ -1135,11 +1424,22 @@ class _ProfileScreenState extends State<ProfileScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(a.title, maxLines: 2, overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                Text(
+                  a.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
                 const Spacer(),
-                Text(a.subtitle, maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 11, color: muted)),
+                Text(
+                  a.subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 11, color: muted),
+                ),
               ],
             ),
           ),
@@ -1191,11 +1491,14 @@ class _ProfileScreenState extends State<ProfileScreen>
         ),
         Expanded(
           child: list.isEmpty
-              ? const Center(child: Text('No stories yet', style: TextStyle(color: muted)))
+              ? const Center(
+                  child: Text('No stories yet', style: TextStyle(color: muted)),
+                )
               : ListView.separated(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
                   itemCount: list.length,
-                  separatorBuilder: (context, index) => const Divider(height: 24),
+                  separatorBuilder: (context, index) =>
+                      const Divider(height: 24),
                   itemBuilder: (context, i) => _storyRow(list[i]),
                 ),
         ),
@@ -1216,12 +1519,17 @@ class _ProfileScreenState extends State<ProfileScreen>
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (label.contains('All') || label.contains('Completed') || label.contains('progress'))
+            if (label.contains('All') ||
+                label.contains('Completed') ||
+                label.contains('progress'))
               const Icon(Icons.filter_list, size: 14, color: muted)
             else
               const SizedBox.shrink(),
             const SizedBox(width: 4),
-            Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+            ),
             const Icon(Icons.chevron_right, size: 16, color: muted),
           ],
         ),
@@ -1237,7 +1545,9 @@ class _ProfileScreenState extends State<ProfileScreen>
     final status = _s(s['status_text']);
     final chapters = _asInt(s['chapter_count'] ?? s['chapters']);
     final cover = _s(s['cover_path'] ?? s['cover_url']);
-    final completed = status.toLowerCase().contains('complete') || status.toLowerCase().contains('publish');
+    final completed =
+        status.toLowerCase().contains('complete') ||
+        status.toLowerCase().contains('publish');
 
     return InkWell(
       onTap: () {
@@ -1253,9 +1563,13 @@ class _ProfileScreenState extends State<ProfileScreen>
                 author: _s(s['author']),
                 description: desc,
                 statusText: status,
-                rating: (rating is num) ? rating.toDouble() : double.tryParse('$rating') ?? 0,
+                rating: (rating is num)
+                    ? rating.toDouble()
+                    : double.tryParse('$rating') ?? 0,
                 genre: genre,
-                cta: _s(s['cta_label']).isEmpty ? 'Read now' : _s(s['cta_label']),
+                cta: _s(s['cta_label']).isEmpty
+                    ? 'Read now'
+                    : _s(s['cta_label']),
                 coverPath: cover,
                 authorUserId: _asInt(s['author_user_id'] ?? s['user_id']),
               ),
@@ -1276,7 +1590,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                     fit: BoxFit.cover,
                     cacheWidth: 144,
                     cacheHeight: 200,
-                    errorBuilder: (context, error, stackTrace) => Container(width: 72, height: 100, color: cardBg),
+                    errorBuilder: (context, error, stackTrace) =>
+                        Container(width: 72, height: 100, color: cardBg),
                   )
                 : Container(width: 72, height: 100, color: cardBg),
           ),
@@ -1288,13 +1603,27 @@ class _ProfileScreenState extends State<ProfileScreen>
                 Row(
                   children: [
                     Expanded(
-                      child: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                      child: Text(
+                        title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                        ),
+                      ),
                     ),
                     IconButton(
                       padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                      icon: const Icon(Icons.bookmark_border, size: 20, color: muted),
+                      constraints: const BoxConstraints(
+                        minWidth: 32,
+                        minHeight: 32,
+                      ),
+                      icon: const Icon(
+                        Icons.bookmark_border,
+                        size: 20,
+                        color: muted,
+                      ),
                       onPressed: () {
                         final id = _asInt(s['id']);
                         _saveBookToReadingList(id);
@@ -1307,7 +1636,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                   desc.isEmpty ? 'No description' : desc,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12, color: muted, height: 1.3),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: muted,
+                    height: 1.3,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Wrap(
@@ -1316,7 +1649,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                   children: [
                     if (rating != null)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: cardBg,
                           borderRadius: BorderRadius.circular(4),
@@ -1324,14 +1660,23 @@ class _ProfileScreenState extends State<ProfileScreen>
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.star, size: 12, color: Color(0xFFF5A623)),
+                            const Icon(
+                              Icons.star,
+                              size: 12,
+                              color: Color(0xFFF5A623),
+                            ),
                             const SizedBox(width: 2),
-                            Text('$rating', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                            Text(
+                              '$rating',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ],
                         ),
                       ),
-                    if (genre.isNotEmpty)
-                      _tagChip(genre),
+                    if (genre.isNotEmpty) _tagChip(genre),
                   ],
                 ),
                 const SizedBox(height: 6),
@@ -1346,10 +1691,15 @@ class _ProfileScreenState extends State<ProfileScreen>
                     Text(
                       completed
                           ? 'Completed${chapters > 0 ? ' · $chapters Chapters' : ''}'
-                          : (status.toLowerCase().contains('draft') || status.isEmpty
-                              ? 'Draft${chapters > 0 ? ' · $chapters Chapters' : ''}'
-                              : 'Ongoing${chapters > 0 ? ' · $chapters Chapters' : ''}'),
-                      style: TextStyle(fontSize: 11, color: completed ? brand : muted, fontWeight: FontWeight.w500),
+                          : (status.toLowerCase().contains('draft') ||
+                                    status.isEmpty
+                                ? 'Draft${chapters > 0 ? ' · $chapters Chapters' : ''}'
+                                : 'Ongoing${chapters > 0 ? ' · $chapters Chapters' : ''}'),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: completed ? brand : muted,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ],
                 ),
@@ -1368,10 +1718,12 @@ class _ProfileScreenState extends State<ProfileScreen>
         border: Border.all(color: border),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF4A4A4A))),
+      child: Text(
+        label,
+        style: const TextStyle(fontSize: 11, color: Color(0xFF4A4A4A)),
+      ),
     );
   }
-
 
   Future<void> _composeWallPost() async {
     int resolvedId = widget.viewingUserId ?? 0;
@@ -1412,7 +1764,10 @@ class _ProfileScreenState extends State<ProfileScreen>
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) {
-        return _WallComposeSheet(username: _username);
+        return _WallComposeSheet(
+          username: _username,
+          apiService: widget.apiService,
+        );
       },
     );
 
@@ -1428,14 +1783,14 @@ class _ProfileScreenState extends State<ProfileScreen>
       setState(() {
         _wall = wall;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Posted to wall')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Posted to wall')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not post: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not post: $e')));
     }
   }
 
@@ -1453,15 +1808,23 @@ class _ProfileScreenState extends State<ProfileScreen>
               CircleAvatar(
                 radius: 18,
                 backgroundColor: cardBg,
-                backgroundImage: _avatarUrl.isNotEmpty ? NetworkImage(_avatarUrl) : null,
+                backgroundImage: _avatarUrl.isNotEmpty
+                    ? NetworkImage(_avatarUrl)
+                    : null,
                 child: _avatarUrl.isEmpty
-                    ? Text(_displayName.isNotEmpty ? _displayName[0] : '?', style: const TextStyle(color: muted))
+                    ? Text(
+                        _displayName.isNotEmpty ? _displayName[0] : '?',
+                        style: const TextStyle(color: muted),
+                      )
                     : null,
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: cardBg,
                     borderRadius: BorderRadius.circular(24),
@@ -1481,14 +1844,20 @@ class _ProfileScreenState extends State<ProfileScreen>
         if (_wall.isEmpty)
           const Padding(
             padding: EdgeInsets.only(top: 40),
-            child: Center(child: Text('No wall posts yet', style: TextStyle(color: muted))),
+            child: Center(
+              child: Text('No wall posts yet', style: TextStyle(color: muted)),
+            ),
           )
         else
           ..._wall.map((m) {
-            final name = _s(m['sender_name'] ?? m['username'] ?? m['display_name'] ?? 'User');
+            final name = _s(
+              m['sender_name'] ?? m['username'] ?? m['display_name'] ?? 'User',
+            );
             final body = _s(m['message'] ?? m['body'] ?? m['text']);
             final when = _s(m['created_at'] ?? m['time'] ?? '');
-            final img = _s(m['image_url'] ?? m['image_path'] ?? m['attachment_path'] ?? '');
+            final img = _s(
+              m['image_url'] ?? m['image_path'] ?? m['attachment_path'] ?? '',
+            );
             return Padding(
               padding: const EdgeInsets.only(bottom: 18),
               child: Column(
@@ -1496,28 +1865,54 @@ class _ProfileScreenState extends State<ProfileScreen>
                 children: [
                   Row(
                     children: [
-                      Builder(builder: (context) {
-                        final senderPhoto = _s(m['photo_url'] ?? m['avatar_url'] ?? m['sender_photo'] ?? '');
-                        final photoResolved = senderPhoto.isNotEmpty
-                            ? widget.apiService.resolveAssetUrl(senderPhoto)
-                            : '';
-                        return CircleAvatar(
-                          radius: 16,
-                          backgroundColor: cardBg,
-                          backgroundImage: photoResolved.isNotEmpty ? NetworkImage(photoResolved) : null,
-                          child: photoResolved.isEmpty
-                              ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?', style: const TextStyle(fontSize: 12))
-                              : null,
-                        );
-                      }),
+                      Builder(
+                        builder: (context) {
+                          final senderPhoto = _s(
+                            m['photo_url'] ??
+                                m['avatar_url'] ??
+                                m['sender_photo'] ??
+                                '',
+                          );
+                          final photoResolved = senderPhoto.isNotEmpty
+                              ? widget.apiService.resolveAssetUrl(senderPhoto)
+                              : '';
+                          return CircleAvatar(
+                            radius: 16,
+                            backgroundColor: cardBg,
+                            backgroundImage: photoResolved.isNotEmpty
+                                ? NetworkImage(photoResolved)
+                                : null,
+                            child: photoResolved.isEmpty
+                                ? Text(
+                                    name.isNotEmpty
+                                        ? name[0].toUpperCase()
+                                        : '?',
+                                    style: const TextStyle(fontSize: 12),
+                                  )
+                                : null,
+                          );
+                        },
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                            Text(
+                              name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
                             if (when.isNotEmpty)
-                              Text(when, style: const TextStyle(fontSize: 11, color: muted)),
+                              Text(
+                                when,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: muted,
+                                ),
+                              ),
                           ],
                         ),
                       ),
@@ -1526,7 +1921,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   ),
                   if (body.isNotEmpty) ...[
                     const SizedBox(height: 8),
-                    Text(body, style: const TextStyle(fontSize: 14, height: 1.35)),
+                    _WallPostText(body: body, apiService: widget.apiService),
                   ],
                   if (img.isNotEmpty) ...[
                     const SizedBox(height: 8),
@@ -1535,7 +1930,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                       child: Image.network(
                         widget.apiService.resolveAssetUrl(img),
                         fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+                        errorBuilder: (context, error, stackTrace) =>
+                            const SizedBox.shrink(),
                       ),
                     ),
                   ],
@@ -1547,7 +1943,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                           final postId = (m['id'] as num?)?.toInt();
                           if (postId == null) return;
                           try {
-                            final res = await widget.apiService.likeWallPost(postId);
+                            final res = await widget.apiService.likeWallPost(
+                              postId,
+                            );
                             if (!mounted) return;
                             final likes = (res['likes'] as num?)?.toInt() ?? 0;
                             final liked = res['liked'] == true;
@@ -1557,24 +1955,30 @@ class _ProfileScreenState extends State<ProfileScreen>
                             });
                           } catch (e) {
                             if (!mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('$e')),
-                            );
+                            ScaffoldMessenger.of(
+                              context,
+                            ).showSnackBar(SnackBar(content: Text('$e')));
                           }
                         },
                         child: Row(
                           children: [
                             Icon(
-                              m['liked'] == true ? Icons.favorite : Icons.favorite_border,
+                              m['liked'] == true
+                                  ? Icons.favorite
+                                  : Icons.favorite_border,
                               size: 18,
-                              color: m['liked'] == true ? Colors.redAccent : muted,
+                              color: m['liked'] == true
+                                  ? Colors.redAccent
+                                  : muted,
                             ),
                             const SizedBox(width: 4),
                             Text(
                               '${m['likes'] ?? 0}',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: m['liked'] == true ? Colors.redAccent : muted,
+                                color: m['liked'] == true
+                                    ? Colors.redAccent
+                                    : muted,
                               ),
                             ),
                           ],
@@ -1610,10 +2014,16 @@ class _ProfileScreenState extends State<ProfileScreen>
                             ),
                           );
                           final text = (ctrl.text).trim();
-                          Future.delayed(const Duration(milliseconds: 300), ctrl.dispose);
+                          Future.delayed(
+                            const Duration(milliseconds: 300),
+                            ctrl.dispose,
+                          );
                           if (ok != true || text.isEmpty || !mounted) return;
                           try {
-                            await widget.apiService.commentWallPost(postId, text);
+                            await widget.apiService.commentWallPost(
+                              postId,
+                              text,
+                            );
                             if (!mounted) return;
                             await _loadAll();
                             if (!mounted) return;
@@ -1622,12 +2032,16 @@ class _ProfileScreenState extends State<ProfileScreen>
                             );
                           } catch (e) {
                             if (!mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('$e')),
-                            );
+                            ScaffoldMessenger.of(
+                              context,
+                            ).showSnackBar(SnackBar(content: Text('$e')));
                           }
                         },
-                        child: const Icon(Icons.chat_bubble_outline, size: 18, color: muted),
+                        child: const Icon(
+                          Icons.chat_bubble_outline,
+                          size: 18,
+                          color: muted,
+                        ),
                       ),
                     ],
                   ),
@@ -1639,12 +2053,11 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-
   Future<void> _saveBookToReadingList(int bookId) async {
     if (bookId <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Story not available')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Story not available')));
       return;
     }
     try {
@@ -1652,15 +2065,17 @@ class _ProfileScreenState extends State<ProfileScreen>
       if (!mounted) return;
       if (lists.isEmpty) {
         // Create a default list then add
-        final created = await widget.apiService.createReadingList({'name': 'My List'});
+        final created = await widget.apiService.createReadingList({
+          'name': 'My List',
+        });
         final listId = (created['id'] as num?)?.toInt() ?? 0;
         if (listId > 0) {
           await widget.apiService.addReadingListItem(listId, bookId);
         }
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Saved to My List')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Saved to My List')));
         return;
       }
       final chosen = await showModalBottomSheet<Map<String, dynamic>>(
@@ -1675,7 +2090,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                   return ListTile(
                     leading: const Icon(Icons.collections_bookmark_outlined),
                     title: Text('${l['name'] ?? 'List'}'),
-                    subtitle: Text('${l['story_count'] ?? l['storyCount'] ?? 0} stories'),
+                    subtitle: Text(
+                      '${l['story_count'] ?? l['storyCount'] ?? 0} stories',
+                    ),
                     onTap: () => Navigator.pop(ctx, l),
                   );
                 }),
@@ -1760,7 +2177,9 @@ class _ProfileScreenState extends State<ProfileScreen>
         final cover = _s(n['cover_path']);
         final bookId = _asInt(n['book_id']);
         final actorName = _s(n['actor_name']);
-        final actorPhotoRaw = _s(n['actor_photo'] ?? n['actor_photo_url'] ?? '');
+        final actorPhotoRaw = _s(
+          n['actor_photo'] ?? n['actor_photo_url'] ?? '',
+        );
         final actorPhoto = actorPhotoRaw.isNotEmpty
             ? widget.apiService.resolveAssetUrl(actorPhotoRaw)
             : '';
@@ -1775,11 +2194,19 @@ class _ProfileScreenState extends State<ProfileScreen>
                   CircleAvatar(
                     radius: 22,
                     backgroundColor: cardBg,
-                    backgroundImage: actorPhoto.isNotEmpty ? NetworkImage(actorPhoto) : null,
+                    backgroundImage: actorPhoto.isNotEmpty
+                        ? NetworkImage(actorPhoto)
+                        : null,
                     child: actorPhoto.isEmpty
                         ? Text(
-                            (actorName.isNotEmpty ? actorName[0] : (title.isNotEmpty ? title[0] : '?')).toUpperCase(),
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                            (actorName.isNotEmpty
+                                    ? actorName[0]
+                                    : (title.isNotEmpty ? title[0] : '?'))
+                                .toUpperCase(),
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
                           )
                         : null,
                   ),
@@ -1808,16 +2235,32 @@ class _ProfileScreenState extends State<ProfileScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      title.isEmpty ? (actorName.isEmpty ? 'Activity' : actorName) : title,
-                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, height: 1.3),
+                      title.isEmpty
+                          ? (actorName.isEmpty ? 'Activity' : actorName)
+                          : title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        height: 1.3,
+                      ),
                     ),
                     if (msg.isNotEmpty) ...[
                       const SizedBox(height: 4),
-                      Text(msg, style: const TextStyle(fontSize: 13, height: 1.35, color: Color(0xFF4A4A4A))),
+                      Text(
+                        msg,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          height: 1.35,
+                          color: Color(0xFF4A4A4A),
+                        ),
+                      ),
                     ],
                     if (when.isNotEmpty) ...[
                       const SizedBox(height: 4),
-                      Text(when, style: const TextStyle(fontSize: 11, color: muted)),
+                      Text(
+                        when,
+                        style: const TextStyle(fontSize: 11, color: muted),
+                      ),
                     ],
                     if (cover.isNotEmpty) ...[
                       const SizedBox(height: 8),
@@ -1831,7 +2274,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                                       book: BookDetailModel(
                                         id: bookId,
                                         title: title,
-                                        author: actorName.isEmpty ? _displayName : actorName,
+                                        author: actorName.isEmpty
+                                            ? _displayName
+                                            : actorName,
                                         description: msg,
                                         statusText: '',
                                         rating: 0,
@@ -1851,7 +2296,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                             width: 72,
                             height: 96,
                             fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+                            errorBuilder: (context, error, stackTrace) =>
+                                const SizedBox.shrink(),
                           ),
                         ),
                       ),
@@ -1869,7 +2315,12 @@ class _ProfileScreenState extends State<ProfileScreen>
   // ─── Reviews ─────────────────────────────────────────────
   Widget _buildReviewsTab() {
     if (_reviews.isEmpty) {
-      return const Center(child: Text('No reviews on your stories yet', style: TextStyle(color: muted)));
+      return const Center(
+        child: Text(
+          'No reviews on your stories yet',
+          style: TextStyle(color: muted),
+        ),
+      );
     }
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -1880,20 +2331,32 @@ class _ProfileScreenState extends State<ProfileScreen>
         final bookMap = (r['book'] is Map)
             ? Map<String, dynamic>.from(r['book'] as Map)
             : <String, dynamic>{};
-        final bookTitle = _s(r['book_title'] ?? bookMap['title'] ?? r['title'] ?? 'Story');
+        final bookTitle = _s(
+          r['book_title'] ?? bookMap['title'] ?? r['title'] ?? 'Story',
+        );
         final author = _s(
-          r['reviewer_name'] ?? r['book_author'] ?? bookMap['author'] ?? r['author'] ?? '',
+          r['reviewer_name'] ??
+              r['book_author'] ??
+              bookMap['author'] ??
+              r['author'] ??
+              '',
         );
         final cover = _s(
           r['cover_path'] ?? bookMap['cover_path'] ?? r['book_cover'] ?? '',
         );
-        final bid = _asInt(r['book_id'] ?? bookMap['id'] ?? r['story_id'] ?? r['id']);
+        final bid = _asInt(
+          r['book_id'] ?? bookMap['id'] ?? r['story_id'] ?? r['id'],
+        );
         final stars = _asInt(r['rating'] ?? r['stars'] ?? 0);
         final plot = _asInt(r['plot_score'] ?? r['plot'] ?? stars);
-        final writing = _asInt(r['writing_score'] ?? r['writing_style'] ?? stars);
+        final writing = _asInt(
+          r['writing_score'] ?? r['writing_style'] ?? stars,
+        );
         final grammar = _asInt(r['grammar_score'] ?? r['grammar'] ?? stars);
         final headline = _s(r['headline'] ?? r['reviewer_name'] ?? '');
-        final body = _s(r['body'] ?? r['comment'] ?? r['review'] ?? r['text'] ?? '');
+        final body = _s(
+          r['body'] ?? r['comment'] ?? r['review'] ?? r['text'] ?? '',
+        );
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1908,7 +2371,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                           width: 40,
                           height: 56,
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => Container(width: 40, height: 56, color: cardBg),
+                          errorBuilder: (context, error, stackTrace) =>
+                              Container(width: 40, height: 56, color: cardBg),
                         )
                       : Container(width: 40, height: 56, color: cardBg),
                 ),
@@ -1917,7 +2381,13 @@ class _ProfileScreenState extends State<ProfileScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(bookTitle, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                      Text(
+                        bookTitle,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                        ),
+                      ),
                       if (author.isNotEmpty)
                         Text(
                           author.isEmpty ? '' : 'Review by $author',
@@ -1950,18 +2420,30 @@ class _ProfileScreenState extends State<ProfileScreen>
                     );
                   },
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 0,
+                    ),
                     minimumSize: const Size(0, 32),
                     side: const BorderSide(color: border),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                   ),
                   child: const Text('Read', style: TextStyle(fontSize: 12)),
                 ),
                 const SizedBox(width: 4),
                 IconButton(
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                  icon: const Icon(Icons.bookmark_border, size: 20, color: muted),
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
+                  icon: const Icon(
+                    Icons.bookmark_border,
+                    size: 20,
+                    color: muted,
+                  ),
                   onPressed: () => _saveBookToReadingList(bid),
                 ),
               ],
@@ -1987,11 +2469,24 @@ class _ProfileScreenState extends State<ProfileScreen>
             ),
             if (headline.isNotEmpty) ...[
               const SizedBox(height: 10),
-              Text(headline, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+              Text(
+                headline,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
+              ),
             ],
             if (body.isNotEmpty) ...[
               const SizedBox(height: 4),
-              Text(body, style: const TextStyle(fontSize: 13, height: 1.4, color: Color(0xFF3A3A3A))),
+              Text(
+                body,
+                style: const TextStyle(
+                  fontSize: 13,
+                  height: 1.4,
+                  color: Color(0xFF3A3A3A),
+                ),
+              ),
             ],
           ],
         );
@@ -2006,16 +2501,19 @@ class _ProfileScreenState extends State<ProfileScreen>
         color: cardBg,
         borderRadius: BorderRadius.circular(14),
       ),
-      child: Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500)),
+      child: Text(
+        label,
+        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+      ),
     );
   }
 }
 
-
 /// Owns its own TextEditingController so dispose is safe (no parent crash).
 class _WallComposeSheet extends StatefulWidget {
-  const _WallComposeSheet({required this.username});
+  const _WallComposeSheet({required this.username, required this.apiService});
   final String username;
+  final ApiService apiService;
 
   @override
   State<_WallComposeSheet> createState() => _WallComposeSheetState();
@@ -2023,6 +2521,7 @@ class _WallComposeSheet extends StatefulWidget {
 
 class _WallComposeSheetState extends State<_WallComposeSheet> {
   late final TextEditingController _ctrl;
+  List<Map<String, dynamic>> _suggestions = const [];
 
   @override
   void initState() {
@@ -2034,6 +2533,33 @@ class _WallComposeSheetState extends State<_WallComposeSheet> {
   void dispose() {
     _ctrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _suggestBooks(String value) async {
+    final match = RegExp(r'@([^\s@]*)$').firstMatch(value);
+    if (match == null || match.group(1)!.isEmpty) {
+      if (mounted) setState(() => _suggestions = const []);
+      return;
+    }
+    final query = match.group(1)!;
+    final rows = await widget.apiService.searchStories(query: query);
+    if (!mounted || _ctrl.text != value) return;
+    setState(() => _suggestions = rows.take(5).toList());
+  }
+
+  void _selectBook(Map<String, dynamic> book) {
+    final match = RegExp(r'@([^\s@]*)$').firstMatch(_ctrl.text);
+    if (match == null) return;
+    final title = (book['title'] ?? '').toString().trim();
+    if (title.isEmpty) return;
+    final replacement = '@[$title] ';
+    _ctrl.value = _ctrl.value.copyWith(
+      text: _ctrl.text.replaceRange(match.start, match.end, replacement),
+      selection: TextSelection.collapsed(
+        offset: match.start + replacement.length,
+      ),
+    );
+    setState(() => _suggestions = const []);
   }
 
   @override
@@ -2059,11 +2585,30 @@ class _WallComposeSheetState extends State<_WallComposeSheet> {
             controller: _ctrl,
             maxLines: 4,
             autofocus: true,
+            onChanged: _suggestBooks,
             decoration: const InputDecoration(
               hintText: 'Say something…',
               border: OutlineInputBorder(),
             ),
           ),
+          if (_suggestions.isNotEmpty)
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 180),
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: _suggestions.length,
+                itemBuilder: (context, index) {
+                  final book = _suggestions[index];
+                  return ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.menu_book_outlined, size: 18),
+                    title: Text(book['title']?.toString() ?? ''),
+                    subtitle: Text(book['author']?.toString() ?? ''),
+                    onTap: () => _selectBook(book),
+                  );
+                },
+              ),
+            ),
           const SizedBox(height: 12),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -2079,6 +2624,66 @@ class _WallComposeSheetState extends State<_WallComposeSheet> {
   }
 }
 
+class _WallPostText extends StatelessWidget {
+  const _WallPostText({required this.body, required this.apiService});
+
+  final String body;
+  final ApiService apiService;
+
+  @override
+  Widget build(BuildContext context) {
+    final parts = RegExp(r'(@\[[^\]]+\]|@[A-Za-z0-9_-]+)').allMatches(body);
+    if (parts.isEmpty) {
+      return Text(body, style: const TextStyle(fontSize: 14, height: 1.35));
+    }
+    final spans = <TextSpan>[];
+    var cursor = 0;
+    for (final match in parts) {
+      if (match.start > cursor)
+        spans.add(TextSpan(text: body.substring(cursor, match.start)));
+      final token = match.group(0)!;
+      final query = token.startsWith('@[')
+          ? token.substring(2, token.length - 1)
+          : token.substring(1);
+      final displayToken = token.startsWith('@[')
+          ? '@${token.substring(2, token.length - 1)}'
+          : token;
+      spans.add(
+        TextSpan(
+          text: displayToken,
+          style: const TextStyle(
+            color: Color(0xFF00A88E),
+            fontWeight: FontWeight.w600,
+          ),
+          recognizer: TapGestureRecognizer()
+            ..onTap = () async {
+              final rows = await apiService.searchStories(query: query);
+              if (rows.isEmpty || !context.mounted) return;
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => StoryDetailScreen(
+                    apiService: apiService,
+                    book: BookDetailModel.fromMap(rows.first),
+                  ),
+                ),
+              );
+            },
+        ),
+      );
+      cursor = match.end;
+    }
+    if (cursor < body.length) spans.add(TextSpan(text: body.substring(cursor)));
+    return RichText(
+      text: TextSpan(
+        style: DefaultTextStyle.of(
+          context,
+        ).style.copyWith(fontSize: 14, height: 1.35),
+        children: spans,
+      ),
+    );
+  }
+}
+
 class _TabBarDelegate extends SliverPersistentHeaderDelegate {
   _TabBarDelegate(this.tabBar);
   final TabBar tabBar;
@@ -2089,17 +2694,17 @@ class _TabBarDelegate extends SliverPersistentHeaderDelegate {
   double get maxExtent => 48;
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return Container(
-      color: Colors.white,
-      child: tabBar,
-    );
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return Container(color: Colors.white, child: tabBar);
   }
 
   @override
   bool shouldRebuild(covariant _TabBarDelegate oldDelegate) => false;
 }
-
 
 /// Inkitt-style multi-cover collage for reading list cards (2x2 grid of covers).
 class _ReadingListCollage extends StatelessWidget {

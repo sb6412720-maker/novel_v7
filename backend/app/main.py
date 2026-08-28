@@ -3018,7 +3018,10 @@ def update_library_entry(
             updated_text=%s,
             chapters=%s,
             primary_genre=%s,
-            secondary_genre=%s
+            secondary_genre=%s,
+            last_chapter_number=%s,
+            last_paragraph_index=%s,
+            chapters_read=%s
         WHERE id=%s AND user_id=%s
         """,
         (
@@ -3027,6 +3030,9 @@ def update_library_entry(
             payload.chapters if payload.chapters is not None else current["chapters"],
             payload.primary_genre or current["primary_genre"],
             payload.secondary_genre or current["secondary_genre"],
+            payload.last_chapter_number if payload.last_chapter_number is not None else current.get("last_chapter_number", 1),
+            payload.last_paragraph_index if payload.last_paragraph_index is not None else current.get("last_paragraph_index", 0),
+            payload.chapters_read if payload.chapters_read is not None else current.get("chapters_read", 0),
             entry_id,
             user["user_id"],
         ),
@@ -3343,12 +3349,12 @@ def _word_count(text: str) -> int:
 
 
 def _promote_author_and_maybe_publish(user_id: int, story_id: int, chapter_content: str) -> None:
-    """If chapter has >= 50 words: mark user as author.
+    """A user becomes an author after publishing one non-empty chapter.
     If story is Completed/Published and has a >=50-word chapter, keep visible.
     If story is Draft/Ongoing without enough content, stays private.
     """
     words = _word_count(chapter_content)
-    if words >= 50:
+    if words > 0:
         try:
             execute_write(
                 "UPDATE app_users SET is_author=1, is_author_active=1 WHERE id=%s",

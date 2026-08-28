@@ -74,46 +74,64 @@ class AppBootstrap {
       featuredBook: BookDetailModel.fromMap(featuredRaw),
       exploreTopics: asList('explore_topics')
           .whereType<Map>()
-          .map((item) => ExploreTopicModel.fromMap(Map<String, dynamic>.from(item)))
+          .map(
+            (item) =>
+                ExploreTopicModel.fromMap(Map<String, dynamic>.from(item)),
+          )
           .toList(),
       libraryEntries: asList('library_entries')
           .whereType<Map>()
-          .map((item) => LibraryEntryModel.fromMap(Map<String, dynamic>.from(item)))
+          .map(
+            (item) =>
+                LibraryEntryModel.fromMap(Map<String, dynamic>.from(item)),
+          )
           .toList(),
-      writeScreen: WriteScreenModel.fromMap(asMap('write_screen').isEmpty
-          ? <String, dynamic>{
-              'manage_tabs': <String>['Manage Stories', 'Analytics'],
-              'story_tabs': <String>['Submitted', 'Drafts'],
-              'filter_label': 'All stories',
-              'sort_label': 'Recently Updated',
-              'empty_title': "You haven't submitted any story yet",
-              'empty_cta': 'Submit Stories',
-            }
-          : asMap('write_screen')),
+      writeScreen: WriteScreenModel.fromMap(
+        asMap('write_screen').isEmpty
+            ? <String, dynamic>{
+                'manage_tabs': <String>['Manage Stories', 'Analytics'],
+                'story_tabs': <String>['Submitted', 'Drafts'],
+                'filter_label': 'All stories',
+                'sort_label': 'Recently Updated',
+                'empty_title': "You haven't submitted any story yet",
+                'empty_cta': 'Submit Stories',
+              }
+            : asMap('write_screen'),
+      ),
       notifications: asList('notifications')
           .whereType<Map>()
-          .map((item) => NotificationModel.fromMap(Map<String, dynamic>.from(item)))
+          .map(
+            (item) =>
+                NotificationModel.fromMap(Map<String, dynamic>.from(item)),
+          )
           .toList(),
       menuSections: asList('menu_sections')
           .whereType<Map>()
-          .map((item) => MenuSectionModel.fromMap(Map<String, dynamic>.from(item)))
+          .map(
+            (item) => MenuSectionModel.fromMap(Map<String, dynamic>.from(item)),
+          )
           .toList(),
-      profile: ProfileModel.fromMap(asMap('profile').isEmpty
-          ? <String, dynamic>{
-              'display_name': 'Reader',
-              'username': '@reader',
-              'following': 0,
-              'followers': 0,
-              'blocked': 0,
-              'chapters_read': 0,
-              'social_karma': 0,
-              'day_streak': 0,
-              'reading_lists': <dynamic>[],
-            }
-          : asMap('profile')),
+      profile: ProfileModel.fromMap(
+        asMap('profile').isEmpty
+            ? <String, dynamic>{
+                'display_name': 'Reader',
+                'username': '@reader',
+                'following': 0,
+                'followers': 0,
+                'blocked': 0,
+                'chapters_read': 0,
+                'social_karma': 0,
+                'day_streak': 0,
+                'reading_lists': <dynamic>[],
+              }
+            : asMap('profile'),
+      ),
       achievements: asList('achievements')
           .whereType<Map>()
-          .map((item) => AchievementGroupModel.fromMap(Map<String, dynamic>.from(item)))
+          .map(
+            (item) =>
+                AchievementGroupModel.fromMap(Map<String, dynamic>.from(item)),
+          )
           .toList(),
     );
   }
@@ -163,9 +181,11 @@ class BookCardModel {
       id: (map['id'] as num?)?.toInt() ?? 0,
       title: map['title']?.toString() ?? '',
       author: map['author'] as String? ?? '',
-      authorUserId: (map['author_user_id'] as num?)?.toInt() ??
+      authorUserId:
+          (map['author_user_id'] as num?)?.toInt() ??
           (map['user_id'] as num?)?.toInt(),
-      authorPhotoUrl: (map['author_photo_url'] as String?) ??
+      authorPhotoUrl:
+          (map['author_photo_url'] as String?) ??
           (map['author_photo'] as String?) ??
           (map['photo_url'] as String?),
       coverPath: map['cover_path'] as String? ?? '',
@@ -177,12 +197,16 @@ class BookCardModel {
           map['primary_genre'] as String? ?? map['genre'] as String? ?? '',
       secondaryGenre: map['secondary_genre'] as String? ?? '',
       sectionName: map['section_name'] as String? ?? '',
-      isCompleted: (map['is_completed'] as num?) == 1,
+      isCompleted:
+          map['is_completed'] == true ||
+          (map['is_completed'] as num?)?.toInt() == 1,
       cta: map['cta_label'] as String? ?? map['cta'] as String? ?? 'Read now',
-      viewCount: (map['view_count'] as num?)?.toInt() ??
+      viewCount:
+          (map['view_count'] as num?)?.toInt() ??
           (map['views'] as num?)?.toInt() ??
           0,
-      likesCount: (map['likes_count'] as num?)?.toInt() ??
+      likesCount:
+          (map['likes_count'] as num?)?.toInt() ??
           (map['likes'] as num?)?.toInt() ??
           0,
     );
@@ -219,18 +243,23 @@ class BookDetailModel {
   final List<String> tags;
   final int? authorUserId;
   final int viewCount;
+
   /// Free-text content warnings, e.g. "child abuse, drug use overdose".
   final String contentWarnings;
   final String lastUpdated;
 
   factory BookDetailModel.fromMap(Map<String, dynamic> map) {
-    final warningsRaw = map['content_warnings'] ??
+    final warningsRaw =
+        map['content_warnings'] ??
         map['content_warning'] ??
         map['warnings'] ??
         '';
     String warnings = '';
     if (warningsRaw is List) {
-      warnings = warningsRaw.map((e) => e.toString()).where((e) => e.isNotEmpty).join(', ');
+      warnings = warningsRaw
+          .map((e) => e.toString())
+          .where((e) => e.isNotEmpty)
+          .join(', ');
     } else {
       warnings = warningsRaw.toString();
     }
@@ -245,13 +274,20 @@ class BookDetailModel {
       cta: map['cta'] as String? ?? map['cta_label'] as String? ?? 'Read now',
       coverPath: map['cover_path'] as String? ?? '',
       tags: List<String>.from(map['tags'] as List<dynamic>? ?? <dynamic>[]),
-      authorUserId: (map['author_user_id'] as num?)?.toInt() ??
+      authorUserId:
+          (map['author_user_id'] as num?)?.toInt() ??
           (map['user_id'] as num?)?.toInt(),
       contentWarnings: warnings,
-      viewCount: (map['view_count'] as num?)?.toInt() ??
+      viewCount:
+          (map['view_count'] as num?)?.toInt() ??
           (map['views'] as num?)?.toInt() ??
           0,
-      lastUpdated: (map['last_updated'] ?? map['updated_at'] ?? map['updated_text'] ?? '').toString(),
+      lastUpdated:
+          (map['last_updated'] ??
+                  map['updated_at'] ??
+                  map['updated_text'] ??
+                  '')
+              .toString(),
     );
   }
 }
@@ -297,13 +333,14 @@ class LibraryEntryModel {
 
   /// 0.0–1.0 progress through the book (chapters based).
   double get progressFraction {
-    final total = chapters > 0 ? chapters : book.id; // fallback
     final t = chapters > 0 ? chapters : 0;
     if (t <= 0) {
       // If we only know chapter number
       return lastChapterNumber > 0 ? 0.15 : 0.0;
     }
-    final read = chaptersRead > 0 ? chaptersRead : (lastChapterNumber > 0 ? lastChapterNumber - 1 : 0);
+    final read = chaptersRead > 0
+        ? chaptersRead
+        : (lastChapterNumber > 0 ? lastChapterNumber - 1 : 0);
     return (read / t).clamp(0.0, 1.0);
   }
 
@@ -354,12 +391,15 @@ class WriteScreenModel {
             .map((e) => e.toString()),
       ),
       storyTabs: List<String>.from(
-        ((map['story_tabs'] as List?) ?? const ['Submitted', 'Drafts'])
-            .map((e) => e.toString()),
+        ((map['story_tabs'] as List?) ?? const ['Submitted', 'Drafts']).map(
+          (e) => e.toString(),
+        ),
       ),
       filterLabel: map['filter_label']?.toString() ?? 'All stories',
       sortLabel: map['sort_label']?.toString() ?? 'Recently Updated',
-      emptyTitle: map['empty_title']?.toString() ?? "You haven't submitted any story yet",
+      emptyTitle:
+          map['empty_title']?.toString() ??
+          "You haven't submitted any story yet",
       emptyCta: map['empty_cta']?.toString() ?? 'Submit Stories',
     );
   }
@@ -476,12 +516,18 @@ class ProfileModel {
       dayStreak: (map['day_streak'] as num?)?.toInt() ?? 0,
       readingLists: ((map['reading_lists'] as List?) ?? const <dynamic>[])
           .whereType<Map>()
-          .map((item) => ReadingListModel.fromMap(Map<String, dynamic>.from(item)))
+          .map(
+            (item) => ReadingListModel.fromMap(Map<String, dynamic>.from(item)),
+          )
           .toList(),
-      isAuthor: (map['is_author'] == true || map['is_author'] == 1 || map['is_author'] == '1'),
+      isAuthor:
+          (map['is_author'] == true ||
+          map['is_author'] == 1 ||
+          map['is_author'] == '1'),
       bio: map['bio']?.toString() ?? '',
       gender: map['gender']?.toString() ?? '',
-      birthDate: map['birth_date']?.toString() ?? map['birthDate']?.toString() ?? '',
+      birthDate:
+          map['birth_date']?.toString() ?? map['birthDate']?.toString() ?? '',
     );
   }
 }

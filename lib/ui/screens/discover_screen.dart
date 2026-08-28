@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
@@ -32,8 +33,7 @@ class DiscoverScreen extends StatefulWidget {
 
 class _DiscoverScreenState extends State<DiscoverScreen>
     with SingleTickerProviderStateMixin {
-  bool _isValidBook(BookCardModel b) =>
-      b.id > 0 && b.title.trim().isNotEmpty;
+  bool _isValidBook(BookCardModel b) => b.id > 0 && b.title.trim().isNotEmpty;
 
   late final TabController _tabController;
   late final List<String> _tabs;
@@ -44,7 +44,9 @@ class _DiscoverScreenState extends State<DiscoverScreen>
   void _reshuffleBooks() {
     // AppBootstrap uses discoverBooks / recentlyUpdated — not `.books`
     final pool = _booksForDiscover();
-    pool.shuffle(math.Random(DateTime.now().millisecondsSinceEpoch + _shuffleToken));
+    pool.shuffle(
+      math.Random(DateTime.now().millisecondsSinceEpoch + _shuffleToken),
+    );
     _shuffledBooks = pool;
     _shuffleToken++;
   }
@@ -96,171 +98,239 @@ class _DiscoverScreenState extends State<DiscoverScreen>
         await Future<void>.delayed(const Duration(milliseconds: 350));
       },
       child: CustomScrollView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      slivers: [
-        Builder(
-          builder: (context) {
-            final isDark = Theme.of(context).brightness == Brightness.dark;
-            final fg = isDark ? Colors.white : const Color(0xFF1A1A1A);
-            return SliverToBoxAdapter(
-              child: Container(
-                color: isDark ? const Color(0xFF121212) : Colors.white,
-                padding: const EdgeInsets.fromLTRB(12, 8, 8, 0),
-                child: Row(
-                  children: [
-                    Text(
-                      'Wingsaga',
-                      style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.5,
-                        color: fg,
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          Builder(
+            builder: (context) {
+              final isDark = Theme.of(context).brightness == Brightness.dark;
+              final fg = isDark ? Colors.white : const Color(0xFF1A1A1A);
+              return SliverToBoxAdapter(
+                child: Container(
+                  color: isDark ? const Color(0xFF121212) : Colors.white,
+                  padding: const EdgeInsets.fromLTRB(12, 8, 8, 0),
+                  child: Row(
+                    children: [
+                      Text(
+                        'Wingsaga',
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
+                          color: fg,
+                        ),
                       ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      tooltip: 'Search',
-                      icon: Icon(Icons.search, size: 26, color: fg),
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => SearchScreen(
-                              apiService: widget.apiService,
+                      const Spacer(),
+                      IconButton(
+                        tooltip: 'Search',
+                        icon: Icon(Icons.search, size: 26, color: fg),
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) =>
+                                  SearchScreen(apiService: widget.apiService),
                             ),
-                          ),
-                        );
-                      },
-                    ),
-                    IconButton(
-                      tooltip: 'More',
-                      icon: Icon(Icons.more_vert, size: 24, color: fg),
-                      onPressed: () {
-                        showModalBottomSheet<void>(
-                          context: context,
-                          shape: const RoundedRectangleBorder(
-                            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                          ),
-                          builder: (ctx) {
-                            return SafeArea(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const SizedBox(height: 8),
-                                  Container(
-                                    width: 40,
-                                    height: 4,
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey.shade300,
-                                      borderRadius: BorderRadius.circular(2),
-                                    ),
-                                  ),
-                                  ListTile(
-                                    leading: const Icon(Icons.support_agent_outlined),
-                                    title: const Text('Contact support'),
-                                    onTap: () async {
-                                      Navigator.pop(ctx);
-                                      if (!context.mounted) return;
-                                      await showModalBottomSheet<void>(
-                                        context: context,
-                                        isScrollControlled: true,
-                                        shape: const RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                                        ),
-                                        builder: (sctx) {
-                                          final subject = TextEditingController();
-                                          final body = TextEditingController();
-                                          return Padding(
-                                            padding: EdgeInsets.only(
-                                              left: 20, right: 20, top: 20,
-                                              bottom: MediaQuery.of(sctx).viewInsets.bottom + 20,
-                                            ),
-                                            child: Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                                              children: [
-                                                const Text('Contact support', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-                                                const SizedBox(height: 12),
-                                                TextField(controller: subject, decoration: const InputDecoration(labelText: 'Subject')),
-                                                TextField(controller: body, maxLines: 4, decoration: const InputDecoration(labelText: 'How can we help?')),
-                                                const SizedBox(height: 12),
-                                                ElevatedButton(
-                                                  onPressed: () async {
-                                                    try {
-                                                      await widget.apiService.submitSupportRequest({
-                                                        'subject': subject.text.trim(),
-                                                        'description': body.text.trim(),
-                                                        'issue': subject.text.trim(),
-                                                      });
-                                                      if (sctx.mounted) Navigator.pop(sctx);
-                                                      if (context.mounted) {
-                                                        ScaffoldMessenger.of(context).showSnackBar(
-                                                          const SnackBar(content: Text('Support request sent')),
-                                                        );
-                                                      }
-                                                    } catch (e) {
-                                                      if (sctx.mounted) {
-                                                        ScaffoldMessenger.of(sctx).showSnackBar(SnackBar(content: Text('$e')));
-                                                      }
-                                                    }
-                                                  },
-                                                  child: const Text('Send'),
-                                                ),
-                                              ],
-                                            ),
-                                          );
-                                        },
-                                      );
-                                    },
-                                  ),
-                                  ListTile(
-                                    leading: const Icon(Icons.switch_account_outlined),
-                                    title: const Text('Change account'),
-                                    onTap: () {
-                                      Navigator.pop(ctx);
-                                      // Jump user to More tab (index 4) if RootShell is parent
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('Open the More tab to switch account or sign out'),
-                                          duration: Duration(seconds: 3),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                  ListTile(
-                                    title: const Text('Cancel', textAlign: TextAlign.center),
-                                    onTap: () => Navigator.pop(ctx),
-                                  ),
-                                  const SizedBox(height: 8),
-                                ],
+                          );
+                        },
+                      ),
+                      IconButton(
+                        tooltip: 'More',
+                        icon: Icon(Icons.more_vert, size: 24, color: fg),
+                        onPressed: () {
+                          showModalBottomSheet<void>(
+                            context: context,
+                            shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.vertical(
+                                top: Radius.circular(16),
                               ),
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  ],
+                            ),
+                            builder: (ctx) {
+                              return SafeArea(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      width: 40,
+                                      height: 4,
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade300,
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                    ),
+                                    ListTile(
+                                      leading: const Icon(
+                                        Icons.support_agent_outlined,
+                                      ),
+                                      title: const Text('Contact support'),
+                                      onTap: () async {
+                                        Navigator.pop(ctx);
+                                        if (!context.mounted) return;
+                                        await showModalBottomSheet<void>(
+                                          context: context,
+                                          isScrollControlled: true,
+                                          shape: const RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.vertical(
+                                              top: Radius.circular(16),
+                                            ),
+                                          ),
+                                          builder: (sctx) {
+                                            final subject =
+                                                TextEditingController();
+                                            final body =
+                                                TextEditingController();
+                                            return Padding(
+                                              padding: EdgeInsets.only(
+                                                left: 20,
+                                                right: 20,
+                                                top: 20,
+                                                bottom:
+                                                    MediaQuery.of(
+                                                      sctx,
+                                                    ).viewInsets.bottom +
+                                                    20,
+                                              ),
+                                              child: Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.stretch,
+                                                children: [
+                                                  const Text(
+                                                    'Contact support',
+                                                    style: TextStyle(
+                                                      fontSize: 18,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 12),
+                                                  TextField(
+                                                    controller: subject,
+                                                    decoration:
+                                                        const InputDecoration(
+                                                          labelText: 'Subject',
+                                                        ),
+                                                  ),
+                                                  TextField(
+                                                    controller: body,
+                                                    maxLines: 4,
+                                                    decoration:
+                                                        const InputDecoration(
+                                                          labelText:
+                                                              'How can we help?',
+                                                        ),
+                                                  ),
+                                                  const SizedBox(height: 12),
+                                                  ElevatedButton(
+                                                    onPressed: () async {
+                                                      try {
+                                                        await widget.apiService
+                                                            .submitSupportRequest(
+                                                              {
+                                                                'subject':
+                                                                    subject.text
+                                                                        .trim(),
+                                                                'description':
+                                                                    body.text
+                                                                        .trim(),
+                                                                'issue': subject
+                                                                    .text
+                                                                    .trim(),
+                                                              },
+                                                            );
+                                                        if (sctx.mounted)
+                                                          Navigator.pop(sctx);
+                                                        if (context.mounted) {
+                                                          ScaffoldMessenger.of(
+                                                            context,
+                                                          ).showSnackBar(
+                                                            const SnackBar(
+                                                              content: Text(
+                                                                'Support request sent',
+                                                              ),
+                                                            ),
+                                                          );
+                                                        }
+                                                      } catch (e) {
+                                                        if (sctx.mounted) {
+                                                          ScaffoldMessenger.of(
+                                                            sctx,
+                                                          ).showSnackBar(
+                                                            SnackBar(
+                                                              content: Text(
+                                                                '$e',
+                                                              ),
+                                                            ),
+                                                          );
+                                                        }
+                                                      }
+                                                    },
+                                                    child: const Text('Send'),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          },
+                                        );
+                                      },
+                                    ),
+                                    ListTile(
+                                      leading: const Icon(
+                                        Icons.switch_account_outlined,
+                                      ),
+                                      title: const Text('Change account'),
+                                      onTap: () {
+                                        Navigator.pop(ctx);
+                                        // Jump user to More tab (index 4) if RootShell is parent
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Open the More tab to switch account or sign out',
+                                            ),
+                                            duration: Duration(seconds: 3),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                    ListTile(
+                                      title: const Text(
+                                        'Cancel',
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      onTap: () => Navigator.pop(ctx),
+                                    ),
+                                    const SizedBox(height: 8),
+                                  ],
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            );
-          },
-        ),
-        SliverPersistentHeader(
-          pinned: true,
-          delegate: _TabBarDelegate(
-            child: Container(
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? const Color(0xFF121212)
-                  : Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: _CategoryTabs(
-                labels: _tabs,
-                tabController: _tabController,
+              );
+            },
+          ),
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _TabBarDelegate(
+              child: Container(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xFF121212)
+                    : Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: _CategoryTabs(
+                  labels: _tabs,
+                  tabController: _tabController,
+                ),
               ),
             ),
           ),
-        ),
-        SliverToBoxAdapter(child: _buildTabContent(_selectedTabIndex)),
-      ],
+          SliverToBoxAdapter(child: _buildTabContent(_selectedTabIndex)),
+        ],
       ),
     );
   }
@@ -268,8 +338,9 @@ class _DiscoverScreenState extends State<DiscoverScreen>
   Widget _buildTabContent(int tabIndex) {
     final tabLabel = _tabs[tabIndex].toLowerCase();
     // Use shuffled list when available so refresh changes rail order
-    final allBooks =
-        _shuffledBooks.isNotEmpty ? _shuffledBooks : _booksForDiscover();
+    final allBooks = _shuffledBooks.isNotEmpty
+        ? _shuffledBooks
+        : _booksForDiscover();
     final sections = _discoverSectionsForTab(tabLabel, allBooks);
     final showExploreLead = tabLabel == 'new' && sections.isNotEmpty;
 
@@ -375,10 +446,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
     final merged = <BookCardModel>[];
     final source = widget.data.discoverBooks.isNotEmpty
         ? widget.data.discoverBooks
-        : [
-            ...widget.data.recentlyUpdated,
-            ...widget.data.recentlyCompleted,
-          ];
+        : [...widget.data.recentlyUpdated, ...widget.data.recentlyCompleted];
     for (final book in source) {
       // Drop blanks that caused empty slots in the story slider
       if (!_isValidBook(book)) continue;
@@ -504,7 +572,6 @@ class _DiscoverScreenState extends State<DiscoverScreen>
   }
 }
 
-
 // ---------------------------------------------------------------------------
 // Search
 // ---------------------------------------------------------------------------
@@ -533,17 +600,24 @@ class _SearchScreenState extends State<SearchScreen> {
   double _minRating = 0;
   bool _loading = false;
   List<Map<String, dynamic>> _results = <Map<String, dynamic>>[];
+
   /// Wattpad-style filter chip: title | tag | profile
   String _searchScope = 'title';
+
   /// Cached recent searches per scope (last 5 each).
   List<String> _recentTitle = const [];
   List<String> _recentTag = const [];
   List<String> _recentProfile = const [];
   bool _showRecent = false;
+  List<Map<String, dynamic>> _recentRows = const [];
 
   static const _kHistTitle = 'search_hist_title_v1';
   static const _kHistTag = 'search_hist_tag_v1';
   static const _kHistProfile = 'search_hist_profile_v1';
+  static const _kResultsTitle = 'search_results_title_v1';
+  static const _kResultsTag = 'search_results_tag_v1';
+  static const _kResultsProfile = 'search_results_profile_v1';
+  Timer? _searchDebounce;
 
   List<String> get _recentForScope {
     switch (_searchScope) {
@@ -559,11 +633,37 @@ class _SearchScreenState extends State<SearchScreen> {
   Future<void> _loadSearchHistory() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      final rawResults = prefs.getString(_resultsKey);
+      final decodedResults = rawResults == null ? null : jsonDecode(rawResults);
       setState(() {
         _recentTitle = prefs.getStringList(_kHistTitle) ?? const [];
         _recentTag = prefs.getStringList(_kHistTag) ?? const [];
         _recentProfile = prefs.getStringList(_kHistProfile) ?? const [];
+        _recentRows = decodedResults is List
+            ? decodedResults
+                  .whereType<Map>()
+                  .map((e) => Map<String, dynamic>.from(e))
+                  .toList()
+            : const [];
       });
+    } catch (_) {}
+  }
+
+  String get _resultsKey {
+    switch (_searchScope) {
+      case 'tag':
+        return _kResultsTag;
+      case 'profile':
+        return _kResultsProfile;
+      default:
+        return _kResultsTitle;
+    }
+  }
+
+  Future<void> _saveRecentResults(List<Map<String, dynamic>> rows) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_resultsKey, jsonEncode(rows.take(5).toList()));
     } catch (_) {}
   }
 
@@ -613,7 +713,7 @@ class _SearchScreenState extends State<SearchScreen> {
     if (q.isEmpty) {
       if (mounted) {
         setState(() {
-          _results = <Map<String, dynamic>>[];
+          _results = List<Map<String, dynamic>>.from(_recentRows);
           _loading = false;
           _showRecent = true;
         });
@@ -631,10 +731,10 @@ class _SearchScreenState extends State<SearchScreen> {
         // TAG scope: only hashtag matches (not story titles)
         final tags = await widget.apiService.fetchTags(query: q);
         final qLower = q.toLowerCase().replaceFirst('#', '');
-        rows = tags
+        final matchedTags = tags
             .map((e) {
-              final name =
-                  (e['name'] ?? e['tag'] ?? e['label'] ?? '').toString();
+              final name = (e['name'] ?? e['tag'] ?? e['label'] ?? '')
+                  .toString();
               return <String, dynamic>{
                 '_kind': 'tag',
                 'id': e['id'] ?? name.hashCode,
@@ -646,12 +746,31 @@ class _SearchScreenState extends State<SearchScreen> {
               };
             })
             .where((e) {
-              final name =
-                  (e['tag_name'] ?? '').toString().toLowerCase();
+              final name = (e['tag_name'] ?? '').toString().toLowerCase();
               // Prefer contains match on tag name only
               return name.contains(qLower) || name == qLower;
             })
+            .take(5)
             .toList();
+        final bookGroups = await Future.wait(
+          matchedTags.map((tag) {
+            final name = (tag['tag_name'] ?? '').toString();
+            return widget.apiService.fetchBooksByTag(name);
+          }),
+        );
+        final seenBookIds = <int>{};
+        rows = [
+          for (var i = 0; i < bookGroups.length; i++)
+            for (final book in bookGroups[i])
+              if ((book['id'] as num?) != null &&
+                  seenBookIds.add((book['id'] as num).toInt()))
+                {
+                  ...book,
+                  '_kind': 'book',
+                  'tag_name': matchedTags[i]['tag_name'],
+                },
+        ].take(30).toList();
+        if (rows.isEmpty) rows = matchedTags;
       } else if (_searchScope == 'profile') {
         // PROFILE scope: only author/user profiles
         List<Map<String, dynamic>> users = const [];
@@ -662,16 +781,12 @@ class _SearchScreenState extends State<SearchScreen> {
         }
         if (users.isNotEmpty) {
           rows = users.map((u) {
-            final name = (u['display_name'] ??
-                    u['username'] ??
-                    u['name'] ??
-                    '')
+            final name = (u['display_name'] ?? u['username'] ?? u['name'] ?? '')
                 .toString()
                 .trim();
             final username = (u['username'] ?? '').toString();
             final uid = u['id'] ?? u['user_id'];
-            final photo =
-                (u['photo_url'] ?? u['avatar_url'] ?? '').toString();
+            final photo = (u['photo_url'] ?? u['avatar_url'] ?? '').toString();
             return <String, dynamic>{
               '_kind': 'profile',
               'id': uid ?? name.hashCode,
@@ -688,15 +803,15 @@ class _SearchScreenState extends State<SearchScreen> {
           final stories = await widget.apiService.searchStories(query: q);
           final seen = <String>{};
           for (final s in stories) {
-            final author =
-                (s['author'] ?? s['display_name'] ?? '').toString().trim();
+            final author = (s['author'] ?? s['display_name'] ?? '')
+                .toString()
+                .trim();
             if (author.isEmpty) continue;
             final key = author.toLowerCase();
             if (seen.contains(key)) continue;
             if (!key.contains(q.toLowerCase())) continue;
             seen.add(key);
-            final uid =
-                s['author_user_id'] ?? s['user_id'] ?? s['author_id'];
+            final uid = s['author_user_id'] ?? s['user_id'] ?? s['author_id'];
             rows.add(<String, dynamic>{
               '_kind': 'profile',
               'id': uid ?? author.hashCode,
@@ -704,18 +819,14 @@ class _SearchScreenState extends State<SearchScreen> {
               'author': (s['username'] ?? '').toString().isNotEmpty
                   ? '@${s['username']}'
                   : 'Author',
-              'cover_path': (s['author_photo'] ??
-                      s['photo_url'] ??
-                      s['avatar_url'] ??
-                      '')
-                  .toString(),
+              'cover_path':
+                  (s['author_photo'] ?? s['photo_url'] ?? s['avatar_url'] ?? '')
+                      .toString(),
               'rating': '',
               'author_user_id': uid,
-              'photo_url': (s['author_photo'] ??
-                      s['photo_url'] ??
-                      s['avatar_url'] ??
-                      '')
-                  .toString(),
+              'photo_url':
+                  (s['author_photo'] ?? s['photo_url'] ?? s['avatar_url'] ?? '')
+                      .toString(),
             });
             if (rows.length >= 30) break;
           }
@@ -731,7 +842,7 @@ class _SearchScreenState extends State<SearchScreen> {
         rows = stories
             .where((e) {
               final title = (e['title'] ?? '').toString().trim().toLowerCase();
-              return title == qLower;
+              return title.contains(qLower);
             })
             .map(
               (e) => <String, dynamic>{
@@ -750,6 +861,10 @@ class _SearchScreenState extends State<SearchScreen> {
       _loading = false;
       _showRecent = false;
     });
+    if (recordHistory && rows.isNotEmpty) {
+      await _saveRecentResults(rows);
+      if (mounted) setState(() => _recentRows = rows.take(5).toList());
+    }
   }
 
   @override
@@ -779,6 +894,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchFocus.dispose();
     _searchController.dispose();
     super.dispose();
@@ -808,12 +924,15 @@ class _SearchScreenState extends State<SearchScreen> {
             }
           },
           onChanged: (value) {
+            _searchDebounce?.cancel();
             setState(() {
               _searchQuery = value;
               _showRecent = value.trim().isEmpty;
             });
             // Don't pollute history while typing
-            _runSearch(recordHistory: false);
+            _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+              if (mounted) _runSearch(recordHistory: false);
+            });
           },
           onSubmitted: (value) {
             setState(() {
@@ -878,9 +997,13 @@ class _SearchScreenState extends State<SearchScreen> {
                           _searchScope = entry['id']!;
                           _showRecent = _searchQuery.trim().isEmpty;
                         });
-                        _runSearch(recordHistory: _searchQuery.trim().isNotEmpty);
+                        _runSearch(
+                          recordHistory: _searchQuery.trim().isNotEmpty,
+                        );
                       },
-                      selectedColor: const Color(0xFF00A88E).withValues(alpha: 0.18),
+                      selectedColor: const Color(
+                        0xFF00A88E,
+                      ).withValues(alpha: 0.18),
                       labelStyle: TextStyle(
                         fontWeight: FontWeight.w600,
                         color: _searchScope == entry['id']
@@ -902,11 +1025,15 @@ class _SearchScreenState extends State<SearchScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Recent ${_searchScope == 'tag' ? 'tag' : _searchScope == 'profile' ? 'profile' : 'title'} searches',
+                    'Recent ${_searchScope == 'tag'
+                        ? 'tag'
+                        : _searchScope == 'profile'
+                        ? 'profile'
+                        : 'title'} searches',
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: AppTheme.muted,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      color: AppTheme.muted,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Wrap(
@@ -935,145 +1062,156 @@ class _SearchScreenState extends State<SearchScreen> {
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _results.isEmpty
-                    ? Center(
-                        child: Text(
-                          _searchQuery.isEmpty
-                              ? 'Search stories, tags or people'
-                              : 'No results',
-                          style: Theme.of(context).textTheme.bodyMedium,
+                ? Center(
+                    child: Text(
+                      _searchQuery.isEmpty
+                          ? 'Search stories, tags or people'
+                          : 'No results',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: _results.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final item = _results[index];
+                      final kind = (item['_kind'] ?? 'book').toString();
+                      final cover =
+                          (item['cover_path'] ?? item['photo_url'] ?? '')
+                              .toString();
+                      Widget leading;
+                      if (kind == 'profile') {
+                        leading = CircleAvatar(
+                          radius: 22,
+                          backgroundColor: const Color(0xFFE8EEF9),
+                          backgroundImage: cover.isNotEmpty
+                              ? NetworkImage(
+                                  widget.apiService.resolveAssetUrl(cover),
+                                )
+                              : null,
+                          child: cover.isEmpty
+                              ? Text(
+                                  ((item['title'] ?? '?').toString().isNotEmpty
+                                          ? item['title'].toString()[0]
+                                          : '?')
+                                      .toUpperCase(),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF00A88E),
+                                  ),
+                                )
+                              : null,
+                        );
+                      } else if (kind == 'tag') {
+                        leading = const CircleAvatar(
+                          radius: 22,
+                          backgroundColor: Color(0xFFE8EEF9),
+                          child: Icon(Icons.tag, color: Color(0xFF00A88E)),
+                        );
+                      } else {
+                        leading = SizedBox(
+                          width: 40,
+                          height: 56,
+                          child: cover.isNotEmpty
+                              ? Image.network(
+                                  widget.apiService.resolveAssetUrl(cover),
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, _, _) => const ColoredBox(
+                                    color: Color(0xFFE4E4E4),
+                                  ),
+                                )
+                              : const ColoredBox(color: Color(0xFFE4E4E4)),
+                        );
+                      }
+                      return ListTile(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          side: const BorderSide(color: Color(0xFFE8E8E8)),
                         ),
-                      )
-                    : ListView.separated(
-                        padding: const EdgeInsets.all(12),
-                        itemCount: _results.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 8),
-                        itemBuilder: (context, index) {
-                          final item = _results[index];
-                          final kind = (item['_kind'] ?? 'book').toString();
-                          final cover = (item['cover_path'] ?? item['photo_url'] ?? '').toString();
-                          Widget leading;
-                          if (kind == 'profile') {
-                            leading = CircleAvatar(
-                              radius: 22,
-                              backgroundColor: const Color(0xFFE8EEF9),
-                              backgroundImage: cover.isNotEmpty
-                                  ? NetworkImage(widget.apiService.resolveAssetUrl(cover))
-                                  : null,
-                              child: cover.isEmpty
-                                  ? Text(
-                                      ((item['title'] ?? '?').toString().isNotEmpty
-                                              ? item['title'].toString()[0]
-                                              : '?')
-                                          .toUpperCase(),
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        color: Color(0xFF00A88E),
-                                      ),
-                                    )
-                                  : null,
-                            );
-                          } else if (kind == 'tag') {
-                            leading = const CircleAvatar(
-                              radius: 22,
-                              backgroundColor: Color(0xFFE8EEF9),
-                              child: Icon(Icons.tag, color: Color(0xFF00A88E)),
-                            );
-                          } else {
-                            leading = SizedBox(
-                              width: 40,
-                              height: 56,
-                              child: cover.isNotEmpty
-                                  ? Image.network(
-                                      widget.apiService.resolveAssetUrl(cover),
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, _, _) =>
-                                          const ColoredBox(color: Color(0xFFE4E4E4)),
-                                    )
-                                  : const ColoredBox(color: Color(0xFFE4E4E4)),
-                            );
-                          }
-                          return ListTile(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              side: const BorderSide(color: Color(0xFFE8E8E8)),
-                            ),
-                            onTap: () async {
-                              if (kind == 'tag') {
-                                final tag = (item['tag_name'] ?? item['title'] ?? '')
+                        onTap: () async {
+                          if (kind == 'tag') {
+                            final tag =
+                                (item['tag_name'] ?? item['title'] ?? '')
                                     .toString()
                                     .replaceFirst('#', '');
-                                if (tag.isEmpty) return;
-                                final books = await widget.apiService.fetchBooksByTag(tag);
-                                if (!context.mounted) return;
-                                await Navigator.of(context).push(
-                                  MaterialPageRoute<void>(
-                                    builder: (_) => _GenreBooksScreen(
-                                      genre: tag,
-                                      books: books,
-                                      apiService: widget.apiService,
+                            if (tag.isEmpty) return;
+                            final books = await widget.apiService
+                                .fetchBooksByTag(tag);
+                            if (!context.mounted) return;
+                            await Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => _GenreBooksScreen(
+                                  genre: tag,
+                                  books: books,
+                                  apiService: widget.apiService,
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+                          if (kind == 'profile') {
+                            final uid =
+                                (item['author_user_id'] as num?)?.toInt() ??
+                                (item['id'] as num?)?.toInt();
+                            if (uid == null || uid <= 0) return;
+                            final name = (item['title'] ?? 'Author').toString();
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => ProfileScreen(
+                                  apiService: widget.apiService,
+                                  viewingUserId: uid,
+                                  achievements: const [],
+                                  profile: ProfileModel(
+                                    id: uid,
+                                    displayName: name,
+                                    username: name.toLowerCase().replaceAll(
+                                      ' ',
+                                      '',
                                     ),
-                                  ),
-                                );
-                                return;
-                              }
-                              if (kind == 'profile') {
-                                final uid = (item['author_user_id'] as num?)?.toInt() ??
-                                    (item['id'] as num?)?.toInt();
-                                if (uid == null || uid <= 0) return;
-                                final name = (item['title'] ?? 'Author').toString();
-                                Navigator.of(context).push(
-                                  MaterialPageRoute<void>(
-                                    builder: (_) => ProfileScreen(
-                                      apiService: widget.apiService,
-                                      viewingUserId: uid,
-                                      achievements: const [],
-                                      profile: ProfileModel(
-                                        id: uid,
-                                        displayName: name,
-                                        username: name.toLowerCase().replaceAll(' ', ''),
-                                        photoUrl: cover,
-                                        coverUrl: '',
-                                        following: 0,
-                                        followers: 0,
-                                        blocked: 0,
-                                        chaptersRead: 0,
-                                        socialKarma: 0,
-                                        dayStreak: 0,
-                                        readingLists: const [],
-                                      ),
-                                    ),
-                                  ),
-                                );
-                                return;
-                              }
-                              final id = (item['id'] as num?)?.toInt();
-                              if (id == null) return;
-                              Navigator.of(context).push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) => StoryDetailScreen(
-                                    apiService: widget.apiService,
-                                    book: BookDetailModel.fromMap(item),
+                                    photoUrl: cover,
+                                    coverUrl: '',
+                                    following: 0,
+                                    followers: 0,
+                                    blocked: 0,
+                                    chaptersRead: 0,
+                                    socialKarma: 0,
+                                    dayStreak: 0,
+                                    readingLists: const [],
                                   ),
                                 ),
-                              );
-                            },
-                            leading: leading,
-                            title: Text(item['title']?.toString() ?? ''),
-                            subtitle: Text(item['author']?.toString() ?? ''),
-                            trailing: kind == 'book'
-                                ? Text(
-                                    (item['rating'] ?? '').toString(),
-                                    style: Theme.of(context).textTheme.bodySmall,
-                                  )
-                                : Icon(
-                                    kind == 'profile'
-                                        ? Icons.person_outline
-                                        : Icons.chevron_right,
-                                    color: Colors.grey,
-                                  ),
+                              ),
+                            );
+                            return;
+                          }
+                          final id = (item['id'] as num?)?.toInt();
+                          if (id == null) return;
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => StoryDetailScreen(
+                                apiService: widget.apiService,
+                                book: BookDetailModel.fromMap(item),
+                              ),
+                            ),
                           );
                         },
-                      ),
+                        leading: leading,
+                        title: Text(item['title']?.toString() ?? ''),
+                        subtitle: Text(item['author']?.toString() ?? ''),
+                        trailing: kind == 'book'
+                            ? Text(
+                                (item['rating'] ?? '').toString(),
+                                style: Theme.of(context).textTheme.bodySmall,
+                              )
+                            : Icon(
+                                kind == 'profile'
+                                    ? Icons.person_outline
+                                    : Icons.chevron_right,
+                                color: Colors.grey,
+                              ),
+                      );
+                    },
+                  ),
           ),
         ],
       ),

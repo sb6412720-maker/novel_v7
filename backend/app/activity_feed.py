@@ -153,11 +153,11 @@ def register_activity_routes(
                 """
                 SELECT id, user_id AS follower_id, created_at
                 FROM author_follows
-                WHERE author_id=%s
+                WHERE author_id=%s AND user_id != %s
                 ORDER BY id DESC
                 LIMIT 40
                 """,
-                (user_id,),
+                (user_id, user_id),
             )
             for row in follows or []:
                 fid = _row_get(row, "follower_id") or _row_get(row, "user_id")

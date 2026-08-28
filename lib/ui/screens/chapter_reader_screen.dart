@@ -42,6 +42,7 @@ class ChapterReaderScreen extends StatefulWidget {
   final String? authorPhotoUrl;
   final List<Map<String, dynamic>> chapters;
   final int initialChapterIndex;
+
   /// Resume position inside the chapter (0-based paragraph index).
   final int initialParagraphIndex;
 
@@ -201,6 +202,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     final approx = (offset / 140).floor().clamp(0, paras.length - 1);
     if (approx != _lastParagraphIndex) {
       _lastParagraphIndex = approx;
+      unawaited(_markLibraryProgress(completed: false));
     }
   }
 
@@ -260,15 +262,17 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
   Color get _muted =>
       _theme == _ReaderTheme.nightowl ? Colors.white60 : Colors.black54;
 
-
   Future<void> _resolveAuthorPhoto() async {
     if ((_authorPhotoUrl != null && _authorPhotoUrl!.isNotEmpty) ||
         widget.authorUserId == null) {
       return;
     }
     try {
-      final profile = await widget.apiService.fetchProfile(widget.authorUserId!);
-      final photo = (profile['photo_url'] ?? profile['photoUrl'] ?? '').toString();
+      final profile = await widget.apiService.fetchProfile(
+        widget.authorUserId!,
+      );
+      final photo = (profile['photo_url'] ?? profile['photoUrl'] ?? '')
+          .toString();
       if (photo.isNotEmpty && mounted) {
         setState(() => _authorPhotoUrl = photo);
       }
@@ -279,6 +283,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     if (_chapterIndex >= _chapters.length - 1) return;
     setState(() {
       _chapterIndex++;
+      _lastParagraphIndex = 0;
       _applyChapter(_chapters[_chapterIndex]);
     });
     // Scroll to top of the new chapter
@@ -365,12 +370,16 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                           final bookId = widget.bookId;
                           if (bookId == null) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Report submitted. Thank you.')),
+                              const SnackBar(
+                                content: Text('Report submitted. Thank you.'),
+                              ),
                             );
                             return;
                           }
                           try {
-                            final res = await widget.apiService.reportBook(bookId);
+                            final res = await widget.apiService.reportBook(
+                              bookId,
+                            );
                             final flagged = res['flagged_for_admin'] == true;
                             if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -422,8 +431,9 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                         title: Text(
                           'Chapter $chapterNo: $title',
                           style: TextStyle(
-                            fontWeight:
-                                selected ? FontWeight.w700 : FontWeight.w500,
+                            fontWeight: selected
+                                ? FontWeight.w700
+                                : FontWeight.w500,
                             fontSize: 14,
                           ),
                         ),
@@ -501,16 +511,15 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     } catch (e) {
       if (!mounted) return;
       final msg = e.toString().toLowerCase();
-      final text = (msg.contains('401') ||
+      final text =
+          (msg.contains('401') ||
               msg.contains('token') ||
               msg.contains('unauthorized'))
           ? 'Sign in to like. One like per account.'
           : (msg.contains('timeout')
-              ? 'Server busy — try like again'
-              : 'Like failed: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(text)),
-      );
+                ? 'Server busy — try like again'
+                : 'Like failed: $e');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
     }
   }
 
@@ -561,7 +570,6 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     );
   }
 
-
   List<String> _paragraphs() {
     final text = _chapterContent.trim();
     if (text.isEmpty) return const [];
@@ -606,11 +614,16 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     }
   }
 
-  Future<void> _openParagraphComments(int paragraphIndex, String preview) async {
+  Future<void> _openParagraphComments(
+    int paragraphIndex,
+    String preview,
+  ) async {
     final bookId = widget.bookId;
     if (bookId == null || bookId <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Open a published story to view comments')),
+        const SnackBar(
+          content: Text('Open a published story to view comments'),
+        ),
       );
       return;
     }
@@ -640,25 +653,28 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                     chapterNumber: _chapterNumber,
                   )
                   .then((items) {
-                final filtered = items
-                    .where((c) =>
-                        ((c['paragraph_index'] as num?)?.toInt() ?? -1) ==
-                        paragraphIndex)
-                    .toList();
-                if (ctx.mounted) {
-                  setModal(() {
-                    comments = filtered;
-                    loading = false;
+                    final filtered = items
+                        .where(
+                          (c) =>
+                              ((c['paragraph_index'] as num?)?.toInt() ?? -1) ==
+                              paragraphIndex,
+                        )
+                        .toList();
+                    if (ctx.mounted) {
+                      setModal(() {
+                        comments = filtered;
+                        loading = false;
+                      });
+                    }
+                  })
+                  .catchError((Object e) {
+                    if (ctx.mounted) {
+                      setModal(() {
+                        loading = false;
+                        error = 'Could not load comments';
+                      });
+                    }
                   });
-                }
-              }).catchError((Object e) {
-                if (ctx.mounted) {
-                  setModal(() {
-                    loading = false;
-                    error = 'Could not load comments';
-                  });
-                }
-              });
             }
             final bottom = MediaQuery.of(ctx).viewInsets.bottom;
             return Padding(
@@ -706,7 +722,11 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                               : preview,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: _muted, fontSize: 12, height: 1.3),
+                          style: TextStyle(
+                            color: _muted,
+                            fontSize: 12,
+                            height: 1.3,
+                          ),
                         ),
                       ),
                     const Divider(),
@@ -714,66 +734,70 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                       child: loading
                           ? const Center(child: CircularProgressIndicator())
                           : error != null
-                              ? Center(child: Text(error!, style: TextStyle(color: _muted)))
-                              : comments.isEmpty
-                                  ? Center(
+                          ? Center(
+                              child: Text(
+                                error!,
+                                style: TextStyle(color: _muted),
+                              ),
+                            )
+                          : comments.isEmpty
+                          ? Center(
+                              child: Text(
+                                'No comments yet — be the first!',
+                                style: TextStyle(color: _muted),
+                              ),
+                            )
+                          : ListView.separated(
+                              padding: const EdgeInsets.all(16),
+                              itemCount: comments.length,
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(height: 12),
+                              itemBuilder: (_, i) {
+                                final c = comments[i];
+                                final name =
+                                    '${c['display_name'] ?? c['username'] ?? 'Reader'}';
+                                final body = '${c['body'] ?? ''}';
+                                return Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 16,
                                       child: Text(
-                                        'No comments yet — be the first!',
-                                        style: TextStyle(color: _muted),
+                                        name.isNotEmpty
+                                            ? name[0].toUpperCase()
+                                            : '?',
                                       ),
-                                    )
-                                  : ListView.separated(
-                                      padding: const EdgeInsets.all(16),
-                                      itemCount: comments.length,
-                                      separatorBuilder: (_, _) =>
-                                          const SizedBox(height: 12),
-                                      itemBuilder: (_, i) {
-                                        final c = comments[i];
-                                        final name =
-                                            '${c['display_name'] ?? c['username'] ?? 'Reader'}';
-                                        final body = '${c['body'] ?? ''}';
-                                        return Row(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            CircleAvatar(
-                                              radius: 16,
-                                              child: Text(
-                                                name.isNotEmpty
-                                                    ? name[0].toUpperCase()
-                                                    : '?',
-                                              ),
-                                            ),
-                                            const SizedBox(width: 10),
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    name,
-                                                    style: TextStyle(
-                                                      color: _fg,
-                                                      fontWeight: FontWeight.w600,
-                                                      fontSize: 13,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(height: 4),
-                                                  Text(
-                                                    body,
-                                                    style: TextStyle(
-                                                      color: _fg,
-                                                      fontSize: 14,
-                                                      height: 1.35,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                        );
-                                      },
                                     ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            name,
+                                            style: TextStyle(
+                                              color: _fg,
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            body,
+                                            style: TextStyle(
+                                              color: _fg,
+                                              fontSize: 14,
+                                              height: 1.35,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
                     ),
                     SafeArea(
                       child: Padding(
@@ -812,9 +836,14 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                                   ? const SizedBox(
                                       width: 22,
                                       height: 22,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
                                     )
-                                  : const Icon(Icons.send, color: Color(0xFF1A73E8)),
+                                  : const Icon(
+                                      Icons.send,
+                                      color: Color(0xFF1A73E8),
+                                    ),
                               onPressed: posting
                                   ? null
                                   : () async {
@@ -824,11 +853,11 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                                       try {
                                         final item = await widget.apiService
                                             .postChapterComment(
-                                          bookId: bookId,
-                                          chapterNumber: _chapterNumber,
-                                          body: text,
-                                          paragraphIndex: paragraphIndex,
-                                        );
+                                              bookId: bookId,
+                                              chapterNumber: _chapterNumber,
+                                              body: text,
+                                              paragraphIndex: paragraphIndex,
+                                            );
                                         // Ensure UI has body/name even if API omits them
                                         final normalized = <String, dynamic>{
                                           'display_name':
@@ -848,26 +877,31 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                                         });
                                         if (mounted) {
                                           setState(() {
-                                            _paragraphCommentCounts[
-                                                    paragraphIndex] =
-                                                (_paragraphCommentCounts[
-                                                            paragraphIndex] ??
-                                                        0) +
-                                                    1;
+                                            _paragraphCommentCounts[paragraphIndex] =
+                                                (_paragraphCommentCounts[paragraphIndex] ??
+                                                    0) +
+                                                1;
                                           });
                                         }
                                       } catch (e) {
                                         setModal(() => posting = false);
                                         if (ctx.mounted) {
-                                          final msg = e.toString().toLowerCase();
-                                          final friendly = msg.contains('401') ||
-                                                  msg.contains('unauthorized') ||
+                                          final msg = e
+                                              .toString()
+                                              .toLowerCase();
+                                          final friendly =
+                                              msg.contains('401') ||
+                                                  msg.contains(
+                                                    'unauthorized',
+                                                  ) ||
                                                   msg.contains('sign')
                                               ? 'Please sign in to comment'
                                               : msg.contains('timeout')
-                                                  ? 'Server busy — try again'
-                                                  : 'Could not post comment';
-                                          ScaffoldMessenger.of(ctx).showSnackBar(
+                                              ? 'Server busy — try again'
+                                              : 'Could not post comment';
+                                          ScaffoldMessenger.of(
+                                            ctx,
+                                          ).showSnackBar(
                                             SnackBar(content: Text(friendly)),
                                           );
                                         }
@@ -901,11 +935,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
           Expanded(
             child: Text(
               text,
-              style: TextStyle(
-                color: _fg,
-                fontSize: _fontSize,
-                height: 1.75,
-              ),
+              style: TextStyle(color: _fg, fontSize: _fontSize, height: 1.75),
             ),
           ),
           const SizedBox(width: 6),
@@ -915,9 +945,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
               constraints: const BoxConstraints(minWidth: 28),
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
               decoration: BoxDecoration(
-                color: count > 0
-                    ? const Color(0xFFE8F0FE)
-                    : Colors.transparent,
+                color: count > 0 ? const Color(0xFFE8F0FE) : Colors.transparent,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
@@ -960,7 +988,10 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     final paraBreak = window.indexOf('\n\n');
     if (paraBreak >= 0) {
       final splitAt = searchStart + paraBreak;
-      return [text.substring(0, splitAt).trim(), text.substring(splitAt).trim()];
+      return [
+        text.substring(0, splitAt).trim(),
+        text.substring(splitAt).trim(),
+      ];
     }
     final space = text.lastIndexOf(' ', mid);
     if (space > 0) {
@@ -986,10 +1017,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
         foregroundColor: _fg,
         elevation: 0,
         centerTitle: true,
-        title: Text(
-          pageLabel,
-          style: TextStyle(color: _muted, fontSize: 14),
-        ),
+        title: Text(pageLabel, style: TextStyle(color: _muted, fontSize: 14)),
         actions: [
           IconButton(
             icon: Icon(Icons.info_outline, color: _muted),
@@ -1061,7 +1089,8 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                       CircleAvatar(
                         radius: 14,
                         backgroundColor: Colors.grey.shade300,
-                        backgroundImage: (_authorPhotoUrl != null &&
+                        backgroundImage:
+                            (_authorPhotoUrl != null &&
                                 _authorPhotoUrl!.isNotEmpty)
                             ? NetworkImage(
                                 widget.apiService.resolveAssetUrl(
@@ -1069,7 +1098,8 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                                 ),
                               )
                             : null,
-                        child: (_authorPhotoUrl == null ||
+                        child:
+                            (_authorPhotoUrl == null ||
                                 _authorPhotoUrl!.isEmpty)
                             ? Text(
                                 widget.author.isNotEmpty
@@ -1126,23 +1156,20 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                       height: 1.75,
                     ),
                   )
-                else
-                  ...[
-                    for (var i = 0; i < _paragraphs().length; i++) ...[
-                      _buildParagraphBlock(_paragraphs()[i], i),
-                      if (i == _paragraphs().length ~/ 2 &&
-                          _paragraphs().length > 2)
-                        _buildAdBanner(
-                          label: 'Discover more stories you\'ll love',
-                        ),
-                    ],
+                else ...[
+                  for (var i = 0; i < _paragraphs().length; i++) ...[
+                    _buildParagraphBlock(_paragraphs()[i], i),
+                    if (i == _paragraphs().length ~/ 2 &&
+                        _paragraphs().length > 2)
+                      _buildAdBanner(
+                        label: 'Discover more stories you\'ll love',
+                      ),
                   ],
+                ],
                 const SizedBox(height: 24),
                 // Ad near Next Chapter button
                 if (hasNext)
-                  _buildAdBanner(
-                    label: 'Continue reading more free stories',
-                  ),
+                  _buildAdBanner(label: 'Continue reading more free stories'),
                 if (hasNext)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),
@@ -1210,8 +1237,8 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                               color: selected
                                   ? const Color(0xFFE8F0FE)
                                   : (_theme == _ReaderTheme.nightowl
-                                      ? Colors.white12
-                                      : const Color(0xFFF3F4F6)),
+                                        ? Colors.white12
+                                        : const Color(0xFFF3F4F6)),
                               shape: BoxShape.circle,
                               border: selected
                                   ? Border.all(
@@ -1388,12 +1415,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     );
   }
 
-  Widget _themeChip(
-    String label,
-    _ReaderTheme value,
-    Color bg,
-    Color fg,
-  ) {
+  Widget _themeChip(String label, _ReaderTheme value, Color bg, Color fg) {
     final selected = _theme == value;
     return InkWell(
       borderRadius: BorderRadius.circular(10),
@@ -1422,7 +1444,9 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                 boxShadow: selected
                     ? [
                         BoxShadow(
-                          color: const Color(0xFFE85D4C).withValues(alpha: 0.35),
+                          color: const Color(
+                            0xFFE85D4C,
+                          ).withValues(alpha: 0.35),
                           blurRadius: 8,
                         ),
                       ]
@@ -1515,7 +1539,10 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     setState(() {
       if (wasSelected) {
         _selectedReactions.remove(label);
-        _reactionCounts[label] = ((_reactionCounts[label] ?? 1) - 1).clamp(0, 999999);
+        _reactionCounts[label] = ((_reactionCounts[label] ?? 1) - 1).clamp(
+          0,
+          999999,
+        );
       } else {
         _selectedReactions.add(label);
         _reactionCounts[label] = (_reactionCounts[label] ?? 0) + 1;
@@ -1547,13 +1574,15 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
           _reactionCounts[label] = (_reactionCounts[label] ?? 0) + 1;
         } else {
           _selectedReactions.remove(label);
-          _reactionCounts[label] =
-              ((_reactionCounts[label] ?? 1) - 1).clamp(0, 999999);
+          _reactionCounts[label] = ((_reactionCounts[label] ?? 1) - 1).clamp(
+            0,
+            999999,
+          );
         }
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not save reaction: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not save reaction: $e')));
     }
   }
 
@@ -1561,7 +1590,9 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     final bookId = widget.bookId;
     if (bookId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Open a published story to view comments')),
+        const SnackBar(
+          content: Text('Open a published story to view comments'),
+        ),
       );
       return;
     }
@@ -1665,130 +1696,119 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                         child: loading
                             ? const Center(child: CircularProgressIndicator())
                             : error != null
-                                ? Center(
-                                    child: Text(
-                                      error!,
-                                      style: TextStyle(
-                                        color: Colors.grey.shade600,
-                                      ),
-                                    ),
-                                  )
-                                : comments.isEmpty
-                                    ? Center(
-                                        child: Text(
-                                          'No comments yet — be the first!',
-                                          style: TextStyle(
-                                            color: Colors.grey.shade600,
-                                          ),
+                            ? Center(
+                                child: Text(
+                                  error!,
+                                  style: TextStyle(color: Colors.grey.shade600),
+                                ),
+                              )
+                            : comments.isEmpty
+                            ? Center(
+                                child: Text(
+                                  'No comments yet — be the first!',
+                                  style: TextStyle(color: Colors.grey.shade600),
+                                ),
+                              )
+                            : ListView.separated(
+                                controller: scrollCtrl,
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  12,
+                                  16,
+                                  12,
+                                ),
+                                itemCount: comments.length,
+                                separatorBuilder: (_, _) =>
+                                    const SizedBox(height: 16),
+                                itemBuilder: (_, i) {
+                                  final c = comments[i];
+                                  final name =
+                                      (c['display_name'] ??
+                                              c['username'] ??
+                                              'Reader')
+                                          .toString();
+                                  final body = (c['body'] ?? '').toString();
+                                  final when = _relativeTime(
+                                    (c['created_at'] ?? '').toString(),
+                                  );
+                                  final photo = (c['photo_url'] ?? '')
+                                      .toString();
+                                  final letter = name.isNotEmpty
+                                      ? name[0].toUpperCase()
+                                      : 'R';
+                                  return Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 18,
+                                        backgroundColor: const Color(
+                                          0xFFE8EEF9,
                                         ),
-                                      )
-                                    : ListView.separated(
-                                        controller: scrollCtrl,
-                                        padding: const EdgeInsets.fromLTRB(
-                                          16, 12, 16, 12,
-                                        ),
-                                        itemCount: comments.length,
-                                        separatorBuilder: (_, _) =>
-                                            const SizedBox(height: 16),
-                                        itemBuilder: (_, i) {
-                                          final c = comments[i];
-                                          final name = (c['display_name'] ??
-                                                  c['username'] ??
-                                                  'Reader')
-                                              .toString();
-                                          final body =
-                                              (c['body'] ?? '').toString();
-                                          final when = _relativeTime(
-                                            (c['created_at'] ?? '').toString(),
-                                          );
-                                          final photo =
-                                              (c['photo_url'] ?? '').toString();
-                                          final letter = name.isNotEmpty
-                                              ? name[0].toUpperCase()
-                                              : 'R';
-                                          return Row(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              CircleAvatar(
-                                                radius: 18,
-                                                backgroundColor:
-                                                    const Color(0xFFE8EEF9),
-                                                backgroundImage: photo.isNotEmpty
-                                                    ? NetworkImage(
-                                                        widget.apiService
-                                                            .resolveAssetUrl(
-                                                          photo,
-                                                        ),
-                                                      )
-                                                    : null,
-                                                child: photo.isEmpty
-                                                    ? Text(
-                                                        letter,
-                                                        style: const TextStyle(
-                                                          color: Color(
-                                                            0xFF1A73E8,
-                                                          ),
-                                                          fontWeight:
-                                                              FontWeight.w600,
-                                                        ),
-                                                      )
-                                                    : null,
-                                              ),
-                                              const SizedBox(width: 10),
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    Row(
-                                                      children: [
-                                                        Flexible(
-                                                          child: Text(
-                                                            name,
-                                                            style:
-                                                                const TextStyle(
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w600,
-                                                              fontSize: 13,
-                                                            ),
-                                                            overflow:
-                                                                TextOverflow
-                                                                    .ellipsis,
-                                                          ),
-                                                        ),
-                                                        if (when.isNotEmpty) ...[
-                                                          const SizedBox(
-                                                            width: 8,
-                                                          ),
-                                                          Text(
-                                                            when,
-                                                            style: TextStyle(
-                                                              color: Colors
-                                                                  .grey
-                                                                  .shade600,
-                                                              fontSize: 11,
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ],
-                                                    ),
-                                                    const SizedBox(height: 4),
-                                                    Text(
-                                                      body,
-                                                      style: const TextStyle(
-                                                        fontSize: 14,
-                                                        height: 1.4,
-                                                      ),
-                                                    ),
-                                                  ],
+                                        backgroundImage: photo.isNotEmpty
+                                            ? NetworkImage(
+                                                widget.apiService
+                                                    .resolveAssetUrl(photo),
+                                              )
+                                            : null,
+                                        child: photo.isEmpty
+                                            ? Text(
+                                                letter,
+                                                style: const TextStyle(
+                                                  color: Color(0xFF1A73E8),
+                                                  fontWeight: FontWeight.w600,
                                                 ),
-                                              ),
-                                            ],
-                                          );
-                                        },
+                                              )
+                                            : null,
                                       ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Flexible(
+                                                  child: Text(
+                                                    name,
+                                                    style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      fontSize: 13,
+                                                    ),
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                                if (when.isNotEmpty) ...[
+                                                  const SizedBox(width: 8),
+                                                  Text(
+                                                    when,
+                                                    style: TextStyle(
+                                                      color:
+                                                          Colors.grey.shade600,
+                                                      fontSize: 11,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              body,
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                height: 1.4,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
                       ),
                       const Divider(height: 1),
                       Padding(
@@ -1803,8 +1823,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                                   hintText: 'Add a comment…',
                                   filled: true,
                                   fillColor: const Color(0xFFF3F4F6),
-                                  contentPadding:
-                                      const EdgeInsets.symmetric(
+                                  contentPadding: const EdgeInsets.symmetric(
                                     horizontal: 14,
                                     vertical: 10,
                                   ),
@@ -1831,18 +1850,19 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                                       try {
                                         final item = await widget.apiService
                                             .postChapterComment(
-                                          bookId: bookId,
-                                          chapterNumber: _chapterNumber,
-                                          body: text,
-                                        );
+                                              bookId: bookId,
+                                              chapterNumber: _chapterNumber,
+                                              body: text,
+                                            );
                                         controller.clear();
                                         setModal(() {
                                           comments = [item, ...comments];
                                           posting = false;
                                         });
                                         if (context.mounted) {
-                                          ScaffoldMessenger.of(context)
-                                              .showSnackBar(
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
                                             const SnackBar(
                                               content: Text('Comment posted'),
                                             ),
@@ -1851,8 +1871,9 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                                       } catch (e) {
                                         setModal(() => posting = false);
                                         if (context.mounted) {
-                                          ScaffoldMessenger.of(context)
-                                              .showSnackBar(
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
                                             SnackBar(
                                               content: Text(
                                                 e
@@ -1902,9 +1923,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
         decoration: BoxDecoration(
           color: _bg,
-          border: Border(
-            top: BorderSide(color: _muted.withValues(alpha: 0.2)),
-          ),
+          border: Border(top: BorderSide(color: _muted.withValues(alpha: 0.2))),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -1912,8 +1931,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
             _barItem(
               icon: Icons.text_fields,
               label: 'Theme',
-              onTap: () =>
-                  setState(() => _showThemePanel = !_showThemePanel),
+              onTap: () => setState(() => _showThemePanel = !_showThemePanel),
             ),
             _barItem(
               icon: _liked ? Icons.favorite : Icons.favorite_border,
@@ -1926,11 +1944,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
               label: 'Comments',
               onTap: _openCommentsSheet,
             ),
-            _barItem(
-              icon: Icons.ios_share,
-              label: 'Share',
-              onTap: _share,
-            ),
+            _barItem(icon: Icons.ios_share, label: 'Share', onTap: _share),
             _barItem(
               icon: Icons.menu,
               label: 'Chapter',
@@ -1958,10 +1972,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
           children: [
             Icon(icon, size: 22, color: color ?? _muted),
             const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(color: color ?? _muted, fontSize: 10),
-            ),
+            Text(label, style: TextStyle(color: color ?? _muted, fontSize: 10)),
           ],
         ),
       ),

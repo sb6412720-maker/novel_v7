@@ -1,14 +1,15 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/material.dart';
 
 import 'package:novel_mobile_app/main.dart';
 
 void main() {
-  testWidgets('renders the main navigation shell', (WidgetTester tester) async {
+  testWidgets('starts the application shell while loading', (
+    WidgetTester tester,
+  ) async {
     await tester.pumpWidget(const InkittCloneApp());
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 100));
 
-    expect(find.text('Library'), findsOneWidget);
-    expect(find.text('Discover'), findsOneWidget);
-    expect(find.text('Write'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
   });
 }

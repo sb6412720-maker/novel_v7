@@ -117,11 +117,16 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       setState(() => _loading = true);
     }
     try {
-      final bootstrap = await _apiService.fetchBootstrap();
-      final version = await _apiService.fetchContentVersion();
+      final results = await Future.wait<dynamic>([
+        _apiService.fetchBootstrap(),
+        _apiService.fetchContentVersion(),
+      ]);
+      final bootstrap = results[0] as AppBootstrap;
+      final version = results[1] as String;
       if (!mounted) return;
       // Never replace a full home with an empty shell
-      final hasData = bootstrap.discoverBooks.isNotEmpty ||
+      final hasData =
+          bootstrap.discoverBooks.isNotEmpty ||
           bootstrap.recentlyUpdated.isNotEmpty;
       setState(() {
         if (hasData || _bootstrap == null) {
@@ -187,8 +192,8 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
             session.isGoogle
                 ? 'Signed in as ${session.displayName}'
                 : session.isGuest
-                    ? 'Continuing as guest (device-limited session)'
-                    : 'Signed in with ${session.email}',
+                ? 'Continuing as guest (device-limited session)'
+                : 'Signed in with ${session.email}',
           ),
         ),
       );
@@ -211,7 +216,8 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(msg),
-          backgroundColor: msg.toLowerCase().contains('banned') ||
+          backgroundColor:
+              msg.toLowerCase().contains('banned') ||
                   msg.toLowerCase().contains('suspended')
               ? Colors.red.shade700
               : null,
@@ -221,42 +227,32 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
     }
   }
 
-
-  final bool _onboardingChecked = false;
-
-
   Future<void> _maybeShowOnboarding(AuthSession session) async {
     if (session.isGuest) return;
     try {
       final me = await _apiService.fetchMe();
-      final complete = me['profile_complete'] == true ||
+      final complete =
+          me['profile_complete'] == true ||
           me['profile_complete'] == 1 ||
           me['profile_complete'] == '1';
       // Profile already completed during signup / prior onboarding — skip
       if (complete) return;
       final name = (me['display_name'] ?? '').toString().trim();
-      final uname = (me['username'] ?? '').toString().trim();
-      // Heuristic: has real name + username → treat as complete
-      if (name.isNotEmpty &&
-          name.toLowerCase() != 'reader' &&
-          uname.isNotEmpty) {
-        try {
-          await _apiService.updateMe({'profile_complete': 1});
-        } catch (_) {}
-        return;
-      }
       final display = name.isNotEmpty
           ? name
           : (me['display_name'] ?? session.displayName).toString().trim();
       final photo =
-          (me['photo_url'] ?? me['avatar_url'] ?? session.photoUrl ?? '').toString();
+          (me['photo_url'] ?? me['avatar_url'] ?? session.photoUrl ?? '')
+              .toString();
       if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           fullscreenDialog: true,
           builder: (_) => OnboardingProfileScreen(
             apiService: _apiService,
-            initialDisplayName: display.toLowerCase() == 'reader' ? '' : display,
+            initialDisplayName: display.toLowerCase() == 'reader'
+                ? ''
+                : display,
             initialPhotoUrl: photo,
             onDone: () {
               if (Navigator.of(context).canPop()) {
@@ -389,10 +385,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
     // (fixes empty Discover after leaving a story/comments).
     return Scaffold(
       body: SafeArea(
-        child: IndexedStack(
-          index: _selectedIndex,
-          children: pages,
-        ),
+        child: IndexedStack(index: _selectedIndex, children: pages),
       ),
       bottomNavigationBar: NavigationBar(
         height: 76,
@@ -468,23 +461,20 @@ class _AuthGate extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               title,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 10),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.grey.shade600,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade600),
             ),
             const SizedBox(height: 24),
-            FilledButton(
-              onPressed: onSignIn,
-              child: const Text('Sign in'),
-            ),
+            FilledButton(onPressed: onSignIn, child: const Text('Sign in')),
             TextButton(
               onPressed: onBrowse,
               child: const Text('Continue reading on Discover'),
