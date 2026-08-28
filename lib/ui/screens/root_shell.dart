@@ -246,7 +246,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
         // Heal flag if name/username present but flag missing
         if (!complete && hasName) {
           try {
-            await _apiService.updateProfile({'profile_complete': true});
+            await _apiService.updateMe({'profile_complete': true});
           } catch (_) {}
         }
         if (mounted) setState(() => _showLoginOverlay = false);
