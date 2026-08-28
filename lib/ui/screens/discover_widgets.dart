@@ -1118,7 +1118,7 @@ class _GenrePillRow extends StatelessWidget {
 
 
 /// Wattpad-style Continue reading strip (always visible).
-class _ContinueReadingSection extends StatelessWidget {
+class _ContinueReadingSection extends StatefulWidget {
   const _ContinueReadingSection({
     required this.entries,
     required this.apiService,
@@ -1129,22 +1129,87 @@ class _ContinueReadingSection extends StatelessWidget {
   final ApiService apiService;
   final VoidCallback? onBrowse;
 
-  /// Only ongoing reads (not finished all chapters).
-  List<LibraryEntryModel> get _ongoing {
-    return entries.where((e) {
-      final st = e.readingStatus.toLowerCase();
+  @override
+  State<_ContinueReadingSection> createState() =>
+      _ContinueReadingSectionState();
+}
+
+class _ContinueReadingSectionState extends State<_ContinueReadingSection> {
+  List<LibraryEntryModel> _items = const [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _items = _filterOngoing(widget.entries);
+    _refresh();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ContinueReadingSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.entries != widget.entries) {
+      _items = _filterOngoing(widget.entries);
+    }
+  }
+
+  List<LibraryEntryModel> _filterOngoing(List<LibraryEntryModel> list) {
+    return list.where((e) {
+      final st = e.readingStatus.toLowerCase().trim();
       if (st.contains('complete') || st.contains('finished')) return false;
-      // Hide if fully read
-      if (e.chapters > 0 && e.chaptersRead >= e.chapters) return false;
-      return true;
+      // Keep if any progress or just started
+      return e.book.id > 0;
     }).toList();
+  }
+
+  Future<void> _refresh() async {
+    final merged = <int, LibraryEntryModel>{};
+
+    // 1) Bootstrap seed
+    for (final e in widget.entries) {
+      if (e.book.id > 0) merged[e.book.id] = e;
+    }
+
+    // 2) Local cache (always works offline / even if API 401)
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('continue_reading_v1') ?? '{}';
+      final map = Map<String, dynamic>.from(
+        (jsonDecode(raw) as Map?) ?? const {},
+      );
+      for (final entry in map.values) {
+        if (entry is! Map) continue;
+        final m = Map<String, dynamic>.from(entry);
+        final model = LibraryEntryModel.fromMap(m);
+        if (model.book.id > 0) {
+          merged[model.book.id] = model;
+        }
+      }
+    } catch (_) {}
+
+    // 3) Live API
+    try {
+      final remote = await widget.apiService.fetchLibraryEntries();
+      for (final row in remote) {
+        final model = LibraryEntryModel.fromMap(row);
+        if (model.book.id > 0) {
+          merged[model.book.id] = model;
+        }
+      }
+    } catch (_) {}
+
+    if (!mounted) return;
+    setState(() {
+      _items = _filterOngoing(merged.values.toList());
+      _loading = false;
+    });
   }
 
   Widget _continueCover(BookCardModel b, {double w = 110, double h = 150}) {
     final asset = CoverAssets.assetForSeed(b.id > 0 ? b.id : b.title.hashCode);
     if (b.coverPath.isNotEmpty) {
       return Image.network(
-        apiService.resolveAssetUrl(b.coverPath),
+        widget.apiService.resolveAssetUrl(b.coverPath),
         fit: BoxFit.cover,
         width: w,
         height: h,
@@ -1164,12 +1229,13 @@ class _ContinueReadingSection extends StatelessWidget {
     final b = entry.book;
     List<Map<String, dynamic>> chapters = const [];
     try {
-      chapters = await apiService.fetchStoryChapters(b.id);
+      chapters = await widget.apiService.fetchStoryChapters(b.id);
     } catch (_) {}
     if (!context.mounted) return;
 
     int chapterIndex = 0;
-    int chapterNumber = entry.lastChapterNumber > 0 ? entry.lastChapterNumber : 1;
+    int chapterNumber =
+        entry.lastChapterNumber > 0 ? entry.lastChapterNumber : 1;
     String chapterTitle = 'Chapter $chapterNumber';
     String chapterContent = '';
 
@@ -1179,7 +1245,8 @@ class _ContinueReadingSection extends StatelessWidget {
       );
       chapterIndex = idx >= 0 ? idx : 0;
       final ch = chapters[chapterIndex];
-      chapterNumber = (ch['chapter_number'] as num?)?.toInt() ?? chapterNumber;
+      chapterNumber =
+          (ch['chapter_number'] as num?)?.toInt() ?? chapterNumber;
       chapterTitle = (ch['title'] ?? chapterTitle).toString();
       chapterContent = (ch['content'] ?? '').toString();
     }
@@ -1187,7 +1254,7 @@ class _ContinueReadingSection extends StatelessWidget {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => ChapterReaderScreen(
-          apiService: apiService,
+          apiService: widget.apiService,
           title: b.title,
           author: b.author,
           coverPath: b.coverPath,
@@ -1202,24 +1269,46 @@ class _ContinueReadingSection extends StatelessWidget {
         ),
       ),
     );
+    // Refresh list after returning from reader
+    if (mounted) _refresh();
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final books = _ongoing;
+    final books = _items;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Continue reading',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-                fontSize: 17,
-                letterSpacing: -0.2,
-                color: isDark ? Colors.white : null,
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Continue reading',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 17,
+                      letterSpacing: -0.2,
+                      color: isDark ? Colors.white : null,
+                    ),
               ),
+            ),
+            if (_loading)
+              const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            else
+              IconButton(
+                tooltip: 'Refresh',
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                onPressed: _refresh,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              ),
+          ],
         ),
         const SizedBox(height: 12),
         SizedBox(
@@ -1246,7 +1335,6 @@ class _ContinueReadingSection extends StatelessWidget {
                                 fit: StackFit.expand,
                                 children: [
                                   _continueCover(entry.book),
-                                  // Progress line at bottom of cover (Wattpad-style)
                                   Positioned(
                                     left: 0,
                                     right: 0,
@@ -1256,7 +1344,8 @@ class _ContinueReadingSection extends StatelessWidget {
                                       color: Colors.black.withValues(alpha: 0.35),
                                       alignment: Alignment.centerLeft,
                                       child: FractionallySizedBox(
-                                        widthFactor: entry.progressFraction.clamp(0.05, 1.0),
+                                        widthFactor: entry.progressFraction
+                                            .clamp(0.05, 1.0),
                                         child: Container(
                                           color: const Color(0xFFFF5722),
                                         ),
@@ -1277,7 +1366,8 @@ class _ContinueReadingSection extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
-                              color: isDark ? Colors.white70 : Colors.black54,
+                              color:
+                                  isDark ? Colors.white70 : Colors.black54,
                             ),
                           ),
                         ],
@@ -1285,14 +1375,15 @@ class _ContinueReadingSection extends StatelessWidget {
                     ),
                   ),
                 ),
-              // Empty-state / Browse card
               Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: Container(
                   width: 150,
                   height: 150,
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1E1E1E) : const Color(0xFFF4F4F6),
+                    color: isDark
+                        ? const Color(0xFF1E1E1E)
+                        : const Color(0xFFF4F4F6),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   padding: const EdgeInsets.all(12),
@@ -1311,7 +1402,7 @@ class _ContinueReadingSection extends StatelessWidget {
                       ),
                       const SizedBox(height: 10),
                       ElevatedButton.icon(
-                        onPressed: onBrowse,
+                        onPressed: widget.onBrowse,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF1A1A1A),
                           foregroundColor: Colors.white,
@@ -1334,6 +1425,8 @@ class _ContinueReadingSection extends StatelessWidget {
     );
   }
 }
+
+
 
 
 

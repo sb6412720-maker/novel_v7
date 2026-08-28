@@ -1,4 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
+
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
@@ -138,25 +141,52 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
   Future<void> _markLibraryProgress({bool completed = false}) async {
     final bookId = widget.bookId;
     if (bookId == null || bookId <= 0) return;
+    final total = _chapters.isNotEmpty ? _chapters.length : 1;
+    // chapters_read = how many chapters started (at least current)
+    final chaptersRead = completed
+        ? total
+        : (_chapterIndex + 1).clamp(1, total);
+    final payload = <String, dynamic>{
+      'book_id': bookId,
+      'title': widget.title,
+      'author': widget.author,
+      'cover_path': widget.coverPath,
+      'reading_status': completed ? 'Completed' : 'Reading',
+      'updated_text': completed
+          ? 'Finished'
+          : 'Ch. $_chapterNumber · para ${_lastParagraphIndex + 1}',
+      'chapters': total,
+      'primary_genre': '',
+      'secondary_genre': '',
+      'last_chapter_number': _chapterNumber,
+      'last_paragraph_index': _lastParagraphIndex,
+      'chapters_read': chaptersRead,
+      'author_user_id': widget.authorUserId,
+    };
+    // Local cache so Continue reading works even if API fails / offline
     try {
-      final total = _chapters.isNotEmpty ? _chapters.length : 1;
-      // chapters_read: how many fully finished (current index if not completed)
-      final chaptersRead = completed
-          ? total
-          : (_chapterIndex).clamp(0, total);
-      await widget.apiService.addLibraryEntry({
-        'book_id': bookId,
-        'reading_status': completed ? 'Completed' : 'Reading',
-        'updated_text': completed
-            ? 'Finished'
-            : 'Ch. $_chapterNumber · para ${_lastParagraphIndex + 1}',
-        'chapters': total,
-        'primary_genre': '',
-        'secondary_genre': '',
-        'last_chapter_number': _chapterNumber,
-        'last_paragraph_index': _lastParagraphIndex,
-        'chapters_read': chaptersRead,
-      });
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('continue_reading_v1') ?? '{}';
+      final map = Map<String, dynamic>.from(
+        (jsonDecode(raw) as Map?) ?? const {},
+      );
+      map['$bookId'] = {
+        ...payload,
+        'book': {
+          'id': bookId,
+          'title': widget.title,
+          'author': widget.author,
+          'cover_path': widget.coverPath,
+          'author_user_id': widget.authorUserId,
+        },
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+      await prefs.setString('continue_reading_v1', jsonEncode(map));
+    } catch (e) {
+      debugPrint('Local continue cache failed: $e');
+    }
+    try {
+      await widget.apiService.addLibraryEntry(payload);
     } catch (e) {
       debugPrint('Library progress save failed: $e');
     }
@@ -176,10 +206,9 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
 
   @override
   void dispose() {
-    // Persist exact stop position
-    unawaited(_markLibraryProgress(
-      completed: _chapters.isNotEmpty && _chapterIndex >= _chapters.length - 1,
-    ));
+    // Persist exact stop position as ongoing read
+    unawaited(_markLibraryProgress(completed: false));
+    _scrollController.removeListener(_updateVisibleParagraphFromScroll);
     _scrollController.dispose();
     super.dispose();
   }
@@ -210,12 +239,8 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     _paragraphCommentCounts = {};
     _loadReactions();
     unawaited(_loadParagraphCommentCounts());
-    // Last chapter open => mark book Completed in library
-    if (_chapters.isNotEmpty && _chapterIndex >= _chapters.length - 1) {
-      unawaited(_markLibraryProgress(completed: true));
-    } else {
-      unawaited(_markLibraryProgress(completed: false));
-    }
+    // Always keep as Reading while user is in a chapter (never auto-complete on open)
+    unawaited(_markLibraryProgress(completed: false));
   }
 
   Color get _bg {
