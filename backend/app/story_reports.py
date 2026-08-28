@@ -71,9 +71,12 @@ def register_story_report_routes(
     ):
         """Record a unique user report. Returns flagged_for_admin when count >= 3."""
         _ensure_story_reports_table()
-        books = fetch_all("SELECT id FROM books WHERE id=%s LIMIT 1", (book_id,))
+        books = fetch_all("SELECT id, user_id FROM books WHERE id=%s LIMIT 1", (book_id,))
         if not books:
             raise HTTPException(status_code=404, detail="Book not found")
+        owner_id = int(books[0].get("user_id") or 0) if isinstance(books[0], dict) else 0
+        if owner_id and owner_id == int(user["user_id"]):
+            return {"ok": False, "self": True, "detail": "You cannot report your own story"}
 
         reason = ""
         if payload is not None:

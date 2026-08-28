@@ -1344,16 +1344,29 @@ class _ContinueReadingSectionState extends State<_ContinueReadingSection> {
                                     left: 0,
                                     right: 0,
                                     bottom: 0,
-                                    child: Container(
-                                      height: 6,
-                                      color: Colors.black.withValues(
-                                        alpha: 0.35,
-                                      ),
-                                      alignment: Alignment.centerLeft,
-                                      child: FractionallySizedBox(
-                                        widthFactor: entry.progressFraction
-                                            .clamp(0.05, 1.0),
-                                        child: Container(color: AppTheme.brand),
+                                    child: SizedBox(
+                                      height: 5,
+                                      child: Stack(
+                                        fit: StackFit.expand,
+                                        children: [
+                                          Container(
+                                            color: Colors.black.withValues(
+                                              alpha: 0.4,
+                                            ),
+                                          ),
+                                          Align(
+                                            alignment: Alignment.centerLeft,
+                                            child: FractionallySizedBox(
+                                              widthFactor: entry
+                                                  .progressFraction
+                                                  .clamp(0.08, 1.0),
+                                              alignment: Alignment.centerLeft,
+                                              child: Container(
+                                                color: const Color(0xFFFF5722),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ),
@@ -1868,6 +1881,7 @@ class _GenreBooksScreen extends StatefulWidget {
 
 class _GenreBooksScreenState extends State<_GenreBooksScreen> {
   late List<Map<String, dynamic>> _books;
+  List<Map<String, dynamic>> _sourceBooks = const [];
   bool _loading = false;
   String _sort = 'Popular';
   String _period = 'All time';
@@ -1896,18 +1910,14 @@ class _GenreBooksScreenState extends State<_GenreBooksScreen> {
         minRating: 0,
       );
       if (!mounted) return;
-      if (remote.isNotEmpty) {
-        setState(() {
-          _books = remote;
-          _applyFiltersLocal();
-          _loading = false;
-        });
-      } else {
-        setState(() {
-          _applyFiltersLocal();
-          _loading = false;
-        });
-      }
+      final base = remote.isNotEmpty
+          ? remote
+          : List<Map<String, dynamic>>.from(widget.books);
+      setState(() {
+        _sourceBooks = base;
+        _applyFiltersLocal();
+        _loading = false;
+      });
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -1919,53 +1929,73 @@ class _GenreBooksScreenState extends State<_GenreBooksScreen> {
   }
 
   void _applyFiltersLocal() {
+    final g = widget.genre.toLowerCase().trim();
     var list = List<Map<String, dynamic>>.from(
-      _books.isEmpty && widget.books.isNotEmpty ? widget.books : _books,
+      _sourceBooks.isNotEmpty
+          ? _sourceBooks
+          : (_books.isNotEmpty ? _books : widget.books),
     );
-    // Filter by genre field match (exact genre only, not substring)
-    final g = widget.genre.toLowerCase();
+    // Exact genre only (primary or secondary)
     list = list.where((b) {
       final pg = (b['primary_genre'] ?? b['genre'] ?? '')
           .toString()
           .toLowerCase()
           .trim();
       final sg = (b['secondary_genre'] ?? '').toString().toLowerCase().trim();
+      if (g.isEmpty) return true;
       return pg == g || sg == g;
     }).toList();
 
-    // Apply period filter (created date)
     if (_period == 'Last 30 days') {
-      final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
-      // Filter books created in last 30 days (approximate: lower ids are newer)
-      final recentId = (thirtyDaysAgo.millisecondsSinceEpoch ~/ 1000).toInt();
+      final cutoff = DateTime.now().subtract(const Duration(days: 30));
       list = list.where((b) {
-        final id = (b['id'] as num?)?.toInt() ?? 0;
-        return id >= recentId;
+        final raw = (b['updated_at'] ??
+                b['created_at'] ??
+                b['last_updated'] ??
+                '')
+            .toString();
+        if (raw.isEmpty) return true; // keep if unknown date
+        try {
+          final dt = DateTime.parse(raw);
+          return dt.isAfter(cutoff);
+        } catch (_) {
+          return true;
+        }
       }).toList();
     }
 
-    // Apply sort filter
     if (_sort == 'Completed') {
       list = list.where((b) {
         final st = (b['status_text'] ?? '').toString().toLowerCase();
         final done = b['is_completed'] == true || b['is_completed'] == 1;
         return done || st.contains('complete') || st.contains('published');
       }).toList();
+    } else if (_sort == 'Unexplored') {
+      list = list.where((b) {
+        final st = (b['status_text'] ?? '').toString().toLowerCase();
+        final done = b['is_completed'] == true || b['is_completed'] == 1;
+        return !done && !st.contains('complete');
+      }).toList();
     } else if (_sort == 'Recently Updated') {
       list.sort((a, b) {
-        final ai = (a['id'] as num?)?.toInt() ?? 0;
-        final bi = (b['id'] as num?)?.toInt() ?? 0;
-        return bi.compareTo(ai);
+        final ar = (a['updated_at'] ?? a['created_at'] ?? '').toString();
+        final br = (b['updated_at'] ?? b['created_at'] ?? '').toString();
+        return br.compareTo(ar);
       });
-    } else if (_sort == 'Popular') {
+    } else {
+      // Popular
       list.sort((a, b) {
         final ar = (a['rating'] as num?)?.toDouble() ?? 0;
         final br = (b['rating'] as num?)?.toDouble() ?? 0;
-        return br.compareTo(ar);
+        final al = (a['likes_count'] as num?)?.toInt() ?? 0;
+        final bl = (b['likes_count'] as num?)?.toInt() ?? 0;
+        final c = br.compareTo(ar);
+        return c != 0 ? c : bl.compareTo(al);
       });
     }
     _books = list;
   }
+
 
   BookDetailModel _toBook(Map<String, dynamic> m) {
     return BookDetailModel.fromMap({

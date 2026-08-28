@@ -32,13 +32,18 @@ class _LibraryScreenState extends State<LibraryScreen>
   /// Completed = user finished the book (all chapters read / marked complete).
   bool _isCompleted(LibraryEntryModel e) {
     final s = e.readingStatus.toLowerCase().trim();
-    return s == 'completed' ||
+    if (s == 'completed' ||
         s == 'complete' ||
         s == 'finished' ||
         s == 'done' ||
         s == 'history' ||
         s.contains('complete') ||
-        s.contains('finish');
+        s.contains('finish')) {
+      return true;
+    }
+    // Fully read by chapter count
+    if (e.chapters > 0 && e.chaptersRead >= e.chapters) return true;
+    return false;
   }
 
   /// Ongoing = started (opened chapters) but not completed.

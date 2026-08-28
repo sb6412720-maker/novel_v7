@@ -231,12 +231,24 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
     if (session.isGuest) return;
     try {
       final me = await _apiService.fetchMe();
-      final complete =
-          me['profile_complete'] == true ||
-          me['profile_complete'] == 1 ||
-          me['profile_complete'] == '1';
+      final completeRaw = me['profile_complete'];
+      final complete = completeRaw == true ||
+          completeRaw == 1 ||
+          completeRaw == '1' ||
+          completeRaw == 'true' ||
+          completeRaw == 'True';
+      // Also treat as complete if display_name + username already filled from prior signup
+      final hasName = (me['display_name'] ?? '').toString().trim().isNotEmpty &&
+          (me['display_name'] ?? '').toString().trim().toLowerCase() != 'reader';
+      final hasUsername = (me['username'] ?? '').toString().trim().isNotEmpty;
       // Profile already completed during signup / prior onboarding — skip entirely
-      if (complete) {
+      if (complete || (hasName && hasUsername)) {
+        // Heal flag if name/username present but flag missing
+        if (!complete && hasName) {
+          try {
+            await _apiService.updateProfile({'profile_complete': true});
+          } catch (_) {}
+        }
         if (mounted) setState(() => _showLoginOverlay = false);
         return;
       }

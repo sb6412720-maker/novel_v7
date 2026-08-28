@@ -1322,11 +1322,11 @@ def _run_startup_migrations_sqlite(connection) -> dict[str, int]:
     cursor.execute("SELECT id FROM profiles LIMIT 1")
     profile_row = cursor.fetchone()
     profile_id = profile_row[0] if profile_row is not None else 1
-    cursor.execute("SELECT id FROM reading_lists WHERE name=? LIMIT 1", ("hello",))
+    cursor.execute("SELECT id FROM reading_lists WHERE name=? LIMIT 1", ("__disabled_seed_hello__",))
     if cursor.fetchone() is None:
         cursor.execute(
             "INSERT INTO reading_lists (profile_id, name, story_count, cover_path, sort_order) VALUES (?, ?, ?, ?, ?)",
-            (profile_id, "hello", 0, "", 1),
+            (profile_id, "__disabled_seed_hello__", 0, "", 1),
         )
 
     for profile_id, name, story_count, cover_path, sort_order in SEED_READING_LISTS:
@@ -1834,11 +1834,11 @@ def run_startup_migrations() -> dict[str, int]:
     cursor.execute("SELECT id FROM profiles LIMIT 1")
     profile_row = cursor.fetchone()
     profile_id = profile_row[0] if profile_row is not None else 1
-    cursor.execute("SELECT id FROM reading_lists WHERE name=%s LIMIT 1", ("hello",))
+    cursor.execute("SELECT id FROM reading_lists WHERE name=%s LIMIT 1", ("__disabled_seed_hello__",))
     if cursor.fetchone() is None:
         cursor.execute(
             "INSERT INTO reading_lists (profile_id, name, story_count, cover_path, sort_order) VALUES (%s, %s, %s, %s, %s)",
-            (profile_id, "hello", 0, "", 1),
+            (profile_id, "__disabled_seed_hello__", 0, "", 1),
         )
 
     for profile_id, name, story_count, cover_path, sort_order in SEED_READING_LISTS:

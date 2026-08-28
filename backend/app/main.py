@@ -3061,7 +3061,7 @@ def get_public_reading_lists(user: dict[str, Any] = Depends(require_user)):
         """
         SELECT id, profile_id, name, story_count, cover_path, sort_order
         FROM reading_lists
-        WHERE user_id = %s OR (user_id IS NULL AND profile_id = 1)
+        WHERE user_id = %s
         ORDER BY sort_order, id
         """,
         (user["user_id"],),
