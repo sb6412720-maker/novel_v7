@@ -11,6 +11,7 @@ import '../../data/services/api_service.dart';
 import 'explore_screen.dart';
 import 'profile_screen.dart';
 import 'story_detail_screen.dart';
+import 'chapter_reader_screen.dart';
 
 part 'discover_widgets.dart';
 

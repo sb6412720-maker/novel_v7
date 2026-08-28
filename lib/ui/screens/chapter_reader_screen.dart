@@ -23,6 +23,7 @@ class ChapterReaderScreen extends StatefulWidget {
     this.authorPhotoUrl,
     this.chapters = const [],
     this.initialChapterIndex = 0,
+    this.initialParagraphIndex = 0,
   });
 
   final ApiService apiService;
@@ -38,6 +39,8 @@ class ChapterReaderScreen extends StatefulWidget {
   final String? authorPhotoUrl;
   final List<Map<String, dynamic>> chapters;
   final int initialChapterIndex;
+  /// Resume position inside the chapter (0-based paragraph index).
+  final int initialParagraphIndex;
 
   @override
   State<ChapterReaderScreen> createState() => _ChapterReaderScreenState();
@@ -52,6 +55,8 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
   late String _chapterContent;
   late int _chapterNumber;
   String? _authorPhotoUrl;
+  int _lastParagraphIndex = 0;
+  final Map<int, GlobalKey> _paragraphKeys = {};
 
   _ReaderTheme _theme = _ReaderTheme.white;
   double _fontSize = 17;
@@ -90,6 +95,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
       0,
       _chapters.isEmpty ? 0 : _chapters.length - 1,
     );
+    _lastParagraphIndex = widget.initialParagraphIndex;
     if (_chapters.isNotEmpty) {
       _applyChapter(_chapters[_chapterIndex]);
     } else {
@@ -101,28 +107,79 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     }
     _loadChaptersIfNeeded();
     _loadReactions();
+    // Resume scroll to last paragraph after first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToParagraph(_lastParagraphIndex);
+    });
+    _scrollController.addListener(_updateVisibleParagraphFromScroll);
+  }
+
+  void _scrollToParagraph(int index) {
+    if (index <= 0 || !_scrollController.hasClients) return;
+    // Approximate jump; refined if key is available
+    final target = (index * 140.0).clamp(
+      0.0,
+      _scrollController.position.maxScrollExtent,
+    );
+    try {
+      _scrollController.jumpTo(target);
+    } catch (_) {}
+    final key = _paragraphKeys[index];
+    final ctx = key?.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 300),
+        alignment: 0.1,
+      );
+    }
   }
 
   Future<void> _markLibraryProgress({bool completed = false}) async {
     final bookId = widget.bookId;
     if (bookId == null || bookId <= 0) return;
     try {
+      final total = _chapters.isNotEmpty ? _chapters.length : 1;
+      // chapters_read: how many fully finished (current index if not completed)
+      final chaptersRead = completed
+          ? total
+          : (_chapterIndex).clamp(0, total);
       await widget.apiService.addLibraryEntry({
         'book_id': bookId,
         'reading_status': completed ? 'Completed' : 'Reading',
-        'updated_text': completed ? 'Finished' : 'Reading',
-        'chapters': _chapters.isNotEmpty ? _chapters.length : 1,
+        'updated_text': completed
+            ? 'Finished'
+            : 'Ch. $_chapterNumber · para ${_lastParagraphIndex + 1}',
+        'chapters': total,
         'primary_genre': '',
         'secondary_genre': '',
+        'last_chapter_number': _chapterNumber,
+        'last_paragraph_index': _lastParagraphIndex,
+        'chapters_read': chaptersRead,
       });
     } catch (e) {
-      // Surface soft failure — silent catch caused "library not saving"
       debugPrint('Library progress save failed: $e');
+    }
+  }
+
+  void _updateVisibleParagraphFromScroll() {
+    if (!_scrollController.hasClients) return;
+    final offset = _scrollController.offset;
+    // Approximate: each paragraph ~140px; clamp
+    final paras = _paragraphs();
+    if (paras.isEmpty) return;
+    final approx = (offset / 140).floor().clamp(0, paras.length - 1);
+    if (approx != _lastParagraphIndex) {
+      _lastParagraphIndex = approx;
     }
   }
 
   @override
   void dispose() {
+    // Persist exact stop position
+    unawaited(_markLibraryProgress(
+      completed: _chapters.isNotEmpty && _chapterIndex >= _chapters.length - 1,
+    ));
     _scrollController.dispose();
     super.dispose();
   }
@@ -809,7 +866,9 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
 
   Widget _buildParagraphBlock(String text, int index) {
     final count = _paragraphCommentCounts[index] ?? 0;
+    final key = _paragraphKeys.putIfAbsent(index, () => GlobalKey());
     return Padding(
+      key: key,
       padding: const EdgeInsets.only(bottom: 14),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -92,6 +92,9 @@ class LibraryCreateRequest(BaseModel):
     chapters: int = 0
     primary_genre: str = ""
     secondary_genre: str = ""
+    last_chapter_number: int | None = None
+    last_paragraph_index: int | None = None
+    chapters_read: int | None = None
 
 
 class LibraryUpdateRequest(BaseModel):
@@ -100,6 +103,9 @@ class LibraryUpdateRequest(BaseModel):
     chapters: int | None = None
     primary_genre: str | None = None
     secondary_genre: str | None = None
+    last_chapter_number: int | None = None
+    last_paragraph_index: int | None = None
+    chapters_read: int | None = None
 
 
 class ReadingListCreateRequest(BaseModel):
@@ -2356,6 +2362,9 @@ def bootstrap(user: dict[str, Any] | None = Depends(optional_user)):
                 """
                 SELECT le.id, le.book_id, le.reading_status, le.updated_text, le.chapters,
                        le.primary_genre, le.secondary_genre, le.sort_order,
+                       COALESCE(le.last_chapter_number, 1) AS last_chapter_number,
+                       COALESCE(le.last_paragraph_index, 0) AS last_paragraph_index,
+                       COALESCE(le.chapters_read, 0) AS chapters_read,
                        b.title, b.author, b.cover_path, b.accent_hex, b.rating, b.genre,
                        b.status_text, b.description, b.section_name, b.cta_label,
                        COALESCE(b.primary_genre, b.genre) AS book_primary_genre,
@@ -2377,6 +2386,9 @@ def bootstrap(user: dict[str, Any] | None = Depends(optional_user)):
                     "reading_status": row.get("reading_status") or "Reading",
                     "updated_text": row.get("updated_text") or "",
                     "chapters": int(row.get("chapters") or 0),
+                    "last_chapter_number": int(row.get("last_chapter_number") or 1),
+                    "last_paragraph_index": int(row.get("last_paragraph_index") or 0),
+                    "chapters_read": int(row.get("chapters_read") or 0),
                     "primary_genre": row.get("primary_genre") or row.get("book_primary_genre") or "",
                     "secondary_genre": row.get("secondary_genre") or "",
                     "book": {
@@ -2780,6 +2792,22 @@ def _ensure_library_entries_table() -> None:
                 """,
                 (),
             )
+        
+        # Reading resume fields
+        for col_sql in (
+            ("last_chapter_number", "INTEGER DEFAULT 1"),
+            ("last_paragraph_index", "INTEGER DEFAULT 0"),
+            ("chapters_read", "INTEGER DEFAULT 0"),
+        ):
+            col, typ = col_sql
+            try:
+                if _live_use_sqlite():
+                    execute_write(f"ALTER TABLE library_entries ADD COLUMN {col} {typ}")
+                else:
+                    execute_write(f"ALTER TABLE library_entries ADD COLUMN {col} {typ}")
+            except Exception:
+                pass
+
         _LIBRARY_ENTRIES_TABLE_READY = True
     except Exception as exc:
         LOGGER.warning("library_entries ensure failed: %s", exc)
@@ -2791,7 +2819,11 @@ def get_library_entries(user: dict[str, Any] = Depends(require_user)):
     rows = fetch_all(
         """
         SELECT le.id, le.reading_status, le.updated_text, le.chapters, le.primary_genre,
-               le.secondary_genre, b.id AS book_id, b.title, b.author, b.cover_path, b.accent_hex,
+               le.secondary_genre,
+               COALESCE(le.last_chapter_number, 1) AS last_chapter_number,
+               COALESCE(le.last_paragraph_index, 0) AS last_paragraph_index,
+               COALESCE(le.chapters_read, 0) AS chapters_read,
+               b.id AS book_id, b.title, b.author, b.cover_path, b.accent_hex,
                b.description, b.status_text, b.rating, b.user_id AS author_user_id, b.primary_genre AS book_genre
         FROM library_entries le
         JOIN books b ON b.id = le.book_id
@@ -2824,6 +2856,9 @@ def get_library_entries(user: dict[str, Any] = Depends(require_user)):
             "reading_status": _row_get(row, "reading_status"),
             "updated_text": _row_get(row, "updated_text"),
             "chapters": _row_get(row, "chapters"),
+            "last_chapter_number": int(_row_get(row, "last_chapter_number") or 1),
+            "last_paragraph_index": int(_row_get(row, "last_paragraph_index") or 0),
+            "chapters_read": int(_row_get(row, "chapters_read") or 0),
             "primary_genre": _row_get(row, "primary_genre"),
             "secondary_genre": _row_get(row, "secondary_genre"),
         })
@@ -2859,10 +2894,14 @@ def create_library_entry(
                     pass
         # Always apply the requested status (user can toggle Ongoing <-> Completed)
         status_to_set = new_status
+        lcn = payload.last_chapter_number if payload.last_chapter_number is not None else 1
+        lpi = payload.last_paragraph_index if payload.last_paragraph_index is not None else 0
+        cr = payload.chapters_read if payload.chapters_read is not None else 0
         execute_write(
             """
             UPDATE library_entries
-            SET reading_status=%s, updated_text=%s, chapters=%s, primary_genre=%s, secondary_genre=%s
+            SET reading_status=%s, updated_text=%s, chapters=%s, primary_genre=%s, secondary_genre=%s,
+                last_chapter_number=%s, last_paragraph_index=%s, chapters_read=%s
             WHERE id=%s
             """,
             (
@@ -2871,16 +2910,23 @@ def create_library_entry(
                 payload.chapters,
                 payload.primary_genre,
                 payload.secondary_genre,
+                lcn,
+                lpi,
+                cr,
                 keep_id,
             ),
         )
         bump_content_version()
         return {"ok": True, "id": keep_id, "updated": True}
 
+    lcn = payload.last_chapter_number if payload.last_chapter_number is not None else 1
+    lpi = payload.last_paragraph_index if payload.last_paragraph_index is not None else 0
+    cr = payload.chapters_read if payload.chapters_read is not None else 0
     entry_id, affected = execute_write(
         """
-        INSERT INTO library_entries (user_id, book_id, reading_status, updated_text, chapters, primary_genre, secondary_genre, sort_order)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, 999)
+        INSERT INTO library_entries (user_id, book_id, reading_status, updated_text, chapters, primary_genre, secondary_genre, sort_order,
+            last_chapter_number, last_paragraph_index, chapters_read)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, 999, %s, %s, %s)
         """,
         (
             uid,
@@ -2890,6 +2936,9 @@ def create_library_entry(
             payload.chapters,
             payload.primary_genre,
             payload.secondary_genre,
+            lcn,
+            lpi,
+            cr,
         ),
     )
     if affected == 0 and not entry_id:

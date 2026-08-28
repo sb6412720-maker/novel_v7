@@ -1129,7 +1129,18 @@ class _ContinueReadingSection extends StatelessWidget {
   final ApiService apiService;
   final VoidCallback? onBrowse;
 
-  Widget _continueCover(BookCardModel b, {double w = 110, double h = 160}) {
+  /// Only ongoing reads (not finished all chapters).
+  List<LibraryEntryModel> get _ongoing {
+    return entries.where((e) {
+      final st = e.readingStatus.toLowerCase();
+      if (st.contains('complete') || st.contains('finished')) return false;
+      // Hide if fully read
+      if (e.chapters > 0 && e.chaptersRead >= e.chapters) return false;
+      return true;
+    }).toList();
+  }
+
+  Widget _continueCover(BookCardModel b, {double w = 110, double h = 150}) {
     final asset = CoverAssets.assetForSeed(b.id > 0 ? b.id : b.title.hashCode);
     if (b.coverPath.isNotEmpty) {
       return Image.network(
@@ -1139,82 +1150,147 @@ class _ContinueReadingSection extends StatelessWidget {
         height: h,
         cacheWidth: (w * 2).round(),
         cacheHeight: (h * 2).round(),
-        errorBuilder: (_, _, _) => Image.asset(asset, fit: BoxFit.cover, width: w, height: h),
+        errorBuilder: (_, _, _) =>
+            Image.asset(asset, fit: BoxFit.cover, width: w, height: h),
       );
     }
     return Image.asset(asset, fit: BoxFit.cover, width: w, height: h);
   }
 
+  Future<void> _openResume(
+    BuildContext context,
+    LibraryEntryModel entry,
+  ) async {
+    final b = entry.book;
+    List<Map<String, dynamic>> chapters = const [];
+    try {
+      chapters = await apiService.fetchStoryChapters(b.id);
+    } catch (_) {}
+    if (!context.mounted) return;
+
+    int chapterIndex = 0;
+    int chapterNumber = entry.lastChapterNumber > 0 ? entry.lastChapterNumber : 1;
+    String chapterTitle = 'Chapter $chapterNumber';
+    String chapterContent = '';
+
+    if (chapters.isNotEmpty) {
+      final idx = chapters.indexWhere(
+        (c) => (c['chapter_number'] as num?)?.toInt() == chapterNumber,
+      );
+      chapterIndex = idx >= 0 ? idx : 0;
+      final ch = chapters[chapterIndex];
+      chapterNumber = (ch['chapter_number'] as num?)?.toInt() ?? chapterNumber;
+      chapterTitle = (ch['title'] ?? chapterTitle).toString();
+      chapterContent = (ch['content'] ?? '').toString();
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ChapterReaderScreen(
+          apiService: apiService,
+          title: b.title,
+          author: b.author,
+          coverPath: b.coverPath,
+          chapterNumber: chapterNumber,
+          chapterTitle: chapterTitle,
+          chapterContent: chapterContent,
+          bookId: b.id,
+          chapters: chapters,
+          initialChapterIndex: chapterIndex,
+          initialParagraphIndex: entry.lastParagraphIndex,
+          authorUserId: b.authorUserId,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final books = entries
-        .map((e) => e.book)
-        .where((b) => b.id > 0)
-        .toList();
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final books = _ongoing;
 
-    // Centered section on Discover page
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'Continue reading',
-          textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w700,
                 fontSize: 17,
+                letterSpacing: -0.2,
                 color: isDark ? Colors.white : null,
               ),
         ),
         const SizedBox(height: 12),
         SizedBox(
-          height: 168,
-          child: Center(
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              shrinkWrap: true,
-              children: [
-                for (final b in books.take(8))
-                  Padding(
-                    padding: const EdgeInsets.only(right: 10),
-                    child: GestureDetector(
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => StoryDetailScreen(
-                              apiService: apiService,
-                              book: BookDetailModel(
-                                id: b.id,
-                                title: b.title,
-                                author: b.author,
-                                description: b.description,
-                                statusText: b.statusText,
-                                rating: b.rating,
-                                genre: b.primaryGenre,
-                                cta: b.cta,
-                                coverPath: b.coverPath,
-                                authorUserId: b.authorUserId,
+          height: 200,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              for (final entry in books)
+                Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: GestureDetector(
+                    onTap: () => _openResume(context, entry),
+                    child: SizedBox(
+                      width: 110,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: SizedBox(
+                              width: 110,
+                              height: 150,
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  _continueCover(entry.book),
+                                  // Progress line at bottom of cover (Wattpad-style)
+                                  Positioned(
+                                    left: 0,
+                                    right: 0,
+                                    bottom: 0,
+                                    child: Container(
+                                      height: 4,
+                                      color: Colors.black.withValues(alpha: 0.35),
+                                      alignment: Alignment.centerLeft,
+                                      child: FractionallySizedBox(
+                                        widthFactor: entry.progressFraction.clamp(0.05, 1.0),
+                                        child: Container(
+                                          color: const Color(0xFFFF5722),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
-                        );
-                      },
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: SizedBox(
-                          width: 110,
-                          height: 160,
-                          child: _continueCover(b),
-                        ),
+                          const SizedBox(height: 6),
+                          Text(
+                            entry.updatedText.isNotEmpty
+                                ? entry.updatedText
+                                : 'Ch. ${entry.lastChapterNumber}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? Colors.white70 : Colors.black54,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
+                ),
               // Empty-state / Browse card
               Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: Container(
                   width: 150,
-                  height: 160,
+                  height: 150,
                   decoration: BoxDecoration(
                     color: isDark ? const Color(0xFF1E1E1E) : const Color(0xFFF4F4F6),
                     borderRadius: BorderRadius.circular(12),
@@ -1239,24 +1315,27 @@ class _ContinueReadingSection extends StatelessWidget {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF1A1A1A),
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
                           minimumSize: const Size(0, 36),
                         ),
                         icon: const Icon(Icons.search, size: 16),
-                        label: const Text('Browse stories', style: TextStyle(fontSize: 12)),
+                        label: const Text('Browse stories',
+                            style: TextStyle(fontSize: 12)),
                       ),
                     ],
                   ),
                 ),
               ),
             ],
-            ),
           ),
         ),
       ],
     );
   }
 }
+
+
 
 class _BrowseGenresSection extends StatelessWidget {
   const _BrowseGenresSection({

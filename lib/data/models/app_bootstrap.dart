@@ -279,6 +279,9 @@ class LibraryEntryModel {
     required this.chapters,
     required this.primaryGenre,
     required this.secondaryGenre,
+    this.lastChapterNumber = 1,
+    this.lastParagraphIndex = 0,
+    this.chaptersRead = 0,
   });
 
   final int id;
@@ -288,6 +291,21 @@ class LibraryEntryModel {
   final int chapters;
   final String primaryGenre;
   final String secondaryGenre;
+  final int lastChapterNumber;
+  final int lastParagraphIndex;
+  final int chaptersRead;
+
+  /// 0.0–1.0 progress through the book (chapters based).
+  double get progressFraction {
+    final total = chapters > 0 ? chapters : book.id; // fallback
+    final t = chapters > 0 ? chapters : 0;
+    if (t <= 0) {
+      // If we only know chapter number
+      return lastChapterNumber > 0 ? 0.15 : 0.0;
+    }
+    final read = chaptersRead > 0 ? chaptersRead : (lastChapterNumber > 0 ? lastChapterNumber - 1 : 0);
+    return (read / t).clamp(0.0, 1.0);
+  }
 
   factory LibraryEntryModel.fromMap(Map<String, dynamic> map) {
     final bookMap = Map<String, dynamic>.from(
@@ -305,6 +323,9 @@ class LibraryEntryModel {
       chapters: (map['chapters'] as num?)?.toInt() ?? 0,
       primaryGenre: (map['primary_genre'] ?? '').toString(),
       secondaryGenre: (map['secondary_genre'] ?? '').toString(),
+      lastChapterNumber: (map['last_chapter_number'] as num?)?.toInt() ?? 1,
+      lastParagraphIndex: (map['last_paragraph_index'] as num?)?.toInt() ?? 0,
+      chaptersRead: (map['chapters_read'] as num?)?.toInt() ?? 0,
     );
   }
 }
