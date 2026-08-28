@@ -115,7 +115,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
             _selectedWarnings.add(match);
           } else {
             _selectedWarnings.add('Other');
-            _otherWarningController.text = t;
+            _otherWarningController.text = t;                                                                          
           }
         }
       }
