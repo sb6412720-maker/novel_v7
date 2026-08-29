@@ -5944,41 +5944,46 @@ def _user_moderation_status(user_id: int) -> dict[str, Any]:
 
 @app.get("/api/admin/users")
 def admin_list_users(_: dict[str, Any] = Depends(require_admin)):
+    """List users for admin panel. Single query — no N+1 (avoids Vercel timeout/CORS loss)."""
     _ensure_user_moderation_columns()
     try:
         rows = fetch_all(
             """
-            SELECT id, email, display_name, photo_url, provider, bio,
-                   COALESCE(is_banned, 0) AS is_banned,
-                   COALESCE(is_suspended, 0) AS is_suspended,
-                   COALESCE(is_deleted, 0) AS is_deleted,
-                   suspended_until,
-                   COALESCE(is_author, 0) AS is_author,
-                   COALESCE(is_author_active, 1) AS is_author_active
-            FROM app_users
-            ORDER BY id DESC
+            SELECT u.id, u.email, u.display_name, u.photo_url, u.provider, u.bio,
+                   COALESCE(u.is_banned, 0) AS is_banned,
+                   COALESCE(u.is_suspended, 0) AS is_suspended,
+                   COALESCE(u.is_deleted, 0) AS is_deleted,
+                   u.suspended_until,
+                   COALESCE(u.is_author, 0) AS is_author,
+                   COALESCE(u.is_author_active, 1) AS is_author_active,
+                   (SELECT COUNT(*) FROM books b WHERE b.user_id = u.id) AS story_count,
+                   (SELECT COUNT(*) FROM author_follows af WHERE af.author_id = u.id) AS follower_count
+            FROM app_users u
+            ORDER BY u.id DESC
             LIMIT 500
             """
         )
     except Exception as list_exc:
-        LOGGER.warning("admin_list_users full select failed, basic fallback: %s", list_exc)
-        rows = fetch_all(
-            "SELECT id, email, display_name, photo_url, provider, bio FROM app_users ORDER BY id DESC LIMIT 500"
-        )
+        LOGGER.warning("admin_list_users rich select failed: %s", list_exc)
+        try:
+            rows = fetch_all(
+                """
+                SELECT id, email, display_name, photo_url, provider, bio
+                FROM app_users
+                ORDER BY id DESC
+                LIMIT 500
+                """
+            )
+        except Exception as e2:
+            LOGGER.warning("admin_list_users basic select failed: %s", e2)
+            return {"items": []}
+
     items = []
-    for row in rows:
+    for row in rows or []:
         uid = _row_get(row, "id")
-        story_c = fetch_all("SELECT COUNT(*) AS c FROM books WHERE user_id=%s", (uid,))
-        fol_c = fetch_all("SELECT COUNT(*) AS c FROM author_follows WHERE author_id=%s", (uid,))
-        # Always resolve moderation flags from DB (never leave list stuck on Active)
-        flags = _user_moderation_status(int(uid)) if uid is not None else {}
-        is_banned = _as_bool_flag(_row_get(row, "is_banned"))
-        is_suspended = _as_bool_flag(_row_get(row, "is_suspended"))
-        is_deleted = _as_bool_flag(_row_get(row, "is_deleted"))
-        if "is_banned" in flags:
-            is_banned = _as_bool_flag(flags.get("is_banned"))
-            is_suspended = _as_bool_flag(flags.get("is_suspended"))
-            is_deleted = _as_bool_flag(flags.get("is_deleted"))
+        story_count = int(_row_get(row, "story_count") or 0)
+        follower_count = int(_row_get(row, "follower_count") or 0)
+        is_author = _as_bool_flag(_row_get(row, "is_author")) or story_count > 0
         items.append({
             "id": uid,
             "email": _row_get(row, "email") or "",
@@ -5986,14 +5991,18 @@ def admin_list_users(_: dict[str, Any] = Depends(require_admin)):
             "photo_url": _row_get(row, "photo_url") or "",
             "provider": _row_get(row, "provider") or "",
             "bio": _row_get(row, "bio") or "",
-            "is_banned": is_banned,
-            "is_suspended": is_suspended,
-            "is_deleted": is_deleted,
-            "suspended_until": (flags.get("suspended_until") if flags else None) or (str(_row_get(row, "suspended_until") or "") or None),
-            "is_author": _as_bool_flag(_row_get(row, "is_author")) or int(story_c[0]["c"] if story_c else 0) > 0,
-            "is_author_active": _as_bool_flag(flags.get("is_author_active") if flags and flags.get("is_author_active") is not None else (_row_get(row, "is_author_active") if _row_get(row, "is_author_active") is not None else 1)),
-            "story_count": int(story_c[0]["c"]) if story_c else 0,
-            "followers": int(fol_c[0]["c"]) if fol_c else 0,
+            "is_banned": _as_bool_flag(_row_get(row, "is_banned")),
+            "is_suspended": _as_bool_flag(_row_get(row, "is_suspended")),
+            "is_deleted": _as_bool_flag(_row_get(row, "is_deleted")),
+            "suspended_until": str(_row_get(row, "suspended_until") or "") or None,
+            "is_author": is_author,
+            "is_author_active": _as_bool_flag(
+                _row_get(row, "is_author_active")
+                if _row_get(row, "is_author_active") is not None
+                else 1
+            ),
+            "story_count": story_count,
+            "follower_count": follower_count,
         })
     return {"items": items}
 
