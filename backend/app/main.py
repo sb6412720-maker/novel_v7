@@ -52,6 +52,7 @@ _DEFAULT_CORS = [
     "https://novel-v7.vercel.app",
     "https://novel-v7-admin.vercel.app",
     "https://novel-v7-admin-panel.vercel.app",
+    "https://novel-v7-p8ec.vercel.app",  # admin panel production
     "http://localhost:5173",
     "http://localhost:3000",
     "http://localhost:4173",
@@ -60,10 +61,13 @@ _DEFAULT_CORS = [
 ]
 _extra = [s.strip() for s in os.getenv("CORS_ORIGINS", "").split(",") if s.strip()]
 _CORS_ORIGINS = list(dict.fromkeys(_DEFAULT_CORS + _extra))
+# Allow any Vercel preview/deployment for this project family (admin + web)
+_CORS_ORIGIN_REGEX = r"https://novel-v7[a-z0-9-]*\.vercel\.app"
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_CORS_ORIGINS,
+    allow_origin_regex=_CORS_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
