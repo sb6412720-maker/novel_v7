@@ -1232,6 +1232,26 @@ class _ContinueReadingSectionState extends State<_ContinueReadingSection> {
     LibraryEntryModel entry,
   ) async {
     final b = entry.book;
+    int chapterNumber =
+        entry.lastChapterNumber > 0 ? entry.lastChapterNumber : 1;
+    int paragraphIndex = entry.lastParagraphIndex;
+    // Prefer freshest local cache for chapter/paragraph
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('continue_reading_v1') ?? '{}';
+      final map = Map<String, dynamic>.from(
+        (jsonDecode(raw) as Map?) ?? const {},
+      );
+      final cached = map['${b.id}'];
+      if (cached is Map) {
+        final c = Map<String, dynamic>.from(cached);
+        chapterNumber =
+            (c['last_chapter_number'] as num?)?.toInt() ?? chapterNumber;
+        paragraphIndex =
+            (c['last_paragraph_index'] as num?)?.toInt() ?? paragraphIndex;
+      }
+    } catch (_) {}
+
     List<Map<String, dynamic>> chapters = const [];
     try {
       chapters = await widget.apiService.fetchStoryChapters(b.id);
@@ -1239,9 +1259,6 @@ class _ContinueReadingSectionState extends State<_ContinueReadingSection> {
     if (!context.mounted) return;
 
     int chapterIndex = 0;
-    int chapterNumber = entry.lastChapterNumber > 0
-        ? entry.lastChapterNumber
-        : 1;
     String chapterTitle = 'Chapter $chapterNumber';
     String chapterContent = '';
 
@@ -1251,7 +1268,8 @@ class _ContinueReadingSectionState extends State<_ContinueReadingSection> {
       );
       chapterIndex = idx >= 0 ? idx : 0;
       final ch = chapters[chapterIndex];
-      chapterNumber = (ch['chapter_number'] as num?)?.toInt() ?? chapterNumber;
+      chapterNumber =
+          (ch['chapter_number'] as num?)?.toInt() ?? chapterNumber;
       chapterTitle = (ch['title'] ?? chapterTitle).toString();
       chapterContent = (ch['content'] ?? '').toString();
     }
@@ -1269,7 +1287,7 @@ class _ContinueReadingSectionState extends State<_ContinueReadingSection> {
           bookId: b.id,
           chapters: chapters,
           initialChapterIndex: chapterIndex,
-          initialParagraphIndex: entry.lastParagraphIndex,
+          initialParagraphIndex: paragraphIndex,
           authorUserId: b.authorUserId,
         ),
       ),
@@ -1277,6 +1295,7 @@ class _ContinueReadingSectionState extends State<_ContinueReadingSection> {
     // Refresh list after returning from reader
     if (mounted) _refresh();
   }
+
 
   @override
   Widget build(BuildContext context) {

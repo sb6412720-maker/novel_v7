@@ -227,6 +227,9 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         return;
       }
       setState(() => _coverPath = path);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cover uploaded')),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -753,70 +756,20 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                   const SizedBox(height: 14),
                   _label('GENRE'),
                   const SizedBox(height: 7),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: _loadingGenres
-                              ? null
-                              : () => _openPicker(
-                                    title: 'Select genre',
-                                    options: _genres,
-                                    current: _selectedGenre,
-                                    onSelect: (v) => setState(() => _selectedGenre = v),
-                                  ),
-                          child: _dropdownTrigger(
-                            _selectedGenre ?? 'Select genre',
-                            isPlaceholder: _selectedGenre == null,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      OutlinedButton(
-                        onPressed: () => setState(() => _showCustomGenre = !_showCustomGenre),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: _magenta,
-                          side: const BorderSide(color: _border),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        child: const Text('+ New', style: TextStyle(fontWeight: FontWeight.w600)),
-                      ),
-                    ],
-                  ),
-                  if (_showCustomGenre) ...[
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _darkField(
-                            child: TextField(
-                              controller: _customGenreController,
-                              style: const TextStyle(color: _textHi, fontSize: 15),
-                              decoration: const InputDecoration(
-                                hintText: 'Name a new genre...',
-                                hintStyle: TextStyle(color: _textFaint),
-                                border: InputBorder.none,
-                                contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-                              ),
-                              onSubmitted: (_) => _addCustomGenre(),
+                  GestureDetector(
+                    onTap: _loadingGenres
+                        ? null
+                        : () => _openPicker(
+                              title: 'Select genre',
+                              options: _genres,
+                              current: _selectedGenre,
+                              onSelect: (v) => setState(() => _selectedGenre = v),
                             ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        ElevatedButton(
-                          onPressed: _addCustomGenre,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _magenta,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                          child: const Text('Add'),
-                        ),
-                      ],
+                    child: _dropdownTrigger(
+                      _selectedGenre ?? 'Select genre',
+                      isPlaceholder: _selectedGenre == null,
                     ),
-                  ],
+                  ),
                   const SizedBox(height: 14),
                   _label('STORY STATUS'),
                   const SizedBox(height: 7),

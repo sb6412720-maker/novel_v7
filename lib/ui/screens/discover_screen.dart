@@ -635,6 +635,7 @@ class _SearchScreenState extends State<SearchScreen> {
       final prefs = await SharedPreferences.getInstance();
       final rawResults = prefs.getString(_resultsKey);
       final decodedResults = rawResults == null ? null : jsonDecode(rawResults);
+      if (!mounted) return;
       setState(() {
         _recentTitle = prefs.getStringList(_kHistTitle) ?? const [];
         _recentTag = prefs.getStringList(_kHistTag) ?? const [];
@@ -645,6 +646,24 @@ class _SearchScreenState extends State<SearchScreen> {
                   .map((e) => Map<String, dynamic>.from(e))
                   .toList()
             : const [];
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _reloadRecentForScope() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final rawResults = prefs.getString(_resultsKey);
+      final decodedResults = rawResults == null ? null : jsonDecode(rawResults);
+      if (!mounted) return;
+      setState(() {
+        _recentRows = decodedResults is List
+            ? decodedResults
+                  .whereType<Map>()
+                  .map((e) => Map<String, dynamic>.from(e))
+                  .toList()
+            : const [];
+        _showRecent = _searchQuery.trim().isEmpty;
       });
     } catch (_) {}
   }
@@ -992,14 +1011,24 @@ class _SearchScreenState extends State<SearchScreen> {
                     child: ChoiceChip(
                       label: Text(entry['label']!),
                       selected: _searchScope == entry['id'],
-                      onSelected: (_) {
+                      onSelected: (_) async {
                         setState(() {
                           _searchScope = entry['id']!;
                           _showRecent = _searchQuery.trim().isEmpty;
                         });
-                        _runSearch(
-                          recordHistory: _searchQuery.trim().isNotEmpty,
-                        );
+                        await _reloadRecentForScope();
+                        if (_searchQuery.trim().isEmpty) {
+                          // Keep chips visible; clear result list to recent only
+                          if (mounted) {
+                            setState(() {
+                              _results = <Map<String, dynamic>>[];
+                              _loading = false;
+                              _showRecent = true;
+                            });
+                          }
+                        } else {
+                          _runSearch(recordHistory: false);
+                        }
                       },
                       selectedColor: const Color(
                         0xFF00A88E,
@@ -1036,25 +1065,34 @@ class _SearchScreenState extends State<SearchScreen> {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final term in recent.take(5))
-                        ActionChip(
-                          avatar: const Icon(Icons.history, size: 16),
-                          label: Text(term),
-                          onPressed: () {
-                            _searchController.text = term;
-                            setState(() {
-                              _searchQuery = term;
-                              _showRecent = false;
-                            });
-                            _runSearch(recordHistory: true);
-                          },
-                        ),
-                    ],
-                  ),
+                  if (recent.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 4, bottom: 4),
+                      child: Text(
+                        'No recent searches yet',
+                        style: TextStyle(fontSize: 13, color: Colors.black54),
+                      ),
+                    )
+                  else
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final term in recent.take(5))
+                          ActionChip(
+                            avatar: const Icon(Icons.history, size: 16),
+                            label: Text(term),
+                            onPressed: () {
+                              _searchController.text = term;
+                              setState(() {
+                                _searchQuery = term;
+                                _showRecent = false;
+                              });
+                              _runSearch(recordHistory: true);
+                            },
+                          ),
+                      ],
+                    ),
                 ],
               ),
             ),

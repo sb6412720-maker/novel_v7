@@ -475,7 +475,7 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete chapter?'),
+        title: const Text('Are you sure?'),
         content: const Text(
           'Are you sure you want to delete this chapter? This cannot be undone.',
         ),

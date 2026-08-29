@@ -101,7 +101,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     );
     _lastParagraphIndex = widget.initialParagraphIndex;
     if (_chapters.isNotEmpty) {
-      _applyChapter(_chapters[_chapterIndex]);
+      _applyChapter(_chapters[_chapterIndex], resumeParagraph: true);
     } else {
       _chapterTitle = widget.chapterTitle;
       _chapterContent = widget.chapterContent;
@@ -261,16 +261,18 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
             : (widget.initialChapterIndex < list.length
                 ? widget.initialChapterIndex
                 : 0);
-        _applyChapter(_chapters[_chapterIndex]);
+        _applyChapter(_chapters[_chapterIndex], resumeParagraph: true);
       });
       // Restore paragraph after content paints
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToParagraph(widget.initialParagraphIndex);
+        _lastParagraphIndex = widget.initialParagraphIndex;
+        _scrollToParagraph(_lastParagraphIndex);
+        unawaited(_markLibraryProgress(completed: false));
       });
     } catch (_) {}
   }
 
-  void _applyChapter(Map<String, dynamic> chapter) {
+  void _applyChapter(Map<String, dynamic> chapter, {bool resumeParagraph = false}) {
     _chapterTitle = chapter['title'] as String? ?? 'Untitled';
     _chapterContent = chapter['content'] as String? ?? '';
     _chapterNumber =
@@ -278,10 +280,15 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     _selectedReactions.clear();
     _reactionCounts.clear();
     _paragraphCommentCounts = {};
+    _paragraphKeys.clear();
+    if (!resumeParagraph) {
+      // Navigating to a different chapter starts at top
+      _lastParagraphIndex = 0;
+    } else {
+      _lastParagraphIndex = widget.initialParagraphIndex;
+    }
     _loadReactions();
     unawaited(_loadParagraphCommentCounts());
-    // Always keep as Reading while user is in a chapter (never auto-complete on open)
-    unawaited(_markLibraryProgress(completed: false));
   }
 
   Color get _bg {

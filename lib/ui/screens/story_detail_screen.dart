@@ -41,6 +41,13 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
   bool _likeBusy = false;
   bool _saved = false;
   bool _hasMyReview = false;
+  int? _currentUserId;
+
+  bool get _isOwner {
+    final aid = _book.authorUserId;
+    final me = _currentUserId;
+    return aid != null && me != null && aid == me;
+  }
   List<Map<String, dynamic>> _authorStories = const [];
   List<Map<String, dynamic>> _youMayAlsoLike = const [];
   String? _authorPhotoUrl;
@@ -181,6 +188,14 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
   Future<void> _toggleFollow() async {
     final aid = _book.authorUserId;
     if (aid == null || _loadingFollow) return;
+    if (_isOwner) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('You cannot follow yourself')),
+        );
+      }
+      return;
+    }
     setState(() => _loadingFollow = true);
     try {
       late final Map<String, dynamic> result;
@@ -217,6 +232,12 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
   }
 
   Future<void> _checkSavedAndReviewed() async {
+    try {
+      final me = await widget.apiService.fetchMe();
+      final uid = (me['id'] as num?)?.toInt() ??
+          (me['user_id'] as num?)?.toInt();
+      if (mounted && uid != null) setState(() => _currentUserId = uid);
+    } catch (_) {}
     try {
       final lib = await widget.apiService.fetchLibraryEntries();
       final saved = lib.any((e) {
@@ -731,7 +752,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   TextButton.icon(
-                    onPressed: _likeBusy
+                    onPressed: (_likeBusy || _isOwner)
                         ? null
                         : () async {
                             setState(() => _likeBusy = true);
@@ -806,20 +827,34 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                     ),
                   ),
                   TextButton.icon(
-                    onPressed: () async {
-                      await Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => _WriteReviewScreen(
-                            bookId: _book.id,
-                            apiService: widget.apiService,
-                          ),
-                        ),
-                      );
-                      final reviews = await widget.apiService.fetchBookReviews(
-                        _book.id,
-                      );
-                      if (mounted) setState(() => _reviews = reviews);
-                    },
+                    onPressed: _isOwner
+                        ? () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'You cannot review your own story',
+                                ),
+                              ),
+                            );
+                          }
+                        : () async {
+                            final posted = await Navigator.of(context).push(
+                              MaterialPageRoute<bool>(
+                                builder: (_) => _WriteReviewScreen(
+                                  bookId: _book.id,
+                                  apiService: widget.apiService,
+                                ),
+                              ),
+                            );
+                            if (posted == true && mounted) {
+                              setState(() => _hasMyReview = true);
+                            }
+                            final reviews =
+                                await widget.apiService.fetchBookReviews(
+                              _book.id,
+                            );
+                            if (mounted) setState(() => _reviews = reviews);
+                          },
                     icon: Icon(
                       _hasMyReview ? Icons.star : Icons.star_border,
                       size: 20,
@@ -1091,7 +1126,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                           ),
                         ),
                       ),
-                      if (_book.authorUserId != null)
+                      if (_book.authorUserId != null && !_isOwner)
                         SizedBox(
                           height: 36,
                           child: _isFollowing
@@ -1700,18 +1735,10 @@ class _WriteReviewScreenState extends State<_WriteReviewScreen> {
       ).showSnackBar(const SnackBar(content: Text('Please rate this novel')));
       return;
     }
-    final title = _titleCtrl.text.trim();
-    if (title.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Title is required')));
-      return;
-    }
     final body = _bodyCtrl.text.trim();
-    final words = body.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length;
-    if (words < 20) {
+    if (body.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Review must be 20 words or more')),
+        const SnackBar(content: Text('Please write a review')),
       );
       return;
     }
@@ -1719,7 +1746,7 @@ class _WriteReviewScreenState extends State<_WriteReviewScreen> {
     try {
       await widget.apiService.createBookReview(widget.bookId, {
         'rating': _overall,
-        'title': title,
+        'title': '',
         'comment': body,
         'plot_rating': _plot > 0 ? _plot : _overall,
         'style_rating': _style > 0 ? _style : _overall,
@@ -1786,20 +1813,6 @@ class _WriteReviewScreenState extends State<_WriteReviewScreen> {
               "How do you rate the author's technical writing skills?\n(Punctuation, Grammar etc.)",
               _tech,
               (v) => setState(() => _tech = v),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _titleCtrl,
-              decoration: InputDecoration(
-                hintText: 'Title (required)',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 14,
-                ),
-              ),
             ),
             const SizedBox(height: 12),
             TextField(
