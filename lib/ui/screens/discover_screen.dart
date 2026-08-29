@@ -646,6 +646,10 @@ class _SearchScreenState extends State<SearchScreen> {
                   .map((e) => Map<String, dynamic>.from(e))
                   .toList()
             : const [];
+        // Keep recent panel open when search field is empty
+        if (_searchQuery.trim().isEmpty) {
+          _showRecent = true;
+        }
       });
     } catch (_) {}
   }
@@ -898,17 +902,27 @@ class _SearchScreenState extends State<SearchScreen> {
         setState(() => _showRecent = true);
       }
     });
-    _loadSearchHistory();
+    _bootstrapSearch();
+  }
+
+  Future<void> _bootstrapSearch() async {
+    await _loadSearchHistory();
+    if (!mounted) return;
     if (widget.initialQuery.trim().isNotEmpty) {
       _runSearch(recordHistory: true);
     } else {
-      // Empty query: show recent searches only (no books until user searches)
       setState(() {
         _showRecent = true;
         _results = <Map<String, dynamic>>[];
         _loading = false;
       });
     }
+    // Open keyboard + keep recent chips visible
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _searchFocus.requestFocus();
+      setState(() => _showRecent = _searchQuery.trim().isEmpty);
+    });
   }
 
   @override
@@ -1046,7 +1060,7 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
           ),
           // Recent searches (per scope): last 5 from local cache
-          if (_showRecent && recent.isNotEmpty)
+          if (_showRecent)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),

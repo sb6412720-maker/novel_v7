@@ -2667,17 +2667,193 @@ def search_stories(
 
 
 @app.get("/api/notifications")
-def get_notifications(tab: str = Query(default="")):
-    if tab.strip():
-        rows = fetch_all(
-            "SELECT tab_name AS tab, title, message, created_at FROM notifications WHERE LOWER(tab_name)=LOWER(%s) ORDER BY sort_order",
-            (tab.strip(),),
+def get_notifications(
+    tab: str = Query(default=""),
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Real-time notifications for the signed-in user (likes/comments/reviews/follows)."""
+    uid = int(user["user_id"])
+    items: list[dict[str, Any]] = []
+
+    def _actor(actor_id: Any) -> tuple[str, str]:
+        name, photo = "Someone", ""
+        if not actor_id:
+            return name, photo
+        try:
+            urows = fetch_all(
+                "SELECT display_name, photo_url FROM app_users WHERE id=%s LIMIT 1",
+                (int(actor_id),),
+            )
+            if urows:
+                name = _row_get(urows[0], "display_name") or name
+                photo = _row_get(urows[0], "photo_url") or ""
+        except Exception:
+            pass
+        return name, photo
+
+    # Story: likes on my books
+    try:
+        _ensure_book_likes_table()
+        likes = fetch_all(
+            """
+            SELECT bl.id, bl.user_id, bl.book_id, bl.created_at, b.title, b.cover_path
+            FROM book_likes bl
+            JOIN books b ON b.id = bl.book_id
+            WHERE b.user_id=%s AND bl.user_id != %s
+            ORDER BY bl.id DESC LIMIT 40
+            """,
+            (uid, uid),
         )
-    else:
-        rows = fetch_all(
-            "SELECT tab_name AS tab, title, message, created_at FROM notifications ORDER BY sort_order"
+        for row in likes or []:
+            aname, aphoto = _actor(_row_get(row, "user_id"))
+            title = _row_get(row, "title") or "your story"
+            items.append({
+                "id": f"like-{_row_get(row, 'id')}",
+                "tab": "Story",
+                "type": "like",
+                "title": f"{aname} liked {title}",
+                "message": f'{aname} liked your book "{title}"',
+                "created_at": _serialize_db_datetime(_row_get(row, "created_at")),
+                "actor_name": aname,
+                "actor_photo": aphoto,
+                "book_id": _row_get(row, "book_id"),
+                "cover_path": _normalize_cover_path(_row_get(row, "cover_path") or ""),
+            })
+    except Exception as exc:
+        LOGGER.warning("notifications likes: %s", exc)
+
+    # Story: comments on my chapters
+    try:
+        _ensure_chapter_comments_table()
+        comments = fetch_all(
+            """
+            SELECT cc.id, cc.user_id, cc.body, cc.created_at,
+                   c.story_id AS book_id, b.title AS book_title, b.cover_path
+            FROM chapter_comments cc
+            JOIN chapters c ON c.id = cc.chapter_id
+            JOIN books b ON b.id = c.story_id
+            WHERE b.user_id=%s AND cc.user_id != %s
+            ORDER BY cc.id DESC LIMIT 40
+            """,
+            (uid, uid),
         )
-    return {"items": rows}
+        for row in comments or []:
+            aname, aphoto = _actor(_row_get(row, "user_id"))
+            btitle = _row_get(row, "book_title") or "your story"
+            body = (_row_get(row, "body") or "")[:160]
+            items.append({
+                "id": f"comment-{_row_get(row, 'id')}",
+                "tab": "Story",
+                "type": "comment",
+                "title": f"{aname} commented on {btitle}",
+                "message": body or f"New comment on {btitle}",
+                "created_at": _serialize_db_datetime(_row_get(row, "created_at")),
+                "actor_name": aname,
+                "actor_photo": aphoto,
+                "book_id": _row_get(row, "book_id"),
+                "cover_path": _normalize_cover_path(_row_get(row, "cover_path") or ""),
+            })
+    except Exception as exc:
+        LOGGER.warning("notifications comments: %s", exc)
+
+    # Story: reviews on my books
+    try:
+        reviews = fetch_all(
+            """
+            SELECT r.id, r.user_id, r.book_id, r.rating, r.comment AS body, r.created_at,
+                   b.title, b.cover_path
+            FROM book_reviews r
+            JOIN books b ON b.id = r.book_id
+            WHERE b.user_id=%s AND r.user_id != %s
+            ORDER BY r.id DESC LIMIT 30
+            """,
+            (uid, uid),
+        )
+        for row in reviews or []:
+            aname, aphoto = _actor(_row_get(row, "user_id"))
+            title = _row_get(row, "title") or "your story"
+            body = (_row_get(row, "body") or "")[:160]
+            rating = _row_get(row, "rating") or ""
+            items.append({
+                "id": f"review-{_row_get(row, 'id')}",
+                "tab": "Story",
+                "type": "review",
+                "title": f"{aname} reviewed {title}",
+                "message": body or f"Rated {rating}/5",
+                "created_at": _serialize_db_datetime(_row_get(row, "created_at")),
+                "actor_name": aname,
+                "actor_photo": aphoto,
+                "book_id": _row_get(row, "book_id"),
+                "cover_path": _normalize_cover_path(_row_get(row, "cover_path") or ""),
+            })
+    except Exception as exc:
+        LOGGER.warning("notifications reviews: %s", exc)
+
+    # Community: follows
+    try:
+        _ensure_author_follows_table()
+        follows = fetch_all(
+            """
+            SELECT f.id, f.follower_id, f.created_at
+            FROM author_follows f
+            WHERE f.author_id=%s AND f.follower_id != %s
+            ORDER BY f.id DESC LIMIT 40
+            """,
+            (uid, uid),
+        )
+        for row in follows or []:
+            aname, aphoto = _actor(_row_get(row, "follower_id"))
+            items.append({
+                "id": f"follow-{_row_get(row, 'id')}",
+                "tab": "Community",
+                "type": "follow",
+                "title": f"{aname} started following you",
+                "message": f"{aname} is now following you",
+                "created_at": _serialize_db_datetime(_row_get(row, "created_at")),
+                "actor_name": aname,
+                "actor_photo": aphoto,
+            })
+    except Exception as exc:
+        LOGGER.warning("notifications follows: %s", exc)
+
+    # Community: wall posts
+    try:
+        _ensure_wall_posts_table()
+        walls = fetch_all(
+            """
+            SELECT w.id, w.author_user_id, w.body, w.created_at
+            FROM wall_posts w
+            WHERE w.profile_user_id=%s AND w.author_user_id != %s
+            ORDER BY w.id DESC LIMIT 30
+            """,
+            (uid, uid),
+        )
+        for row in walls or []:
+            aname, aphoto = _actor(_row_get(row, "author_user_id"))
+            body = (_row_get(row, "body") or "")[:160]
+            items.append({
+                "id": f"wall-{_row_get(row, 'id')}",
+                "tab": "Community",
+                "type": "wall",
+                "title": f"{aname} posted on your wall",
+                "message": body or "New wall post",
+                "created_at": _serialize_db_datetime(_row_get(row, "created_at")),
+                "actor_name": aname,
+                "actor_photo": aphoto,
+            })
+    except Exception as exc:
+        LOGGER.warning("notifications wall: %s", exc)
+
+    # Sort newest first (id fallback)
+    def _sort_key(it: dict[str, Any]):
+        return str(it.get("created_at") or it.get("id") or "")
+    items.sort(key=_sort_key, reverse=True)
+
+    tab_f = (tab or "").strip().lower()
+    if tab_f:
+        items = [i for i in items if str(i.get("tab", "")).lower() == tab_f]
+
+    return {"items": items[:80]}
 
 
 @app.post("/api/support/requests")

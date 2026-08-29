@@ -163,9 +163,10 @@ class _NotificationTab extends StatelessWidget {
                       color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2C2C2C) : const Color(0xFFF4F4F4),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Text(
-                      (row['title']?.toString() ?? 'I').substring(0, 1),
-                      style: Theme.of(context).textTheme.titleSmall,
+                    child: Icon(
+                      _iconFor(row['type']?.toString() ?? ''),
+                      size: 22,
+                      color: AppTheme.brand,
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -174,9 +175,22 @@ class _NotificationTab extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          row['message']?.toString() ?? '',
-                          style: Theme.of(context).textTheme.bodyMedium,
+                          (row['title']?.toString() ?? '').isNotEmpty
+                              ? row['title'].toString()
+                              : (row['message']?.toString() ?? 'Notification'),
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
                         ),
+                        if ((row['message']?.toString() ?? '').isNotEmpty &&
+                            (row['title']?.toString() ?? '') !=
+                                (row['message']?.toString() ?? '')) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            row['message']?.toString() ?? '',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
                         const SizedBox(height: 4),
                         Text(
                           row['created_at']?.toString() ?? '',
@@ -192,5 +206,23 @@ class _NotificationTab extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+
+IconData _iconFor(String type) {
+  switch (type.toLowerCase()) {
+    case 'like':
+      return Icons.favorite_rounded;
+    case 'comment':
+      return Icons.chat_bubble_outline_rounded;
+    case 'review':
+      return Icons.star_rounded;
+    case 'follow':
+      return Icons.person_add_alt_1_rounded;
+    case 'wall':
+      return Icons.notes_rounded;
+    default:
+      return Icons.notifications_none_rounded;
   }
 }

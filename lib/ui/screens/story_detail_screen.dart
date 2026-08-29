@@ -257,6 +257,14 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
   }
 
   Future<void> _openReadingListPicker() async {
+    if (_isOwner) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('You cannot save your own story')),
+        );
+      }
+      return;
+    }
     try {
       var lists = await widget.apiService.fetchReadingLists();
       if (!mounted) return;
@@ -804,26 +812,44 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                     icon: Icon(
                       _liked ? Icons.favorite : Icons.favorite_border,
                       size: 20,
-                      color: _liked ? Colors.red : null,
+                      color: _isOwner
+                          ? Colors.black26
+                          : (_liked ? Colors.red : null),
                     ),
                     label: Text(
                       _likesCount > 0 ? '$_likesCount Likes' : 'Likes',
                     ),
                     style: TextButton.styleFrom(
-                      foregroundColor: Colors.black87,
+                      foregroundColor:
+                          _isOwner ? Colors.black26 : Colors.black87,
                     ),
                   ),
                   TextButton.icon(
-                    onPressed: _openReadingListPicker,
+                    onPressed: _isOwner
+                        ? () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'You cannot save your own story',
+                                ),
+                              ),
+                            );
+                          }
+                        : _openReadingListPicker,
                     icon: Icon(
                       _saved ? Icons.bookmark : Icons.bookmark_border,
                       size: 20,
-                      color: _saved ? const Color(0xFF1A73E8) : null,
+                      color: _isOwner
+                          ? Colors.black26
+                          : (_saved ? const Color(0xFF1A73E8) : null),
                     ),
                     label: Text(_saved ? 'Saved' : 'Save'),
                     style: TextButton.styleFrom(
-                      foregroundColor:
-                          _saved ? const Color(0xFF1A73E8) : Colors.black87,
+                      foregroundColor: _isOwner
+                          ? Colors.black26
+                          : (_saved
+                              ? const Color(0xFF1A73E8)
+                              : Colors.black87),
                     ),
                   ),
                   TextButton.icon(
@@ -858,7 +884,9 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                     icon: Icon(
                       _hasMyReview ? Icons.star : Icons.star_border,
                       size: 20,
-                      color: _hasMyReview ? const Color(0xFFFFC107) : null,
+                      color: _isOwner
+                          ? Colors.black26
+                          : (_hasMyReview ? const Color(0xFFFFC107) : null),
                     ),
                     label: Text(
                       _reviews.isEmpty
@@ -866,9 +894,11 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                           : '${_reviews.length} Reviews',
                     ),
                     style: TextButton.styleFrom(
-                      foregroundColor: _hasMyReview
-                          ? const Color(0xFFF9A825)
-                          : Colors.black87,
+                      foregroundColor: _isOwner
+                          ? Colors.black26
+                          : (_hasMyReview
+                              ? const Color(0xFFF9A825)
+                              : Colors.black87),
                     ),
                   ),
                 ],
