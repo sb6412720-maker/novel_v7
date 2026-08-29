@@ -156,6 +156,24 @@ class _ProfileScreenState extends State<ProfileScreen>
         activity = List<Map<String, dynamic>>.from(results[2] as List);
         reviews = List<Map<String, dynamic>>.from(results[3] as List);
         lists = List<Map<String, dynamic>>.from(results[4] as List);
+        // Own profile: if activity empty, merge live notifications (likes/comments/follows)
+        if (_isOwnProfile && activity.isEmpty) {
+          try {
+            final notes = await widget.apiService.fetchNotifications();
+            activity = notes
+                .map((n) => {
+                      'type': n['type'] ?? 'system',
+                      'title': n['title'] ?? n['message'] ?? '',
+                      'message': n['message'] ?? '',
+                      'actor_name': n['actor_name'] ?? '',
+                      'actor_photo': n['actor_photo'] ?? '',
+                      'cover_path': n['cover_path'] ?? '',
+                      'book_id': n['book_id'],
+                      'created_at': n['created_at'] ?? '',
+                    })
+                .toList();
+          } catch (_) {}
+        }
       }
 
       if (!mounted) return;

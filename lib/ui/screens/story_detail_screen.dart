@@ -708,7 +708,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
           // Summary + Read More
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -731,19 +731,28 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                     ),
                   ),
                   if (needsExpand)
-                    TextButton(
-                      onPressed: () =>
-                          setState(() => _summaryExpanded = !_summaryExpanded),
-                      style: TextButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        minimumSize: const Size(0, 32),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      child: Text(
-                        _summaryExpanded ? 'Show less' : 'Read More',
-                        style: const TextStyle(
-                          color: Color(0xFF00C853),
-                          fontWeight: FontWeight.w600,
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton(
+                        onPressed: () => setState(
+                          () => _summaryExpanded = !_summaryExpanded,
+                        ),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 8,
+                          ),
+                          minimumSize: const Size(48, 40),
+                          tapTargetSize: MaterialTapTargetSize.padded,
+                          foregroundColor: const Color(0xFF00C853),
+                        ),
+                        child: Text(
+                          _summaryExpanded ? 'Show less' : 'Read More',
+                          style: const TextStyle(
+                            color: Color(0xFF00C853),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                          ),
                         ),
                       ),
                     ),

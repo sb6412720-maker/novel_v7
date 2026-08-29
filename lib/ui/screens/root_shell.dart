@@ -237,18 +237,8 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
           completeRaw == '1' ||
           completeRaw == 'true' ||
           completeRaw == 'True';
-      // Also treat as complete if display_name + username already filled from prior signup
-      final hasName = (me['display_name'] ?? '').toString().trim().isNotEmpty &&
-          (me['display_name'] ?? '').toString().trim().toLowerCase() != 'reader';
-      final hasUsername = (me['username'] ?? '').toString().trim().isNotEmpty;
-      // Profile already completed during signup / prior onboarding — skip entirely
-      if (complete || (hasName && hasUsername)) {
-        // Heal flag if name/username present but flag missing
-        if (!complete && hasName) {
-          try {
-            await _apiService.updateMe({'profile_complete': true});
-          } catch (_) {}
-        }
+      // First-time only: skip solely when profile_complete is set (Google name alone is NOT enough)
+      if (complete) {
         if (mounted) setState(() => _showLoginOverlay = false);
         return;
       }

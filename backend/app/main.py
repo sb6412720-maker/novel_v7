@@ -1419,8 +1419,8 @@ def authenticate_google(payload: GoogleAuthRequest):
     else:
         user_id, _ = execute_write(
             """
-            INSERT INTO app_users (email, provider, provider_subject, display_name, photo_url)
-            VALUES (%s, %s, %s, %s, %s)
+            INSERT INTO app_users (email, provider, provider_subject, display_name, photo_url, profile_complete)
+            VALUES (%s, %s, %s, %s, %s, 0)
             """,
             (
                 email,
@@ -2266,6 +2266,7 @@ def bootstrap(user: dict[str, Any] | None = Depends(optional_user)):
         LEFT JOIN app_users u ON u.id = b.user_id
         WHERE LOWER(COALESCE(b.status_text, 'draft')) NOT IN ('draft', 'unpublished', 'private')
         ORDER BY b.sort_order ASC, b.id DESC
+        LIMIT 80
         """
     )
 
