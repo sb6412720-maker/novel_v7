@@ -898,8 +898,13 @@ class _SearchScreenState extends State<SearchScreen> {
     _searchController = TextEditingController(text: widget.initialQuery);
     _searchFocus = FocusNode();
     _searchFocus.addListener(() {
-      if (_searchFocus.hasFocus && _searchQuery.trim().isEmpty) {
-        setState(() => _showRecent = true);
+      if (_searchFocus.hasFocus) {
+        setState(() {
+          _showRecent = _searchQuery.trim().isEmpty;
+        });
+        if (_searchQuery.trim().isEmpty) {
+          unawaited(_loadSearchHistory());
+        }
       }
     });
     _bootstrapSearch();
