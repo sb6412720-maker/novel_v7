@@ -51,6 +51,7 @@ _DEFAULT_CORS = [
     "https://novel-v7-web.vercel.app",
     "https://novel-v7.vercel.app",
     "https://novel-v7-admin.vercel.app",
+    "https://novel-v7-admin-panel.vercel.app",
     "http://localhost:5173",
     "http://localhost:3000",
     "http://localhost:4173",
