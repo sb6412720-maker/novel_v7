@@ -695,27 +695,38 @@ class _SearchScreenState extends State<SearchScreen> {
     if (q.isEmpty) return;
     try {
       final prefs = await SharedPreferences.getInstance();
+      // Always re-read disk first so we never overwrite with empty memory state
+      final diskTitle = prefs.getStringList(_kHistTitle) ?? <String>[];
+      final diskTag = prefs.getStringList(_kHistTag) ?? <String>[];
+      final diskProfile = prefs.getStringList(_kHistProfile) ?? <String>[];
       List<String> list;
       String key;
       switch (_searchScope) {
         case 'tag':
-          list = List<String>.from(_recentTag);
+          list = List<String>.from(diskTag);
           key = _kHistTag;
           break;
         case 'profile':
-          list = List<String>.from(_recentProfile);
+          list = List<String>.from(diskProfile);
           key = _kHistProfile;
           break;
         default:
-          list = List<String>.from(_recentTitle);
+          list = List<String>.from(diskTitle);
           key = _kHistTitle;
       }
       list.removeWhere((e) => e.toLowerCase() == q.toLowerCase());
       list.insert(0, q);
       if (list.length > 5) list = list.take(5).toList();
-      await prefs.setStringList(key, list);
+      final ok = await prefs.setStringList(key, list);
+      if (!ok) {
+        // fallback write once more
+        await prefs.setStringList(key, list);
+      }
       if (!mounted) return;
       setState(() {
+        _recentTitle = prefs.getStringList(_kHistTitle) ?? list;
+        _recentTag = prefs.getStringList(_kHistTag) ?? _recentTag;
+        _recentProfile = prefs.getStringList(_kHistProfile) ?? _recentProfile;
         switch (_searchScope) {
           case 'tag':
             _recentTag = list;
@@ -726,6 +737,7 @@ class _SearchScreenState extends State<SearchScreen> {
           default:
             _recentTitle = list;
         }
+        _showRecent = true;
       });
     } catch (_) {}
   }
@@ -1069,8 +1081,8 @@ class _SearchScreenState extends State<SearchScreen> {
               ],
             ),
           ),
-          // Recent searches (per scope): last 5 from local cache
-          if (_showRecent)
+          // Recent searches (per scope): last 5 from local cache — always when query empty
+          if (_showRecent || _searchQuery.trim().isEmpty)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),

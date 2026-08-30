@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../data/models/app_bootstrap.dart';
 import '../../data/services/api_service.dart';
@@ -249,13 +250,35 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
         completeRaw == 'True';
   }
 
+  String _profileDoneKey(AuthSession session) {
+    final id = session.id?.toString() ?? session.email ?? 'unknown';
+    return 'profile_complete_local_$id';
+  }
+
   Future<bool> _needsCompleteProfile(AuthSession session) async {
     if (session.isGuest) return false;
+    // Device cache: once completed on this install, never show again (More/Profile included)
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(_profileDoneKey(session)) == true ||
+          prefs.getBool('profile_complete_local_done') == true) {
+        return false;
+      }
+    } catch (_) {}
     try {
       final me = await _apiService.fetchMe();
-      return !_isProfileCompleteFlag(me['profile_complete']);
-    } catch (_) {
+      final done = _isProfileCompleteFlag(me['profile_complete']);
+      if (done) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool(_profileDoneKey(session), true);
+        } catch (_) {}
+        return false;
+      }
       return true;
+    } catch (_) {
+      // Do not re-prompt from More/Profile when /api/me fails
+      return false;
     }
   }
 
@@ -289,6 +312,13 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
           ),
         ),
       );
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool(_profileDoneKey(session), true);
+      } catch (_) {}
+      try {
+        await _apiService.updateMe({'profile_complete': true});
+      } catch (_) {}
       final refreshed = await _authService.refreshSessionFromServer();
       if (mounted && refreshed != null) {
         setState(() => _session = refreshed);

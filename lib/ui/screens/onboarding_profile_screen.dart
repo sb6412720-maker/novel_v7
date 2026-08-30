@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../data/services/api_service.dart';
@@ -120,6 +121,11 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
       if (uploadedPhoto != null) _photoUrl = uploadedPhoto;
       if (uploadedCover != null) _coverUrl = uploadedCover;
 
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        // Mark complete locally immediately (survives API flakiness)
+        await prefs.setBool('profile_complete_local_done', true);
+      } catch (_) {}
       await widget.apiService.updateMyProfile({
         'display_name': name,
         'bio': _bioCtrl.text.trim(),
