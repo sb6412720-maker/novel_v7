@@ -767,23 +767,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                       isPlaceholder: _selectedGenre == null,
                     ),
                   ),
-                  const SizedBox(height: 14),
-                  _label('STORY STATUS'),
-                  const SizedBox(height: 7),
-                  Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: _panelAlt,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: _border),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          ),
-                      ],
-                    ),
-                  ),
+
                   const SizedBox(height: 14),
                   Row(
                     children: [

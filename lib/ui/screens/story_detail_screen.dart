@@ -1726,7 +1726,7 @@ class _BookReviewsPage extends StatefulWidget {
     required this.onReviewPosted,
   });
 
-  final Book book;
+  final BookDetailModel book;
   final ApiService apiService;
   final bool isOwner;
   final bool hasMyReview;
