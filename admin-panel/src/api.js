@@ -331,3 +331,20 @@ export function createAdminChapter(bookId, payload) {
 export function listAdminChapters(bookId) {
   return request(`/api/admin/books/${bookId}/chapters`);
 }
+
+
+export function listAdminAuthors() {
+  return request("/api/admin/authors");
+}
+
+export function getAdminStats() {
+  return request("/api/admin/stats");
+}
+
+export function listAdminReviews(limit = 100) {
+  return request(`/api/admin/reviews?limit=${limit}`);
+}
+
+export function deleteAdminReview(id) {
+  return request(`/api/admin/reviews/${id}`, { method: "DELETE" });
+}

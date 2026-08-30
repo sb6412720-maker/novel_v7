@@ -40,8 +40,9 @@ import {
   republishStory,
   createAdminChapter,
   listAdminChapters,
+  getAdminStats,
 } from "./api";
-import { AuthorsPage, UsersPage } from "./moderation_pages";
+import { AuthorsPage, UsersPage, ReviewsPage } from "./moderation_pages";
 
 const NAV = [
   { id: "dashboard", label: "Dashboard", icon: "▦" },
@@ -49,6 +50,7 @@ const NAV = [
   { id: "authors", label: "Authors", icon: "✎" },
   { id: "users", label: "Users", icon: "☺" },
   { id: "reports", label: "Reports", icon: "▤" },
+  { id: "reviews", label: "Reviews", icon: "★" },
   { id: "hashtags", label: "Hashtags", icon: "#" },
   { id: "revenue", label: "Revenue", icon: "$" },
   { id: "moderation", label: "Content Moderation", icon: "◎" },
@@ -205,6 +207,7 @@ export default function App() {
   const [page, setPage] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [liveStats, setLiveStats] = useState(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [contentVersion, setContentVersion] = useState("");
@@ -265,6 +268,12 @@ export default function App() {
       setSupportRequests(asArray(bootstrap.support_requests || bootstrap.support || []));
       setContentVersion(typeof version === "string" ? version : version?.version || "");
       setStoryImages(asArray(images.items || images));
+      try {
+        const st = await getAdminStats();
+        setLiveStats(st);
+      } catch (_) {
+        setLiveStats(null);
+      }
     } catch (e) {
       if (String(e.message || e).includes("401") || String(e.message || e).includes("403")) {
         clearAdminToken();
@@ -573,6 +582,7 @@ export default function App() {
             />
           )}
           {page === "authors" && <AuthorsPage authors={authors} search={search} />}
+          {page === "reviews" && <ReviewsPage />}
           {page === "users" && (
             <UsersPage profile={profile} supportRequests={supportRequests} onUpdateSupport={async (id, p) => {
               await updateSupportRequest(id, p);
@@ -694,7 +704,17 @@ export default function App() {
   );
 }
 
-function Dashboard({ stats, books, authors, supportRequests, onReview, onGoto }) {
+function Dashboard({ stats, liveStats, books, authors, supportRequests, onReview, onGoto }) {
+  const s = {
+    novels: liveStats?.books ?? stats?.novels ?? books.length,
+    authors: liveStats?.authors ?? stats?.authors ?? authors.length,
+    published: liveStats?.published ?? stats?.published ?? 0,
+    drafts: liveStats?.drafts ?? stats?.drafts ?? 0,
+    users: liveStats?.users ?? stats?.users ?? 0,
+    reviews: liveStats?.reviews ?? 0,
+    reports: liveStats?.reports ?? 0,
+    support: supportRequests?.length ?? 0,
+  };
   const genreCounts = useMemo(() => {
     const m = {};
     for (const b of books) {
@@ -727,13 +747,28 @@ function Dashboard({ stats, books, authors, supportRequests, onReview, onGoto })
       <div className="stats-row">
         <div className="stat-card" role="button" tabIndex={0} style={{ cursor: "pointer" }} onClick={() => onGoto?.("novels")} onKeyDown={(e) => e.key === "Enter" && onGoto?.("novels")}>
           <div className="label"><span className="stat-icon">▣</span> Total Novels</div>
-          <p className="value">{stats.novels}</p>
+          <p className="value">{s.novels}</p>
           <div className="trend">{stats.published} published · open Novels</div>
         </div>
         <div className="stat-card" role="button" tabIndex={0} style={{ cursor: "pointer" }} onClick={() => onGoto?.("authors")} onKeyDown={(e) => e.key === "Enter" && onGoto?.("authors")}>
           <div className="label"><span className="stat-icon">✎</span> Active Authors</div>
-          <p className="value">{stats.authors}</p>
+          <p className="value">{s.authors}</p>
           <div className="trend">Open Authors</div>
+        </div>
+        <div className="stat-card" role="button" tabIndex={0} style={{ cursor: "pointer" }} onClick={() => onGoto?.("users")} onKeyDown={(e) => e.key === "Enter" && onGoto?.("users")}>
+          <div className="label"><span className="stat-icon">☺</span> Users</div>
+          <p className="value">{s.users}</p>
+          <div className="trend">All accounts</div>
+        </div>
+        <div className="stat-card" role="button" tabIndex={0} style={{ cursor: "pointer" }} onClick={() => onGoto?.("reviews")} onKeyDown={(e) => e.key === "Enter" && onGoto?.("reviews")}>
+          <div className="label"><span className="stat-icon">★</span> Reviews</div>
+          <p className="value">{s.reviews}</p>
+          <div className="trend">Moderate reviews</div>
+        </div>
+        <div className="stat-card">
+          <div className="label"><span className="stat-icon">✓</span> Published</div>
+          <p className="value">{s.published}</p>
+          <div className="trend">Live catalog</div>
         </div>
         <div className="stat-card" role="button" tabIndex={0} style={{ cursor: "pointer" }} onClick={() => onGoto?.("moderation")} onKeyDown={(e) => e.key === "Enter" && onGoto?.("moderation")}>
           <div className="label"><span className="stat-icon">＋</span> Pending Review</div>
@@ -742,7 +777,7 @@ function Dashboard({ stats, books, authors, supportRequests, onReview, onGoto })
         </div>
         <div className="stat-card">
           <div className="label"><span className="stat-icon">✉</span> Support</div>
-          <p className="value">{stats.support}</p>
+          <p className="value">{s.support}</p>
           <div className="trend">{stats.categories} categories</div>
         </div>
       </div>

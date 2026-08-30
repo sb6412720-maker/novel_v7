@@ -329,15 +329,27 @@ export function AuthorsPage({ authors: _authorsProp, search }) {
   const [filterStatus, setFilterStatus] = useState("all");
   const [selected, setSelected] = useState(() => new Set());
 
+  const [loading, setLoading] = useState(true);
+
   const load = useCallback(async () => {
     try {
       setError("");
-      const data = await listAdminUsers();
+      setLoading(true);
+      let data;
+      try {
+        data = await listAdminAuthors();
+      } catch (_) {
+        // Fallback if authors route not deployed yet
+        data = await listAdminUsers();
+      }
       const all = asArray(data?.items ?? data).map(normalizeUser);
-      setUsers(all.filter((u) => u.is_author || (u.story_count || 0) > 0));
+      setUsers(all);
       setSelected(new Set());
     } catch (e) {
       setError(String(e.message || e));
+      setUsers([]);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -455,8 +467,15 @@ export function AuthorsPage({ authors: _authorsProp, search }) {
       <div className="panel">
         <div className="panel-header">
           <h3>Authors Management</h3>
-          <span className="meta">{list.length} authors · live from database</span>
+          <span className="meta">{list.length} authors · users who published ≥1 book</span>
         </div>
+        {loading && (
+          <div className="empty-state" style={{ padding: 48 }}>
+            <div className="spinner" />
+            <p>Loading authors…</p>
+          </div>
+        )}
+        {!loading && (
         <div className="toolbar">
           <input className="search-input" placeholder="Search name or email…" value={q} onChange={(e) => setQ(e.target.value)} />
           <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
@@ -543,6 +562,8 @@ export function AuthorsPage({ authors: _authorsProp, search }) {
           </table>
         </div>
       </div>
+        </>
+        )}
       {viewUser ? (
         <AccountViewModal
           user={viewUser}
@@ -842,6 +863,133 @@ export function UsersPage({ profile, supportRequests, onUpdateSupport }) {
           onAction={runAction}
         />
       ) : null}
+    </div>
+  );
+}
+
+
+/* ───────── Reviews moderation ───────── */
+export function ReviewsPage() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [q, setQ] = useState("");
+  const [busyId, setBusyId] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await listAdminReviews(150);
+      setItems(asArray(data?.items ?? data));
+    } catch (e) {
+      setError(String(e.message || e));
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const remove = async (id) => {
+    if (!window.confirm("Delete this review permanently?")) return;
+    setBusyId(id);
+    try {
+      await deleteAdminReview(id);
+      setItems((prev) => prev.filter((r) => r.id !== id));
+    } catch (e) {
+      setError(String(e.message || e));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const list = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    if (!s) return items;
+    return items.filter((r) =>
+      [r.book_title, r.display_name, r.email, r.comment]
+        .map((x) => String(x || "").toLowerCase())
+        .some((t) => t.includes(s))
+    );
+  }, [items, q]);
+
+  return (
+    <div className="panel">
+      <div className="panel-header">
+        <h3>Reviews Moderation</h3>
+        <span className="meta">{list.length} reviews</span>
+      </div>
+      <div className="toolbar">
+        <input
+          className="search-input"
+          placeholder="Search book, user, text…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+        <button type="button" className="btn btn-sm btn-primary" onClick={load}>
+          Refresh
+        </button>
+      </div>
+      {error && <div className="login-error" style={{ margin: 12 }}>{error}</div>}
+      {loading ? (
+        <div className="empty-state" style={{ padding: 48 }}>
+          <div className="spinner" />
+          <p>Loading reviews…</p>
+        </div>
+      ) : list.length === 0 ? (
+        <div className="empty-state">
+          <p>No reviews found.</p>
+        </div>
+      ) : (
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Book</th>
+                <th>User</th>
+                <th>Rating</th>
+                <th>Comment</th>
+                <th>When</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((r) => (
+                <tr key={r.id}>
+                  <td>
+                    <strong>{r.book_title}</strong>
+                    <div className="meta">#{r.book_id}</div>
+                  </td>
+                  <td>
+                    {r.display_name}
+                    <div className="meta">{r.email}</div>
+                  </td>
+                  <td>{r.rating}★</td>
+                  <td style={{ maxWidth: 280, whiteSpace: "pre-wrap" }}>
+                    {(r.comment || "").slice(0, 220)}
+                    {(r.comment || "").length > 220 ? "…" : ""}
+                  </td>
+                  <td className="meta">{r.created_at || "—"}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-danger"
+                      disabled={busyId === r.id}
+                      onClick={() => remove(r.id)}
+                    >
+                      {busyId === r.id ? "…" : "Delete"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

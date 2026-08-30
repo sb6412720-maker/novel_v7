@@ -6020,6 +6020,184 @@ def _user_moderation_status(user_id: int) -> dict[str, Any]:
 
 # ----- Admin: users list + ban / unban -----
 
+
+@app.get("/api/admin/stats")
+def admin_dashboard_stats(_: dict[str, Any] = Depends(require_admin)):
+    """Lightweight dashboard counters for admin panel."""
+    def _c(sql: str) -> int:
+        try:
+            rows = fetch_all(sql)
+            return int(_row_get(rows[0], "c") or 0) if rows else 0
+        except Exception:
+            return 0
+
+    books = _c("SELECT COUNT(*) AS c FROM books")
+    published = _c(
+        "SELECT COUNT(*) AS c FROM books WHERE LOWER(COALESCE(status_text,'')) LIKE '%%publish%%' "
+        "OR LOWER(COALESCE(status_text,'')) LIKE '%%complete%%'"
+    )
+    drafts = _c(
+        "SELECT COUNT(*) AS c FROM books WHERE LOWER(COALESCE(status_text,'')) LIKE '%%draft%%' "
+        "OR LOWER(COALESCE(status_text,'')) LIKE '%%ongoing%%'"
+    )
+    users = _c("SELECT COUNT(*) AS c FROM app_users")
+    authors = _c(
+        "SELECT COUNT(DISTINCT user_id) AS c FROM books WHERE user_id IS NOT NULL AND user_id > 0"
+    )
+    reviews = _c("SELECT COUNT(*) AS c FROM book_reviews")
+    reports = 0
+    try:
+        reports = _c("SELECT COUNT(*) AS c FROM story_reports")
+    except Exception:
+        reports = 0
+    follows = 0
+    try:
+        follows = _c("SELECT COUNT(*) AS c FROM author_follows")
+    except Exception:
+        follows = 0
+    return {
+        "books": books,
+        "published": published,
+        "drafts": drafts,
+        "users": users,
+        "authors": authors,
+        "reviews": reviews,
+        "reports": reports,
+        "follows": follows,
+    }
+
+
+@app.get("/api/admin/authors")
+def admin_list_authors(_: dict[str, Any] = Depends(require_admin)):
+    """Users who became authors by publishing / owning at least one book."""
+    _ensure_user_moderation_columns()
+    rows = []
+    try:
+        rows = fetch_all(
+            """
+            SELECT u.id, u.email, u.display_name, u.photo_url, u.provider, u.bio,
+                   COALESCE(u.is_banned, 0) AS is_banned,
+                   COALESCE(u.is_suspended, 0) AS is_suspended,
+                   COALESCE(u.is_deleted, 0) AS is_deleted,
+                   u.suspended_until,
+                   COALESCE(u.is_author, 0) AS is_author,
+                   COALESCE(u.is_author_active, 1) AS is_author_active,
+                   COALESCE(bc.story_count, 0) AS story_count,
+                   COALESCE(fc.follower_count, 0) AS follower_count
+            FROM app_users u
+            INNER JOIN (
+                SELECT user_id, COUNT(*) AS story_count
+                FROM books
+                WHERE user_id IS NOT NULL AND user_id > 0
+                GROUP BY user_id
+            ) bc ON bc.user_id = u.id
+            LEFT JOIN (
+                SELECT author_id, COUNT(*) AS follower_count
+                FROM author_follows
+                GROUP BY author_id
+            ) fc ON fc.author_id = u.id
+            ORDER BY bc.story_count DESC, u.id DESC
+            LIMIT 500
+            """
+        ) or []
+    except Exception as exc:
+        LOGGER.warning("admin_list_authors join failed: %s", exc)
+        try:
+            rows = fetch_all(
+                """
+                SELECT u.id, u.email, u.display_name, u.photo_url, u.provider, u.bio,
+                       0 AS is_banned, 0 AS is_suspended, 0 AS is_deleted,
+                       NULL AS suspended_until,
+                       1 AS is_author, 1 AS is_author_active,
+                       (SELECT COUNT(*) FROM books b WHERE b.user_id = u.id) AS story_count,
+                       0 AS follower_count
+                FROM app_users u
+                WHERE EXISTS (SELECT 1 FROM books b WHERE b.user_id = u.id)
+                ORDER BY u.id DESC
+                LIMIT 500
+                """
+            ) or []
+        except Exception as e2:
+            LOGGER.warning("admin_list_authors fallback failed: %s", e2)
+            return {"items": []}
+
+    items = []
+    for row in rows:
+        uid = _row_get(row, "id")
+        story_count = int(_row_get(row, "story_count") or 0)
+        items.append({
+            "id": uid,
+            "email": _row_get(row, "email") or "",
+            "display_name": _row_get(row, "display_name") or "",
+            "photo_url": _row_get(row, "photo_url") or "",
+            "provider": _row_get(row, "provider") or "",
+            "bio": _row_get(row, "bio") or "",
+            "is_banned": _as_bool_flag(_row_get(row, "is_banned")),
+            "is_suspended": _as_bool_flag(_row_get(row, "is_suspended")),
+            "is_deleted": _as_bool_flag(_row_get(row, "is_deleted")),
+            "suspended_until": str(_row_get(row, "suspended_until") or "") or None,
+            "is_author": True,
+            "is_author_active": _as_bool_flag(
+                _row_get(row, "is_author_active")
+                if _row_get(row, "is_author_active") is not None
+                else 1
+            ),
+            "story_count": story_count,
+            "follower_count": int(_row_get(row, "follower_count") or 0),
+        })
+    return {"items": items, "total": len(items)}
+
+
+@app.get("/api/admin/reviews")
+def admin_list_reviews(
+    limit: int = 100,
+    _: dict[str, Any] = Depends(require_admin),
+):
+    """Moderate user reviews across all books."""
+    lim = max(1, min(int(limit or 100), 300))
+    try:
+        rows = fetch_all(
+            f"""
+            SELECT r.id, r.book_id, r.user_id, r.rating, r.comment, r.created_at,
+                   b.title AS book_title,
+                   u.display_name, u.email, u.photo_url
+            FROM book_reviews r
+            LEFT JOIN books b ON b.id = r.book_id
+            LEFT JOIN app_users u ON u.id = r.user_id
+            ORDER BY r.id DESC
+            LIMIT {lim}
+            """
+        ) or []
+    except Exception as exc:
+        LOGGER.warning("admin_list_reviews failed: %s", exc)
+        return {"items": []}
+    items = []
+    for row in rows:
+        items.append({
+            "id": _row_get(row, "id"),
+            "book_id": _row_get(row, "book_id"),
+            "book_title": _row_get(row, "book_title") or f"Book #{_row_get(row, 'book_id')}",
+            "user_id": _row_get(row, "user_id"),
+            "display_name": _row_get(row, "display_name") or "Reader",
+            "email": _row_get(row, "email") or "",
+            "photo_url": _row_get(row, "photo_url") or "",
+            "rating": _row_get(row, "rating"),
+            "comment": _row_get(row, "comment") or "",
+            "created_at": str(_row_get(row, "created_at") or ""),
+        })
+    return {"items": items}
+
+
+@app.delete("/api/admin/reviews/{review_id}")
+def admin_delete_review(review_id: int, _: dict[str, Any] = Depends(require_admin)):
+    try:
+        execute_write("DELETE FROM book_reviews WHERE id=%s", (review_id,))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Delete failed: {exc}") from exc
+    bump_content_version()
+    return {"ok": True}
+
+
 @app.get("/api/admin/users")
 def admin_list_users(_: dict[str, Any] = Depends(require_admin)):
     """List users for admin panel. Single query — no N+1 (avoids Vercel timeout/CORS loss)."""
@@ -6034,9 +6212,17 @@ def admin_list_users(_: dict[str, Any] = Depends(require_admin)):
                    u.suspended_until,
                    COALESCE(u.is_author, 0) AS is_author,
                    COALESCE(u.is_author_active, 1) AS is_author_active,
-                   (SELECT COUNT(*) FROM books b WHERE b.user_id = u.id) AS story_count,
-                   (SELECT COUNT(*) FROM author_follows af WHERE af.author_id = u.id) AS follower_count
+                   COALESCE(bc.story_count, 0) AS story_count,
+                   COALESCE(fc.follower_count, 0) AS follower_count
             FROM app_users u
+            LEFT JOIN (
+                SELECT user_id, COUNT(*) AS story_count FROM books
+                WHERE user_id IS NOT NULL GROUP BY user_id
+            ) bc ON bc.user_id = u.id
+            LEFT JOIN (
+                SELECT author_id, COUNT(*) AS follower_count FROM author_follows
+                GROUP BY author_id
+            ) fc ON fc.author_id = u.id
             ORDER BY u.id DESC
             LIMIT 500
             """
