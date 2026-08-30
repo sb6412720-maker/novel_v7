@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   API_BASE_URL,
   listAdminUsers,
+  listAdminAuthors,
+  listAdminReviews,
+  deleteAdminReview,
   banUser,
   unbanUser,
   suspendUser,
@@ -469,101 +472,106 @@ export function AuthorsPage({ authors: _authorsProp, search }) {
           <h3>Authors Management</h3>
           <span className="meta">{list.length} authors · users who published ≥1 book</span>
         </div>
-        {loading && (
+        {loading ? (
           <div className="empty-state" style={{ padding: 48 }}>
             <div className="spinner" />
             <p>Loading authors…</p>
           </div>
-        )}
-        {!loading && (
-        <div className="toolbar">
-          <input className="search-input" placeholder="Search name or email…" value={q} onChange={(e) => setQ(e.target.value)} />
-          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-            <option value="all">All statuses</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="banned">Banned</option>
-            <option value="suspended">Suspended</option>
-            <option value="deleted">Deleted</option>
-          </select>
-          <button type="button" className="btn btn-sm btn-primary" onClick={load}>
-            Refresh
-          </button>
-        </div>
-        {someSelected ? (
-          <div className="bulk-bar">
-            <span className="meta">{selected.size} selected</span>
-            <button type="button" className="btn btn-sm btn-danger" disabled={bulkBusy} onClick={() => bulkAct("ban")}>Ban</button>
-            <button type="button" className="btn btn-sm btn-success" disabled={bulkBusy} onClick={() => bulkAct("unban")}>Unban</button>
-            <button type="button" className="btn btn-sm btn-warn" disabled={bulkBusy} onClick={() => bulkAct("suspend")}>Suspend</button>
-            <button type="button" className="btn btn-sm btn-success" disabled={bulkBusy} onClick={() => bulkAct("unsuspend")}>Unsuspend</button>
-            <button type="button" className="btn btn-sm btn-ghost" disabled={bulkBusy} onClick={() => bulkAct("inactive")}>Inactive</button>
-            <button type="button" className="btn btn-sm btn-primary" disabled={bulkBusy} onClick={() => bulkAct("active")}>Activate</button>
-            <button type="button" className="btn btn-sm btn-danger" disabled={bulkBusy} onClick={() => bulkAct("delete")}>Delete</button>
-            <button type="button" className="btn btn-sm btn-success" disabled={bulkBusy} onClick={() => bulkAct("restore")}>Recover</button>
-          </div>
-        ) : null}
-        {error ? <div className="error-banner">{error}</div> : null}
-        {success ? <div className="success-banner">{success}</div> : null}
-        <div className="table-wrap">
-          <table className="data">
-            <thead>
-              <tr>
-                <th style={{ width: 36 }}>
-                  <input type="checkbox" checked={allSelected} onChange={toggleAll} title="Select all" />
-                </th>
-                <th>Profile</th>
-                <th>Author</th>
-                <th>Email</th>
-                <th>Novels</th>
-                <th>Followers</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.map((a) => {
-                const status = userStatus(a);
-                return (
-                  <tr key={a.id} className={selected.has(a.id) ? "row-selected" : ""}>
-                    <td>
-                      <input type="checkbox" checked={selected.has(a.id)} onChange={() => toggleOne(a.id)} />
-                    </td>
-                    <td>
-                      <div className="row-profile">
-                        {a.photo_url ? (
-                          <img src={coverUrl(a.photo_url)} alt="" />
-                        ) : (
-                          <div className="ph avatar-fallback">{(a.display_name || "?")[0]}</div>
-                        )}
-                      </div>
-                    </td>
-                    <td style={{ fontWeight: 600 }}>{a.display_name || "—"}</td>
-                    <td className="meta">{a.email || "—"}</td>
-                    <td>{a.story_count ?? 0}</td>
-                    <td>{a.followers ?? 0}</td>
-                    <td>
-                      <StatusPill status={status} />
-                    </td>
-                    <td>
-                      <RowActions row={a} busyId={busyId} onView={setViewUser} onAct={act} />
-                    </td>
+        ) : (
+          <>
+            <div className="toolbar">
+              <input
+                className="search-input"
+                placeholder="Search name or email…"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
+              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+                <option value="all">All statuses</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="banned">Banned</option>
+                <option value="suspended">Suspended</option>
+                <option value="deleted">Deleted</option>
+              </select>
+              <button type="button" className="btn btn-sm btn-primary" onClick={load}>
+                Refresh
+              </button>
+            </div>
+            {someSelected ? (
+              <div className="bulk-bar">
+                <span className="meta">{selected.size} selected</span>
+                <button type="button" className="btn btn-sm btn-danger" disabled={bulkBusy} onClick={() => bulkAct("ban")}>Ban</button>
+                <button type="button" className="btn btn-sm btn-success" disabled={bulkBusy} onClick={() => bulkAct("unban")}>Unban</button>
+                <button type="button" className="btn btn-sm btn-warn" disabled={bulkBusy} onClick={() => bulkAct("suspend")}>Suspend</button>
+                <button type="button" className="btn btn-sm btn-success" disabled={bulkBusy} onClick={() => bulkAct("unsuspend")}>Unsuspend</button>
+                <button type="button" className="btn btn-sm btn-ghost" disabled={bulkBusy} onClick={() => bulkAct("inactive")}>Inactive</button>
+                <button type="button" className="btn btn-sm btn-primary" disabled={bulkBusy} onClick={() => bulkAct("active")}>Active</button>
+                <button type="button" className="btn btn-sm btn-danger" disabled={bulkBusy} onClick={() => bulkAct("delete")}>Delete</button>
+                <button type="button" className="btn btn-sm btn-success" disabled={bulkBusy} onClick={() => bulkAct("restore")}>Recover</button>
+              </div>
+            ) : null}
+            {error ? <div className="error-banner">{error}</div> : null}
+            {success ? <div className="success-banner">{success}</div> : null}
+            <div className="table-wrap">
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th style={{ width: 36 }}>
+                      <input type="checkbox" checked={allSelected} onChange={toggleAll} title="Select all" />
+                    </th>
+                    <th>Profile</th>
+                    <th>Author</th>
+                    <th>Email</th>
+                    <th>Novels</th>
+                    <th>Followers</th>
+                    <th>Status</th>
+                    <th>Actions</th>
                   </tr>
-                );
-              })}
-              {list.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="empty">
-                    No authors match this filter.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-        </>
+                </thead>
+                <tbody>
+                  {list.map((a) => {
+                    const status = userStatus(a);
+                    return (
+                      <tr key={a.id} className={selected.has(a.id) ? "row-selected" : ""}>
+                        <td>
+                          <input type="checkbox" checked={selected.has(a.id)} onChange={() => toggleOne(a.id)} />
+                        </td>
+                        <td>
+                          <div className="row-profile">
+                            {a.photo_url ? (
+                              <img src={coverUrl(a.photo_url)} alt="" />
+                            ) : (
+                              <div className="ph avatar-fallback">{(a.display_name || "?")[0]}</div>
+                            )}
+                          </div>
+                        </td>
+                        <td style={{ fontWeight: 600 }}>{a.display_name || "—"}</td>
+                        <td className="meta">{a.email || "—"}</td>
+                        <td>{a.story_count ?? 0}</td>
+                        <td>{a.followers ?? a.follower_count ?? 0}</td>
+                        <td>
+                          <StatusPill status={status} />
+                        </td>
+                        <td>
+                          <RowActions row={a} busyId={busyId} onView={setViewUser} onAct={act} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {list.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="empty">
+                        No authors match this filter.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
+      </div>
       {viewUser ? (
         <AccountViewModal
           user={viewUser}
