@@ -1234,21 +1234,22 @@ class _ContinueReadingSectionState extends State<_ContinueReadingSection> {
     final b = entry.book;
     int chapterNumber =
         entry.lastChapterNumber > 0 ? entry.lastChapterNumber : 1;
-    int paragraphIndex = entry.lastParagraphIndex;
-    // Prefer freshest local cache for chapter/paragraph
+    int paragraphIndex =
+        entry.lastParagraphIndex >= 0 ? entry.lastParagraphIndex : 0;
+    // Prefer freshest local cache for chapter/paragraph (written on every scroll)
     try {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString('continue_reading_v1') ?? '{}';
       final map = Map<String, dynamic>.from(
         (jsonDecode(raw) as Map?) ?? const {},
       );
-      final cached = map['${b.id}'];
+      final cached = map['${b.id}'] ?? map['$b.id'];
       if (cached is Map) {
         final c = Map<String, dynamic>.from(cached);
-        chapterNumber =
-            (c['last_chapter_number'] as num?)?.toInt() ?? chapterNumber;
-        paragraphIndex =
-            (c['last_paragraph_index'] as num?)?.toInt() ?? paragraphIndex;
+        final cn = (c['last_chapter_number'] as num?)?.toInt();
+        final pi = (c['last_paragraph_index'] as num?)?.toInt();
+        if (cn != null && cn > 0) chapterNumber = cn;
+        if (pi != null && pi >= 0) paragraphIndex = pi;
       }
     } catch (_) {}
 

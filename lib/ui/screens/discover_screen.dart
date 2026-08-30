@@ -655,21 +655,28 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Future<void> _reloadRecentForScope() async {
+    // Reload ALL scope histories so Title/Tag/Profile chips stay in sync
+    await _loadSearchHistory();
     try {
       final prefs = await SharedPreferences.getInstance();
       final rawResults = prefs.getString(_resultsKey);
       final decodedResults = rawResults == null ? null : jsonDecode(rawResults);
       if (!mounted) return;
       setState(() {
+        _recentTitle = prefs.getStringList(_kHistTitle) ?? _recentTitle;
+        _recentTag = prefs.getStringList(_kHistTag) ?? _recentTag;
+        _recentProfile = prefs.getStringList(_kHistProfile) ?? _recentProfile;
         _recentRows = decodedResults is List
             ? decodedResults
                   .whereType<Map>()
                   .map((e) => Map<String, dynamic>.from(e))
                   .toList()
             : const [];
-        _showRecent = _searchQuery.trim().isEmpty;
+        _showRecent = true;
       });
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) setState(() => _showRecent = true);
+    }
   }
 
   String get _resultsKey {
@@ -1133,22 +1140,42 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
             ),
           Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : _results.isEmpty
-                ? Center(
-                    child: Text(
-                      _searchQuery.isEmpty
-                          ? 'Search stories, tags or people'
-                          : 'No results',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.all(12),
-                    itemCount: _results.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 8),
-                    itemBuilder: (context, index) {
+            child: RefreshIndicator(
+              onRefresh: () async {
+                await _reloadRecentForScope();
+                if (_searchQuery.trim().isNotEmpty) {
+                  await _runSearch(recordHistory: false);
+                }
+              },
+              child: _loading
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: const [
+                        SizedBox(height: 120),
+                        Center(child: CircularProgressIndicator()),
+                      ],
+                    )
+                  : _results.isEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        SizedBox(height: 120),
+                        Center(
+                          child: Text(
+                            _searchQuery.isEmpty
+                                ? 'Search stories, tags or people'
+                                : 'No results',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ),
+                      ],
+                    )
+                  : ListView.separated(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(12),
+                      itemCount: _results.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
                       final item = _results[index];
                       final kind = (item['_kind'] ?? 'book').toString();
                       final cover =
@@ -1286,6 +1313,7 @@ class _SearchScreenState extends State<SearchScreen> {
                       );
                     },
                   ),
+            ),
           ),
         ],
       ),

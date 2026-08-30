@@ -126,7 +126,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
   }
 
   void _scrollToParagraph(int index) {
-    if (index < 0) return;
+    if (index <= 0) return;
     void tryScroll() {
       if (!mounted) return;
       final key = _paragraphKeys[index];
@@ -135,27 +135,23 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
         Scrollable.ensureVisible(
           ctx,
           duration: const Duration(milliseconds: 450),
-          alignment: 0.08,
+          alignment: 0.05,
           curve: Curves.easeOutCubic,
         );
         return;
       }
       if (_scrollController.hasClients) {
         final max = _scrollController.position.maxScrollExtent;
-        final target = (index * 160.0).clamp(0.0, max);
-        _scrollController.animateTo(
-          target,
-          duration: const Duration(milliseconds: 400),
-          curve: Curves.easeOutCubic,
-        );
+        // Estimate ~1.2 lines of body text per 20px; paragraphs vary — use 140px avg
+        final target = (index * 140.0).clamp(0.0, max);
+        _scrollController.jumpTo(target);
       }
     }
-    // Retry a few frames — content/keys may not be built yet
     WidgetsBinding.instance.addPostFrameCallback((_) {
       tryScroll();
-      Future<void>.delayed(const Duration(milliseconds: 120), tryScroll);
-      Future<void>.delayed(const Duration(milliseconds: 350), tryScroll);
-      Future<void>.delayed(const Duration(milliseconds: 700), tryScroll);
+      for (final ms in [80, 200, 400, 700, 1100, 1600]) {
+        Future<void>.delayed(Duration(milliseconds: ms), tryScroll);
+      }
     });
   }
 

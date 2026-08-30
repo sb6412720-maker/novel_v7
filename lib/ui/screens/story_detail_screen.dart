@@ -1975,12 +1975,7 @@ class _WriteReviewScreenState extends State<_WriteReviewScreen> {
       return;
     }
     final body = _bodyCtrl.text.trim();
-    if (body.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please write a review')),
-      );
-      return;
-    }
+    // Any length allowed (including short) — rating is the only required field
     setState(() => _saving = true);
     try {
       await widget.apiService.createBookReview(widget.bookId, {
@@ -2057,9 +2052,15 @@ class _WriteReviewScreenState extends State<_WriteReviewScreen> {
             TextField(
               controller: _bodyCtrl,
               maxLines: 6,
+              style: const TextStyle(fontSize: 15, height: 1.4),
               decoration: InputDecoration(
                 hintText:
-                    'Review (20 words or more required)\n- What did you like or dislike?\n- Whom would you recommend this book to?\n- Why did you choose this rating?',
+                    'Write your review...\nWhat did you like? Who should read this?',
+                hintStyle: TextStyle(
+                  color: Colors.grey.shade500,
+                  fontSize: 14,
+                  height: 1.4,
+                ),
                 alignLabelWithHint: true,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
