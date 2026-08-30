@@ -193,6 +193,44 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
     );
   }
 
+
+  Future<void> _publishStoryAndChapter() async {
+    await _saveChapter(
+      submissionStatus: 'published',
+      scheduledFor: null,
+      successMessage: 'Chapter published',
+    );
+    // Mark parent book completed/published
+    try {
+      await widget.apiService.updateWriterStory(
+        widget.storyId,
+        {'status_text': 'Completed'},
+      );
+    } catch (_) {
+      try {
+        await widget.apiService.updateWriterStory(
+          widget.storyId,
+          {'status_text': 'Published'},
+        );
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Story published — moved to Submitted')),
+    );
+    Navigator.of(context).popUntil((r) => r.isFirst);
+  }
+
+  Future<void> _saveAsDraftChapter() async {
+    await _saveChapter(
+      submissionStatus: 'draft',
+      scheduledFor: null,
+      successMessage: 'Saved as draft',
+    );
+    if (!mounted) return;
+    Navigator.of(context).pop();
+  }
+
   Future<void> _saveChapter({
     String? submissionStatus,
     DateTime? scheduledFor,
@@ -658,6 +696,31 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
               onPressed: _showOptionsMenu,
             ),
           ],
+        ),
+        bottomNavigationBar: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _isSaving ? null : _saveAsDraftChapter,
+                    child: const Text('Draft'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: _isSaving ? null : _publishStoryAndChapter,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF00C853),
+                    ),
+                    child: const Text('Publish'),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
         body: _isLoading
             ? const Center(child: CircularProgressIndicator())

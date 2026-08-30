@@ -36,7 +36,8 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   AuthSession? _session;
   bool _showLoginOverlay = false;
 
-  bool get _isAuthenticated => _session != null;
+  bool get _isAuthenticated => _session != null && !_session!.isGuest;
+  bool get _isGuestSession => _session != null && _session!.isGuest;
 
   @override
   void initState() {
@@ -175,10 +176,23 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       setState(() {
         _session = session;
       });
-      // Only incomplete profiles (e.g. brand-new Google) — never after normal login
+      // First-time users: complete profile BEFORE Discover (cannot skip)
       if (!session.isGuest) {
-        await _maybeShowOnboarding(session);
+        final needsProfile = await _needsCompleteProfile(session);
         if (!mounted) return;
+        if (needsProfile) {
+          await _showOnboardingBlocking(session);
+          if (!mounted) return;
+          // Re-check: still incomplete → stay on login
+          final still = await _needsCompleteProfile(session);
+          if (!mounted) return;
+          if (still) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Please complete your profile to continue')),
+            );
+            return;
+          }
+        }
       }
       if (!mounted) return;
       setState(() {
@@ -227,25 +241,31 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _maybeShowOnboarding(AuthSession session) async {
-    if (session.isGuest) return;
+  bool _isProfileCompleteFlag(dynamic completeRaw) {
+    return completeRaw == true ||
+        completeRaw == 1 ||
+        completeRaw == '1' ||
+        completeRaw == 'true' ||
+        completeRaw == 'True';
+  }
+
+  Future<bool> _needsCompleteProfile(AuthSession session) async {
+    if (session.isGuest) return false;
     try {
       final me = await _apiService.fetchMe();
-      final completeRaw = me['profile_complete'];
-      final complete = completeRaw == true ||
-          completeRaw == 1 ||
-          completeRaw == '1' ||
-          completeRaw == 'true' ||
-          completeRaw == 'True';
-      // First-time only: skip solely when profile_complete is set (Google name alone is NOT enough)
-      if (complete) {
-        if (mounted) setState(() => _showLoginOverlay = false);
-        return;
-      }
+      return !_isProfileCompleteFlag(me['profile_complete']);
+    } catch (_) {
+      return true;
+    }
+  }
+
+  Future<void> _showOnboardingBlocking(AuthSession session) async {
+    try {
+      final me = await _apiService.fetchMe();
       final name = (me['display_name'] ?? '').toString().trim();
-      final display = name.isNotEmpty
+      final display = name.isNotEmpty && name.toLowerCase() != 'reader'
           ? name
-          : (me['display_name'] ?? session.displayName).toString().trim();
+          : session.displayName.toString().trim();
       final photo =
           (me['photo_url'] ?? me['avatar_url'] ?? session.photoUrl ?? '')
               .toString();
@@ -253,28 +273,34 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           fullscreenDialog: true,
-          builder: (_) => OnboardingProfileScreen(
-            apiService: _apiService,
-            initialDisplayName: display.toLowerCase() == 'reader'
-                ? ''
-                : display,
-            initialPhotoUrl: photo,
-            onDone: () {
-              if (Navigator.of(context).canPop()) {
-                Navigator.of(context).pop();
-              }
-            },
+          builder: (_) => PopScope(
+            canPop: false,
+            child: OnboardingProfileScreen(
+              apiService: _apiService,
+              initialDisplayName:
+                  display.toLowerCase() == 'reader' ? '' : display,
+              initialPhotoUrl: photo,
+              onDone: () {
+                if (Navigator.of(context).canPop()) {
+                  Navigator.of(context).pop();
+                }
+              },
+            ),
           ),
         ),
       );
-      // Profile was just saved — force session + home profile from /api/me
       final refreshed = await _authService.refreshSessionFromServer();
       if (mounted && refreshed != null) {
         setState(() => _session = refreshed);
       }
-      // Soft refresh bootstrap so Profile tab gets new name/photo when it uses bootstrap fallback
       unawaited(_loadBootstrap(showLoading: false));
     } catch (_) {}
+  }
+
+  Future<void> _maybeShowOnboarding(AuthSession session) async {
+    if (session.isGuest) return;
+    if (!await _needsCompleteProfile(session)) return;
+    await _showOnboardingBlocking(session);
   }
 
   Future<void> _signOut() async {
@@ -402,8 +428,15 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
             : Colors.transparent,
         selectedIndex: _selectedIndex,
         onDestinationSelected: (value) {
-          // Allow Discover always; other tabs prompt sign-in when logged out
+          // Guests and logged-out users: Discover only; other tabs need real account
           if (!_isAuthenticated && value != 1) {
+            if (_isGuestSession) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Guest can only read books. Sign in to use this feature.'),
+                ),
+              );
+            }
             _requireAuth(afterLoginIndex: value);
             return;
           }

@@ -53,6 +53,9 @@ class ChapterReaderScreen extends StatefulWidget {
 enum _ReaderTheme { white, eggshell, nightowl }
 
 class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
+  int _readSeconds = 0;
+  Timer? _readTimer;
+
   late int _chapterIndex;
   late List<Map<String, dynamic>> _chapters;
   late String _chapterTitle;
@@ -90,6 +93,10 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
 
   @override
   void initState() {
+    _readTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() => _readSeconds++);
+    });
+
     super.initState();
     // Track as ongoing when reader opens
     unawaited(_markLibraryProgress(completed: false));
@@ -238,6 +245,8 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
 
   @override
   void dispose() {
+    _readTimer?.cancel();
+
     // Persist exact stop position as ongoing read
     unawaited(_markLibraryProgress(completed: false));
     _scrollController.removeListener(_updateVisibleParagraphFromScroll);
@@ -1059,12 +1068,24 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     return Scaffold(
       backgroundColor: _bg,
       appBar: AppBar(
+          // reading timer
+
         backgroundColor: _bg,
         foregroundColor: _fg,
         elevation: 0,
         centerTitle: true,
         title: Text(pageLabel, style: TextStyle(color: _muted, fontSize: 14)),
         actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Center(
+                child: Text(
+                  '${(_readSeconds ~/ 60).toString().padLeft(2, '0')}:${(_readSeconds % 60).toString().padLeft(2, '0')}',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+
           IconButton(
             icon: Icon(Icons.info_outline, color: _muted),
             onPressed: () {

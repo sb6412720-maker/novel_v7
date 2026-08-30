@@ -873,17 +873,24 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                             );
                           }
                         : () async {
-                            final posted = await Navigator.of(context).push(
-                              MaterialPageRoute<bool>(
-                                builder: (_) => _WriteReviewScreen(
-                                  bookId: _book.id,
+                            await Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => _BookReviewsPage(
+                                  book: _book,
                                   apiService: widget.apiService,
+                                  isOwner: _isOwner,
+                                  hasMyReview: _hasMyReview,
+                                  onReviewPosted: () async {
+                                    setState(() => _hasMyReview = true);
+                                    final reviews = await widget.apiService
+                                        .fetchBookReviews(_book.id);
+                                    if (mounted) {
+                                      setState(() => _reviews = reviews);
+                                    }
+                                  },
                                 ),
                               ),
                             );
-                            if (posted == true && mounted) {
-                              setState(() => _hasMyReview = true);
-                            }
                             final reviews =
                                 await widget.apiService.fetchBookReviews(
                               _book.id,
@@ -1701,6 +1708,294 @@ class _TagBooksScreen extends StatelessWidget {
                 );
               },
             ),
+    );
+  }
+}
+
+
+
+class _BookReviewsPage extends StatefulWidget {
+  const _BookReviewsPage({
+    required this.book,
+    required this.apiService,
+    required this.isOwner,
+    required this.hasMyReview,
+    required this.onReviewPosted,
+  });
+
+  final Book book;
+  final ApiService apiService;
+  final bool isOwner;
+  final bool hasMyReview;
+  final Future<void> Function() onReviewPosted;
+
+  @override
+  State<_BookReviewsPage> createState() => _BookReviewsPageState();
+}
+
+class _BookReviewsPageState extends State<_BookReviewsPage> {
+  List<Map<String, dynamic>> _reviews = const [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final list = await widget.apiService.fetchBookReviews(widget.book.id);
+      if (mounted) {
+        setState(() {
+          _reviews = list;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
+              children: [
+                Text(
+                  '${_reviews.length} reviews for',
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  widget.book.title,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    height: 1.25,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'By ${widget.book.author}',
+                  style: const TextStyle(
+                    color: Color(0xFF00A651),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (!widget.isOwner)
+                  Center(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF00C853),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 28,
+                          vertical: 12,
+                        ),
+                      ),
+                      onPressed: widget.hasMyReview
+                          ? null
+                          : () async {
+                              final posted = await Navigator.of(context).push(
+                                MaterialPageRoute<bool>(
+                                  builder: (_) => _WriteReviewScreen(
+                                    bookId: widget.book.id,
+                                    apiService: widget.apiService,
+                                  ),
+                                ),
+                              );
+                              if (posted == true) {
+                                await widget.onReviewPosted();
+                                await _load();
+                              }
+                            },
+                      child: Text(
+                        widget.hasMyReview ? 'You already reviewed' : 'Write a Review',
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 24),
+                if (_reviews.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 40),
+                    child: Center(
+                      child: Text(
+                        'No reviews yet. Be the first!',
+                        style: TextStyle(color: Colors.grey.shade600),
+                      ),
+                    ),
+                  )
+                else
+                  for (final r in _reviews) _reviewCard(r),
+              ],
+            ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: const [
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.bookmark_border),
+                  Text('Save', style: TextStyle(fontSize: 12)),
+                ],
+              ),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.ios_share),
+                  Text('Share', style: TextStyle(fontSize: 12)),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _reviewCard(Map<String, dynamic> r) {
+    final name = (r['user_name'] ?? r['display_name'] ?? r['username'] ?? 'Reader')
+        .toString();
+    final body = (r['comment'] ?? r['body'] ?? r['text'] ?? '').toString();
+    final title = (r['title'] ?? '').toString();
+    final rating = (r['rating'] as num?)?.toDouble() ?? 0;
+    final created = (r['created_at'] ?? '').toString();
+    final chaptersRead = r['chapters_read'];
+
+    Widget stars(double v) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: List.generate(5, (i) {
+          return Icon(
+            i < v.round() ? Icons.star : Icons.star_border,
+            size: 16,
+            color: const Color(0xFFFFC107),
+          );
+        }),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: Colors.grey.shade300,
+                child: Text(
+                  name.isNotEmpty ? name[0].toUpperCase() : '?',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                    if (chaptersRead != null)
+                      Text(
+                        '$chaptersRead chapters read',
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      ),
+                  ],
+                ),
+              ),
+              Text(
+                created.length >= 10 ? created.substring(0, 10) : created,
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+              ),
+            ],
+          ),
+          if (title.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+          ],
+          if (body.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text('"$body"', style: TextStyle(color: Colors.grey.shade800, height: 1.4)),
+          ],
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Overall Rating', style: TextStyle(fontSize: 12)),
+                    stars(rating),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Plot', style: TextStyle(fontSize: 12)),
+                    stars(rating),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Writing Style', style: TextStyle(fontSize: 12)),
+                    stars(rating),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Grammar & Punctuation', style: TextStyle(fontSize: 12)),
+                    stars(rating),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Was this review helpful to you?',
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              TextButton(onPressed: () {}, child: const Text('Yes')),
+              TextButton(onPressed: () {}, child: const Text('No')),
+            ],
+          ),
+          const Divider(height: 1),
+        ],
+      ),
     );
   }
 }

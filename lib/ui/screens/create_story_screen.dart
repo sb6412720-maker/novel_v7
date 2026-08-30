@@ -71,7 +71,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   bool _loadingGenres = false;
   bool _showCustomGenre = false;
 
-  String _status = 'Ongoing';
+  String _status = 'Draft';
   String _language = 'Sinhala';
   String? _audience;
   final Set<String> _selectedWarnings = {};
@@ -328,16 +328,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     setState(() => _saving = true);
     try {
       final warnings = _buildWarningsString();
-      // Draft keeps private. Save uses Ongoing/Completed toggle.
-      // Completed + chapter with >=50 words becomes readable by others (backend).
-      final String statusText;
-      if (asDraft) {
-        statusText = 'Draft';
-      } else if (_status == 'Completed') {
-        statusText = 'Completed';
-      } else {
-        statusText = 'Ongoing';
-      }
+      // Create/meta screen always saves as Draft. Publish happens on chapter editor.
+      final String statusText = 'Draft';
       final payload = <String, dynamic>{
         'title': title.isEmpty ? 'Untitled Story' : title,
         'description': summary,
@@ -529,7 +521,12 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
               child: Row(
                 children: [
                   IconButton(
-                    onPressed: () => Navigator.of(context).maybePop(),
+                    onPressed: () async {
+                      if (_titleController.text.trim().isNotEmpty && !_saving) {
+                        try { await _save(asDraft: true); } catch (_) {}
+                      }
+                      if (context.mounted) Navigator.of(context).maybePop();
+                    },
                     icon: const Icon(Icons.arrow_back, color: _textHi),
                   ),
                   const Text(
@@ -783,21 +780,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                     child: Row(
                       children: [
                         Expanded(
-                          child: _segmentBtn(
-                            'Ongoing',
-                            active: _status == 'Ongoing',
-                            activeColor: _amber,
-                            onTap: () => setState(() => _status = 'Ongoing'),
                           ),
-                        ),
-                        Expanded(
-                          child: _segmentBtn(
-                            'Completed',
-                            active: _status == 'Completed',
-                            activeColor: _green,
-                            onTap: () => setState(() => _status = 'Completed'),
-                          ),
-                        ),
                       ],
                     ),
                   ),
@@ -1117,7 +1100,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                   Expanded(
                     flex: 2,
                     child: ElevatedButton(
-                      onPressed: _saving ? null : () => _save(asDraft: false),
+                      onPressed: _saving ? null : () => _save(asDraft: true), // meta → draft, then chapter editor
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _magenta,
                         disabledBackgroundColor: _magenta.withValues(alpha: 0.4),
