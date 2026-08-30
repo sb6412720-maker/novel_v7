@@ -177,14 +177,14 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       setState(() {
         _session = session;
       });
-      // First-time users: complete profile BEFORE Discover (cannot skip)
+      // First-time users only: complete profile BEFORE Discover (cannot skip).
+      // Never again from More / Profile.
       if (!session.isGuest) {
         final needsProfile = await _needsCompleteProfile(session);
         if (!mounted) return;
         if (needsProfile) {
           await _showOnboardingBlocking(session);
           if (!mounted) return;
-          // Re-check: still incomplete → stay on login
           final still = await _needsCompleteProfile(session);
           if (!mounted) return;
           if (still) {
@@ -193,6 +193,13 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
             );
             return;
           }
+        } else {
+          // Already complete (local or server) — keep flags warm
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setBool(_profileDoneKey(session), true);
+            await prefs.setBool('profile_complete_local_done', true);
+          } catch (_) {}
         }
       }
       if (!mounted) return;
@@ -328,9 +335,8 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   }
 
   Future<void> _maybeShowOnboarding(AuthSession session) async {
-    if (session.isGuest) return;
-    if (!await _needsCompleteProfile(session)) return;
-    await _showOnboardingBlocking(session);
+    // Intentionally empty — complete profile only runs once in _continueLogin
+    // before Discover. Never from More / Profile / tab switches.
   }
 
   Future<void> _signOut() async {

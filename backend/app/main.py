@@ -1847,7 +1847,7 @@ def get_me(user: dict[str, Any] = Depends(require_user)):
         )
     except Exception:
         rows = fetch_all(
-            "SELECT id, email, display_name, photo_url, cover_url, bio, provider FROM app_users WHERE id=%s LIMIT 1",
+            "SELECT id, email, display_name, photo_url, cover_url, bio, provider, gender, birth_date, COALESCE(profile_complete,0) AS profile_complete FROM app_users WHERE id=%s LIMIT 1",
             (user["user_id"],),
         )
     if not rows:
@@ -1998,6 +1998,9 @@ def get_user_profile(user_id: int):
         "avatar_url": _row_get(u, "photo_url") or "",
         "cover_url": _row_get(u, "cover_url") or "",
         "bio": _row_get(u, "bio") or "",
+        "gender": _row_get(u, "gender") or "",
+        "birth_date": str(_row_get(u, "birth_date") or ""),
+        "profile_complete": bool(int(_row_get(u, "profile_complete") or 0)),
         "provider": _row_get(u, "provider") or "",
         "following": following,
         "followers": followers,
@@ -5654,19 +5657,32 @@ def admin_delete_achievement(
 
 @app.get("/api/users/{user_id}/stories")
 def list_user_stories(user_id: int):
-    """Public stories authored by user_id."""
-    rows = fetch_all(
-        """
-        SELECT id, user_id, title, author, description, genre, cover_path, accent_hex,
-               status_text, rating, primary_genre, secondary_genre, is_completed
-        FROM books
-        WHERE user_id=%s
-        ORDER BY id DESC
-        LIMIT 100
-        """,
-        (user_id,),
-    )
-    return {"items": [_serialize_book(row) for row in rows]}
+    """Public stories authored by user_id (user_id or author_user_id)."""
+    try:
+        rows = fetch_all(
+            """
+            SELECT id, user_id, title, author, description, genre, cover_path, accent_hex,
+                   status_text, rating, primary_genre, secondary_genre, is_completed
+            FROM books
+            WHERE user_id=%s OR author_user_id=%s
+            ORDER BY id DESC
+            LIMIT 100
+            """,
+            (user_id, user_id),
+        )
+    except Exception:
+        rows = fetch_all(
+            """
+            SELECT id, user_id, title, author, description, genre, cover_path, accent_hex,
+                   status_text, rating, primary_genre, secondary_genre, is_completed
+            FROM books
+            WHERE user_id=%s
+            ORDER BY id DESC
+            LIMIT 100
+            """,
+            (user_id,),
+        )
+    return {"items": [_serialize_book(row) for row in (rows or [])]}
 
 
 @app.get("/api/users/{user_id}/reading-lists")

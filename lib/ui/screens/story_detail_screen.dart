@@ -499,12 +499,12 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
     final needsExpand = summary.length > 160;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
             pinned: true,
-            backgroundColor: Colors.white,
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
             foregroundColor: Colors.black87,
             elevation: 0,
             leading: IconButton(
@@ -1273,119 +1273,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
               ),
             ),
           ),
-          if (_loadingReviews)
-            const SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                child: LinearProgressIndicator(minHeight: 2),
-              ),
-            )
-          else if (_reviews.isEmpty)
-            const SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
-                child: Text('No reviews yet. Be the first to review.'),
-              ),
-            )
-          else
-            SliverList(
-              delegate: SliverChildBuilderDelegate((context, index) {
-                final r = _reviews[index];
-                final rating = (r['rating'] as num?)?.toInt() ?? 0;
-                final comment =
-                    r['comment'] as String? ?? r['body'] as String? ?? '';
-                final author =
-                    r['display_name'] as String? ??
-                    r['author'] as String? ??
-                    'Reader';
-                final avatarRaw =
-                    (r['avatar_url'] ??
-                            r['photo_url'] ??
-                            r['user_avatar'] ??
-                            '')
-                        .toString();
-                final avatarUrl = avatarRaw.isEmpty
-                    ? ''
-                    : widget.apiService.resolveAssetUrl(avatarRaw);
-                final reviewerId =
-                    (r['user_id'] as num?)?.toInt() ??
-                    (r['author_id'] as num?)?.toInt();
-                return ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 20),
-                  leading: CircleAvatar(
-                    radius: 20,
-                    backgroundColor: Colors.grey.shade200,
-                    backgroundImage: avatarUrl.isNotEmpty
-                        ? NetworkImage(avatarUrl)
-                        : null,
-                    child: avatarUrl.isEmpty
-                        ? Text(
-                            author.isNotEmpty ? author[0].toUpperCase() : '?',
-                            style: TextStyle(
-                              color: Colors.grey.shade700,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          )
-                        : null,
-                  ),
-                  title: Row(
-                    children: [
-                      Flexible(
-                        child: GestureDetector(
-                          onTap: reviewerId != null && reviewerId > 0
-                              ? () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute<void>(
-                                      builder: (_) => ProfileScreen(
-                                        apiService: widget.apiService,
-                                        viewingUserId: reviewerId,
-                                        achievements: const [],
-                                        profile: ProfileModel(
-                                          id: reviewerId,
-                                          displayName: author,
-                                          username: author
-                                              .toLowerCase()
-                                              .replaceAll(' ', ''),
-                                          photoUrl: avatarRaw,
-                                          coverUrl: '',
-                                          following: 0,
-                                          followers: 0,
-                                          blocked: 0,
-                                          chaptersRead: 0,
-                                          socialKarma: 0,
-                                          dayStreak: 0,
-                                          readingLists: const [],
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                }
-                              : null,
-                          child: Text(
-                            author,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              decoration: TextDecoration.underline,
-                              decorationColor: Colors.transparent,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      ...List.generate(
-                        rating.clamp(0, 5),
-                        (_) => const Icon(
-                          Icons.star,
-                          size: 14,
-                          color: Colors.amber,
-                        ),
-                      ),
-                    ],
-                  ),
-                  subtitle: comment.isEmpty ? null : Text(comment),
-                );
-              }, childCount: _reviews.length),
-            ),
+          // Reviews only on Reviews page (button above)
 
           // Chapters
           SliverToBoxAdapter(
@@ -1764,9 +1652,9 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -2107,9 +1995,9 @@ class _WriteReviewScreenState extends State<_WriteReviewScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
         foregroundColor: Colors.black87,
         title: const Text('Write Review'),
