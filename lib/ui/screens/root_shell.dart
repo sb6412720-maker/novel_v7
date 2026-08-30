@@ -46,7 +46,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _bootstrapApp();
     _syncTimer = Timer.periodic(
-      const Duration(seconds: 60),
+      const Duration(seconds: 12),
       (_) => _pollContentVersion(),
     );
   }
@@ -60,9 +60,9 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // After phone sleep: soft-refresh WITHOUT clearing existing UI
     if (state == AppLifecycleState.resumed) {
-      unawaited(_softRefresh());
+      unawaited(_pollContentVersion());
+      unawaited(_loadBootstrap(showLoading: false));
     }
   }
 

@@ -68,6 +68,13 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
       _loadingChapters = true;
       _error = null;
     });
+    // Resolve current user immediately so owner self-actions stay disabled
+    try {
+      final me = await widget.apiService.fetchMe();
+      final uid = (me['id'] as num?)?.toInt() ??
+          (me['user_id'] as num?)?.toInt();
+      if (mounted && uid != null) setState(() => _currentUserId = uid);
+    } catch (_) {}
     try {
       final detail = await widget.apiService.fetchPublicBook(_book.id);
       if (detail != null && mounted) {
@@ -836,15 +843,18 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                       _liked ? Icons.favorite : Icons.favorite_border,
                       size: 20,
                       color: _isOwner
-                          ? Colors.black26
-                          : (_liked ? Colors.red : null),
+                          ? Colors.grey
+                          : (_liked
+                              ? Colors.red
+                              : Theme.of(context).iconTheme.color),
                     ),
                     label: Text(
                       _likesCount > 0 ? '$_likesCount Likes' : 'Likes',
                     ),
                     style: TextButton.styleFrom(
-                      foregroundColor:
-                          _isOwner ? Colors.black26 : Colors.black87,
+                      foregroundColor: _isOwner
+                          ? Colors.grey
+                          : Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   TextButton.icon(
