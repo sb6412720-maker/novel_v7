@@ -498,6 +498,20 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
         : _book.description;
     final needsExpand = summary.length > 160;
 
+    if (_loadingChapters) {
+      return const Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Loading story...'),
+            ],
+          ),
+        ),
+      );
+    }
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: CustomScrollView(

@@ -102,15 +102,11 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
         });
       }
     }
-    // Instant UI from last session while Vercel cold-starts (~60s first hit).
-    final disk = await _apiService.loadDiskBootstrap();
-    if (disk != null && mounted) {
-      setState(() {
-        _bootstrap = disk;
-        _loading = false;
-      });
-    }
-    await _loadBootstrap(showLoading: _bootstrap == null);
+    // Keep spinner until network bootstrap finishes (no half-loaded UI).
+    if (mounted) setState(() => _loading = true);
+    // Warm disk cache in background only — do not show UI yet
+    unawaited(_apiService.loadDiskBootstrap());
+    await _loadBootstrap(showLoading: true);
   }
 
   Future<void> _loadBootstrap({bool showLoading = true}) async {
@@ -359,8 +355,19 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading && _bootstrap == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (_loading || _bootstrap == null) {
+      return const Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Loading...', style: TextStyle(fontSize: 14)),
+            ],
+          ),
+        ),
+      );
     }
 
     // Explicit login overlay (when user taps a gated tab)

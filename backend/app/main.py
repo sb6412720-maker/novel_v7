@@ -3871,6 +3871,33 @@ def _live_book_likes_count(book_id: int | None) -> int:
         return 0
 
 
+
+def _serialize_book_light(row: Any) -> dict[str, Any]:
+    """List-card serialization — no per-row COUNT/tag queries (fast)."""
+    data = dict(row) if not isinstance(row, dict) else dict(row)
+    cover = _normalize_cover_path(_row_get(row, "cover_path") or "")
+    return {
+        "id": _row_get(row, "id"),
+        "user_id": _row_get(row, "user_id"),
+        "author_user_id": _row_get(row, "user_id") or data.get("author_user_id"),
+        "title": _row_get(row, "title") or data.get("title") or "Untitled",
+        "author": _row_get(row, "author") or data.get("author") or "Author",
+        "description": (_row_get(row, "description") or data.get("description") or "")[:400],
+        "genre": _row_get(row, "genre") or data.get("genre") or "",
+        "cover_path": cover,
+        "accent_hex": _row_get(row, "accent_hex") or data.get("accent_hex") or "#00A88E",
+        "status_text": _row_get(row, "status_text") or data.get("status_text") or "",
+        "rating": _row_get(row, "rating") or data.get("rating") or "",
+        "primary_genre": _row_get(row, "primary_genre") or data.get("primary_genre") or "",
+        "secondary_genre": _row_get(row, "secondary_genre") or data.get("secondary_genre") or "",
+        "is_completed": bool(_row_get(row, "is_completed") or data.get("is_completed") or 0),
+        "likes_count": 0,
+        "reviews_count": 0,
+        "view_count": int(_row_get(row, "view_count") or data.get("view_count") or 0),
+        "tags": [],
+    }
+
+
 def _serialize_book(row: Any) -> dict[str, Any]:
     data = dict(row) if not isinstance(row, dict) else dict(row)
     book_id = _row_get(row, "id")
@@ -4596,7 +4623,12 @@ def list_comments_by_chapter_id(chapter_id: int):
 _AUTHOR_FOLLOWS_TABLE_READY = False
 
 
+_AUTHOR_FOLLOWS_READY = False
+
 def _ensure_author_follows_table() -> None:
+    global _AUTHOR_FOLLOWS_READY
+    if _AUTHOR_FOLLOWS_READY:
+        return
     """Memoized schema ensure — runs once per serverless instance."""
     global _AUTHOR_FOLLOWS_TABLE_READY
     if _AUTHOR_FOLLOWS_TABLE_READY:
@@ -4654,6 +4686,8 @@ def _ensure_author_follows_table() -> None:
             )
     except Exception as exc:
         LOGGER.warning("author_follows column ensure failed: %s", exc)
+    _AUTHOR_FOLLOWS_READY = True
+
 
     _AUTHOR_FOLLOWS_TABLE_READY = True
 
@@ -5657,32 +5691,40 @@ def admin_delete_achievement(
 
 @app.get("/api/users/{user_id}/stories")
 def list_user_stories(user_id: int):
-    """Public stories authored by user_id (user_id or author_user_id)."""
+    """Public stories by this author — fast path (no N+1 counts/tags)."""
+    rows = []
     try:
         rows = fetch_all(
             """
             SELECT id, user_id, title, author, description, genre, cover_path, accent_hex,
-                   status_text, rating, primary_genre, secondary_genre, is_completed
-            FROM books
-            WHERE user_id=%s OR author_user_id=%s
-            ORDER BY id DESC
-            LIMIT 100
-            """,
-            (user_id, user_id),
-        )
-    except Exception:
-        rows = fetch_all(
-            """
-            SELECT id, user_id, title, author, description, genre, cover_path, accent_hex,
-                   status_text, rating, primary_genre, secondary_genre, is_completed
+                   status_text, rating, primary_genre, secondary_genre, is_completed, view_count
             FROM books
             WHERE user_id=%s
             ORDER BY id DESC
-            LIMIT 100
+            LIMIT 80
             """,
             (user_id,),
-        )
-    return {"items": [_serialize_book(row) for row in (rows or [])]}
+        ) or []
+    except Exception as exc:
+        LOGGER.warning("list_user_stories: %s", exc)
+        rows = []
+    # Also try author_user_id if column exists and first query empty
+    if not rows:
+        try:
+            rows = fetch_all(
+                """
+                SELECT id, user_id, title, author, description, genre, cover_path, accent_hex,
+                       status_text, rating, primary_genre, secondary_genre, is_completed, view_count
+                FROM books
+                WHERE author_user_id=%s
+                ORDER BY id DESC
+                LIMIT 80
+                """,
+                (user_id,),
+            ) or []
+        except Exception:
+            rows = []
+    return {"items": [_serialize_book_light(row) for row in rows]}
 
 
 @app.get("/api/users/{user_id}/reading-lists")
