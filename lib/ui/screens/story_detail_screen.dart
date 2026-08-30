@@ -972,43 +972,45 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: () {
-                        final raw = _book.genre.trim();
-                        // Support both "Romance > Dark, Fantasy > Dark" and plain lists
-                        final parts = raw
-                            .split(RegExp(r'[,|]'))
-                            .map((g) => g.trim())
-                            .where((g) => g.isNotEmpty)
-                            .toList();
-                        if (parts.isEmpty) return <Widget>[];
-                        return parts
-                            .map(
-                              (g) => Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 8,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                    color: Colors.grey.shade300,
+                    SizedBox(
+                      height: 40,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: () {
+                          final raw = _book.genre.trim();
+                          final parts = raw
+                              .split(RegExp(r'[,|]'))
+                              .map((g) => g.trim())
+                              .where((g) => g.isNotEmpty)
+                              .toList();
+                          return [
+                            for (final g in parts)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 8,
                                   ),
-                                ),
-                                child: Text(
-                                  g,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(22),
+                                    border: Border.all(
+                                      color: Colors.grey.shade300,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    g,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                   ),
                                 ),
                               ),
-                            )
-                            .toList();
-                      }(),
+                          ];
+                        }(),
+                      ),
                     ),
                   ],
                 ),
@@ -1030,22 +1032,32 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: _tags
-                          .map(
-                            (t) => ActionChip(
-                              label: Text(t.startsWith('#') ? t : '#$t'),
-                              onPressed: () => _openTag(t),
-                              backgroundColor: const Color(0xFFFFF0EE),
-                              labelStyle: const TextStyle(
-                                color: Color(0xFFE85D4C),
-                                fontWeight: FontWeight.w600,
+                    SizedBox(
+                      height: 40,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: [
+                          for (final t in _tags)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: ActionChip(
+                                label: Text(
+                                  t.startsWith('#')
+                                      ? t.replaceFirst('#', '')
+                                      : t,
+                                ),
+                                onPressed: () => _openTag(t),
+                                backgroundColor: const Color(0xFFD4F5E9),
+                                side: BorderSide.none,
+                                labelStyle: const TextStyle(
+                                  color: Color(0xFF0A7A4B),
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
                               ),
                             ),
-                          )
-                          .toList(),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -1408,42 +1420,33 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                 final rawTitle = (chapter['title'] as String? ?? '').trim();
                 final number =
                     (chapter['chapter_number'] as num?)?.toInt() ?? index + 1;
-                // Never show "Chapter 1 Chapter 1" (video / Galatea)
-                String displayTitle;
+                // Inkitt-style: "Chapter N  Title" (muted green)
                 final lower = rawTitle.toLowerCase().trim();
-                // Strip leading "Chapter N" / "Chapter N:" / "Chapter N -"
-                final stripPrefix = RegExp(
-                  r'^chapter\s*\d+\s*[:.\-–—]?\s*',
-                  caseSensitive: false,
-                );
-                final stripped = rawTitle.replaceFirst(stripPrefix, '').trim();
-                final chapterOnly = RegExp(r'^chapter\s*\d+$');
-                if (rawTitle.isEmpty || chapterOnly.hasMatch(lower)) {
-                  displayTitle = 'Chapter $number';
-                } else if (stripped.isEmpty) {
-                  displayTitle = 'Chapter $number';
-                } else if (lower.startsWith('chapter ') &&
-                    stripped.toLowerCase() != lower) {
-                  // Had "Chapter N Something" → show Chapter N · Something
-                  displayTitle = 'Chapter $number · $stripped';
-                } else if (lower.startsWith('chapter ')) {
-                  displayTitle = rawTitle;
+                String secondary;
+                if (rawTitle.isEmpty ||
+                    RegExp(r'^chapter\s*\d+$').hasMatch(lower)) {
+                  secondary = 'Chapter $number';
                 } else {
-                  displayTitle = 'Chapter $number · $rawTitle';
+                  secondary = rawTitle;
                 }
-                return ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 20),
-                  title: Text(
-                    displayTitle,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
+                return InkWell(
+                  onTap: () => _openChapter(chapter, index: index),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                    child: Text(
+                      'Chapter $number  $secondary',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF5BB89A),
+                        fontWeight: FontWeight.w500,
+                        fontSize: 15,
+                      ),
                     ),
                   ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _openChapter(chapter, index: index),
                 );
               }, childCount: _chapters.length),
             ),

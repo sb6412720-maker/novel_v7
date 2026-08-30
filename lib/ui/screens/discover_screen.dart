@@ -608,7 +608,7 @@ class _SearchScreenState extends State<SearchScreen> {
   List<String> _recentTitle = const [];
   List<String> _recentTag = const [];
   List<String> _recentProfile = const [];
-  bool _showRecent = false;
+  bool _showRecent = true;
   List<Map<String, dynamic>> _recentRows = const [];
 
   static const _kHistTitle = 'search_hist_title_v1';
@@ -912,6 +912,11 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Future<void> _bootstrapSearch() async {
     await _loadSearchHistory();
+    if (mounted) {
+      setState(() {
+        _showRecent = true;
+      });
+    }
     if (!mounted) return;
     if (widget.initialQuery.trim().isNotEmpty) {
       _runSearch(recordHistory: true);

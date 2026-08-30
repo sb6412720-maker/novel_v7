@@ -3565,6 +3565,24 @@ def create_story_chapter(story_id: int, payload: ChapterCreateRequest):
             )
             chapter_number = int(next_rows[0]["next_chapter"]) if next_rows else 1
 
+        
+        # Block duplicate chapter titles within the same story (case-insensitive)
+        title_norm = (payload.title or "").strip()
+        if title_norm:
+            dup = fetch_all(
+                """
+                SELECT id FROM chapters
+                WHERE story_id=%s AND LOWER(TRIM(title))=LOWER(%s)
+                LIMIT 1
+                """,
+                (story_id, title_norm),
+            )
+            if dup:
+                raise HTTPException(
+                    status_code=400,
+                    detail="A chapter with this title already exists in this story. Change the title to continue.",
+                )
+
         submission_status = (payload.submission_status or "published").strip() or "published"
         scheduled_for = _parse_optional_datetime(payload.scheduled_for)
         scheduled_value = (
@@ -3627,6 +3645,23 @@ def update_story_chapter(chapter_id: int, payload: ChapterUpdateRequest):
 
     current = rows[0]
     next_title = payload.title or current["title"]
+    # Unique title within same story (allow keeping own title)
+    title_norm = (next_title or "").strip()
+    if title_norm:
+        story_id = int(_row_get(current, "story_id") or 0)
+        dup = fetch_all(
+            """
+            SELECT id FROM chapters
+            WHERE story_id=%s AND LOWER(TRIM(title))=LOWER(%s) AND id!=%s
+            LIMIT 1
+            """,
+            (story_id, title_norm, chapter_id),
+        )
+        if dup:
+            raise HTTPException(
+                status_code=400,
+                detail="A chapter with this title already exists in this story. Change the title to continue.",
+            )
     next_content = payload.content if payload.content is not None else current["content"]
     next_notes = payload.notes if payload.notes is not None else _row_get(current, "notes", "")
     next_status = (payload.submission_status or _row_get(current, "submission_status") or "draft").strip() or "draft"
