@@ -178,6 +178,64 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
   }
 
 
+  Future<void> _markLibraryProgress({bool completed = false}) async {
+    final bookId = widget.bookId;
+    if (bookId == null || bookId <= 0) return;
+    final total = _chapters.isNotEmpty ? _chapters.length : 1;
+    // chapters_read = how many chapters started (at least current)
+    final chaptersRead = completed
+        ? total
+        : (_chapterIndex + 1).clamp(1, total);
+    final payload = <String, dynamic>{
+      'book_id': bookId,
+      'title': widget.title,
+      'author': widget.author,
+      'cover_path': widget.coverPath,
+      'reading_status': completed ? 'Completed' : 'Reading',
+      'updated_text': completed
+          ? 'Finished'
+          : 'Ch. $_chapterNumber · para ${_lastParagraphIndex + 1}',
+      'chapters': total,
+      'primary_genre': '',
+      'secondary_genre': '',
+      'last_chapter_number': _chapterNumber,
+      'last_paragraph_index': _lastParagraphIndex,
+      'chapters_read': chaptersRead,
+      'author_user_id': widget.authorUserId,
+    };
+    // Local cache so Continue reading works even if API fails / offline
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('continue_reading_v1') ?? '{}';
+      final map = Map<String, dynamic>.from(
+        (jsonDecode(raw) as Map?) ?? const {},
+      );
+      if (completed) {
+        map.remove('$bookId');
+      } else {
+        map['$bookId'] = {
+          ...payload,
+          'book': {
+            'id': bookId,
+            'title': widget.title,
+            'author': widget.author,
+            'cover_path': widget.coverPath,
+            'author_user_id': widget.authorUserId,
+          },
+          'updated_at': DateTime.now().toIso8601String(),
+        };
+      }
+      await prefs.setString('continue_reading_v1', jsonEncode(map));
+    } catch (e) {
+      debugPrint('Local continue cache failed: $e');
+    }
+    try {
+      await widget.apiService.addLibraryEntry(payload);
+    } catch (e) {
+      debugPrint('Library progress save failed: $e');
+    }
+  }
+
   void _updateVisibleParagraphFromScroll() {
     if (!_scrollController.hasClients) return;
     final paras = _paragraphs();
