@@ -43,7 +43,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   String _storySort = 'Recently Updated';
   String _storyFilter = 'All stories';
 
-  static const Color brand = Color(0xFF00A88E);
+  static const Color brand = Color(0xFF6C3CE1);
   static const Color muted = Color(0xFF8A8F98);
   static const Color cardBg = Color(0xFFF7F8FA);
   static const Color border = Color(0xFFE8EAED);
@@ -2372,7 +2372,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             if (type == 'save') icon = Icons.bookmark;
             if (type == 'comment') icon = Icons.chat_bubble_outline;
             return ListTile(
-              leading: Icon(icon, color: const Color(0xFF00A651)),
+              leading: Icon(icon, color: const Color(0xFF6C3CE1)),
               title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
               subtitle: Text(message),
             );
@@ -2633,7 +2633,7 @@ class _WallComposeSheetState extends State<_WallComposeSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final brand = const Color(0xFF00A88E);
+    final brand = const Color(0xFF6C3CE1);
     return Padding(
       padding: EdgeInsets.only(
         left: 16,
@@ -2721,7 +2721,7 @@ class _WallPostText extends StatelessWidget {
         TextSpan(
           text: displayToken,
           style: const TextStyle(
-            color: Color(0xFF00A88E),
+            color: Color(0xFF6C3CE1),
             fontWeight: FontWeight.w600,
           ),
           recognizer: TapGestureRecognizer()

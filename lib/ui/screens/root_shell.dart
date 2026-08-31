@@ -462,6 +462,14 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
         child: IndexedStack(index: _selectedIndex, children: pages),
       ),
       bottomNavigationBar: NavigationBar(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        indicatorColor: const Color(0xFFEDE9FE),
+        elevation: 8,
+        shadowColor: Colors.black12,
+        height: 68,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+
         height: 76,
         backgroundColor: Theme.of(context).brightness == Brightness.dark
             ? const Color(0xFF1E1E1E)
@@ -492,9 +500,9 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
             label: 'Library',
           ),
           NavigationDestination(
-            icon: Icon(Icons.explore_outlined),
-            selectedIcon: Icon(Icons.explore),
-            label: 'Discover',
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home_rounded),
+            label: 'Home',
           ),
           NavigationDestination(
             icon: Icon(Icons.edit_outlined),

@@ -1315,12 +1315,12 @@ class _ContinueReadingSectionState extends State<_ContinueReadingSection> {
           children: [
             Expanded(
               child: Text(
-                'Continue reading',
+                'Continue Reading',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 17,
-                  letterSpacing: -0.2,
-                  color: isDark ? Colors.white : null,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 18,
+                  letterSpacing: -0.3,
+                  color: isDark ? Colors.white : const Color(0xFF1A1A1A),
                 ),
               ),
             ),
@@ -1342,74 +1342,100 @@ class _ContinueReadingSectionState extends State<_ContinueReadingSection> {
         ),
         const SizedBox(height: 12),
         SizedBox(
-          height: 200,
+          height: 120,
           child: ListView(
             scrollDirection: Axis.horizontal,
             children: [
               for (final entry in books)
                 Padding(
-                  padding: const EdgeInsets.only(right: 10),
+                  padding: const EdgeInsets.only(right: 12),
                   child: GestureDetector(
                     onTap: () => _openResume(context, entry),
-                    child: SizedBox(
-                      width: 110,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Container(
+                      width: 260,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isDark
+                              ? const Color(0xFF2A2A2A)
+                              : const Color(0xFFEDE9FE),
+                        ),
+                        boxShadow: isDark
+                            ? const []
+                            : [
+                                BoxShadow(
+                                  color: const Color(0xFF6C3CE1).withValues(alpha: 0.06),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                      ),
+                      child: Row(
                         children: [
                           ClipRRect(
                             borderRadius: BorderRadius.circular(10),
                             child: SizedBox(
-                              width: 110,
-                              height: 150,
-                              child: Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  _continueCover(entry.book),
-                                  Positioned(
-                                    left: 0,
-                                    right: 0,
-                                    bottom: 0,
-                                    child: SizedBox(
-                                      height: 5,
-                                      child: Stack(
-                                        fit: StackFit.expand,
-                                        children: [
-                                          Container(
-                                            color: Colors.black.withValues(
-                                              alpha: 0.4,
-                                            ),
-                                          ),
-                                          Align(
-                                            alignment: Alignment.centerLeft,
-                                            child: FractionallySizedBox(
-                                              widthFactor: entry
-                                                  .progressFraction
-                                                  .clamp(0.08, 1.0),
-                                              alignment: Alignment.centerLeft,
-                                              child: Container(
-                                                color: const Color(0xFFFF5722),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
+                              width: 64,
+                              height: 88,
+                              child: _continueCover(entry.book, w: 64, h: 88),
                             ),
                           ),
-                          const SizedBox(height: 6),
-                          Text(
-                            entry.updatedText.isNotEmpty
-                                ? entry.updatedText
-                                : 'Ch. ${entry.lastChapterNumber}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: isDark ? Colors.white70 : Colors.black54,
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  entry.book.title,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                                    height: 1.2,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  entry.updatedText.isNotEmpty
+                                      ? entry.updatedText
+                                      : 'Chapter ${entry.lastChapterNumber}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: isDark ? Colors.white60 : Colors.grey.shade600,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: LinearProgressIndicator(
+                                    value: entry.progressFraction.clamp(0.05, 1.0),
+                                    minHeight: 6,
+                                    backgroundColor: isDark
+                                        ? Colors.white12
+                                        : const Color(0xFFEDE9FE),
+                                    color: const Color(0xFF6C3CE1),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: Text(
+                                    '${(entry.progressFraction.clamp(0.0, 1.0) * 100).round()}%',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF6C3CE1),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -1420,13 +1446,16 @@ class _ContinueReadingSectionState extends State<_ContinueReadingSection> {
               Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: Container(
-                  width: 150,
-                  height: 150,
+                  width: 160,
+                  height: 108,
                   decoration: BoxDecoration(
                     color: isDark
                         ? const Color(0xFF1E1E1E)
-                        : const Color(0xFFF4F4F6),
-                    borderRadius: BorderRadius.circular(12),
+                        : const Color(0xFFF7F5FC),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFEDE9FE),
+                    ),
                   ),
                   padding: const EdgeInsets.all(12),
                   child: Column(
@@ -1488,7 +1517,7 @@ class _BrowseGenresSection extends StatelessWidget {
   static const _palette = <Color>[
     Color(0xFFE14FA0),
     Color(0xFF8B5CF6),
-    Color(0xFF00A88E),
+    Color(0xFF6C3CE1),
     Color(0xFFF0B357),
     Color(0xFF5B9BD5),
     Color(0xFFE85D4C),
@@ -2307,14 +2336,14 @@ class _GenreBooksScreenState extends State<_GenreBooksScreen> {
                                     const Icon(
                                       Icons.check_circle,
                                       size: 14,
-                                      color: Color(0xFF00A88E),
+                                      color: Color(0xFF6C3CE1),
                                     ),
                                     const SizedBox(width: 4),
                                     const Text(
                                       'Completed',
                                       style: TextStyle(
                                         fontSize: 12,
-                                        color: Color(0xFF00A88E),
+                                        color: Color(0xFF6C3CE1),
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),

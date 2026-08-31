@@ -592,7 +592,7 @@ class _EntriesList extends StatelessWidget {
                                     const SizedBox(height: 8),
                                     ClipRRect(
                                       borderRadius: BorderRadius.circular(3),
-                                      child: LinearProgressIndicator(
+                                      child: LinearProgressIndicator(color: const Color(0xFF6C3CE1), 
                                         value: progress < 0.05 ? 0.05 : progress,
                                         minHeight: 4,
                                         backgroundColor: isDark

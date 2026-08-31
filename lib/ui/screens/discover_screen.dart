@@ -113,9 +113,9 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                       Text(
                         'Wingsaga',
                         style: TextStyle(
-                          fontSize: 26,
+                          fontSize: 28,
                           fontWeight: FontWeight.w800,
-                          letterSpacing: -0.5,
+                          letterSpacing: -0.8,
                           color: fg,
                         ),
                       ),
@@ -316,7 +316,47 @@ class _DiscoverScreenState extends State<DiscoverScreen>
           ),
           SliverPersistentHeader(
             pinned: true,
-            delegate: _TabBarDelegate(
+            SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Material(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xFF2A2A2A)
+                    : const Color(0xFFF3F0FF),
+                borderRadius: BorderRadius.circular(28),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(28),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => SearchScreen(apiService: widget.apiService),
+                      ),
+                    );
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Row(
+                      children: [
+                        Icon(Icons.search_rounded, size: 22, color: Colors.grey.shade500),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Search stories, authors, or genres',
+                            style: TextStyle(
+                              color: Colors.grey.shade500,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          delegate: _TabBarDelegate(
               child: Container(
                 color: Theme.of(context).brightness == Brightness.dark
                     ? const Color(0xFF121212)
@@ -1074,12 +1114,12 @@ class _SearchScreenState extends State<SearchScreen> {
                         }
                       },
                       selectedColor: const Color(
-                        0xFF00A88E,
+                        0xFF6C3CE1,
                       ).withValues(alpha: 0.18),
                       labelStyle: TextStyle(
                         fontWeight: FontWeight.w600,
                         color: _searchScope == entry['id']
-                            ? const Color(0xFF00A88E)
+                            ? const Color(0xFF6C3CE1)
                             : null,
                       ),
                     ),
@@ -1199,7 +1239,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                       .toUpperCase(),
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w700,
-                                    color: Color(0xFF00A88E),
+                                    color: Color(0xFF6C3CE1),
                                   ),
                                 )
                               : null,
@@ -1208,7 +1248,7 @@ class _SearchScreenState extends State<SearchScreen> {
                         leading = const CircleAvatar(
                           radius: 22,
                           backgroundColor: Color(0xFFE8EEF9),
-                          child: Icon(Icons.tag, color: Color(0xFF00A88E)),
+                          child: Icon(Icons.tag, color: Color(0xFF6C3CE1)),
                         );
                       } else {
                         leading = SizedBox(
