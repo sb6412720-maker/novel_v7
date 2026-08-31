@@ -1231,7 +1231,22 @@ class ApiService {
     }
   }
 
-  Future<int> createWriterStory(Map<String, dynamic> payload) async {
+  
+  Future<Map<String, dynamic>?> fetchWriterStory(int id) async {
+    try {
+      final response = await _get('/api/write/stories/$id');
+      if (response.statusCode != 200) return null;
+      final payload = jsonDecode(response.body);
+      if (payload is Map<String, dynamic>) return payload;
+      if (payload is Map) return Map<String, dynamic>.from(payload);
+      return null;
+    } catch (e) {
+      debugPrint('fetchWriterStory error: $e');
+      return null;
+    }
+  }
+
+Future<int> createWriterStory(Map<String, dynamic> payload) async {
     final response = await _post(
       '/api/write/stories',
       payload,

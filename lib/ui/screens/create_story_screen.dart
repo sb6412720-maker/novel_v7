@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -139,9 +140,12 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       _selectedTags.addAll(existing.take(3));
     }
     _titleController.addListener(() => setState(() {}));
-    _summaryController.addListener(() => setState(() {}));
+    // Length counter uses ValueListenableBuilder — avoid setState (was stealing focus)
     _resolveAuthorName();
     _loadAvailableTags();
+    if (_isEditing) {
+      unawaited(_hydrateFromServer());
+    }
     _loadGenres();
   }
 
@@ -312,7 +316,50 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     return parts.join(', ');
   }
 
-  Future<void> _save({required bool asDraft}) async {
+  
+  Future<void> _hydrateFromServer() async {
+    final id = (widget.story?['id'] as num?)?.toInt();
+    if (id == null || id <= 0) return;
+    try {
+      // Prefer dedicated writer endpoint when available
+      Map<String, dynamic>? data;
+      try {
+        data = await widget.apiService.fetchWriterStory(id);
+      } catch (_) {
+        data = null;
+      }
+      if (data == null) return;
+      if (!mounted) return;
+      setState(() {
+        if ((data!['title'] ?? '').toString().isNotEmpty) {
+          _titleController.text = data['title'].toString();
+        }
+        if (data['description'] != null) {
+          _summaryController.text = data['description'].toString();
+        }
+        final genre = (data['genre'] ?? data['primary_genre'] ?? '').toString();
+        if (genre.isNotEmpty) _selectedGenre = genre;
+        final aud = (data['audience'] ?? '').toString();
+        if (aud.isNotEmpty) _audience = aud;
+        final lang = (data['language'] ?? '').toString();
+        if (lang.isNotEmpty) _language = lang;
+        final cover = (data['cover_path'] ?? '').toString();
+        if (cover.isNotEmpty) _coverPath = cover;
+        final tags = (data['tags'] as List?)?.map((e) => e.toString()).toList() ?? [];
+        if (tags.isNotEmpty) {
+          _selectedTags
+            ..clear()
+            ..addAll(tags.take(3));
+        }
+        final warnings = (data['content_warnings'] ?? '').toString();
+        if (warnings.isNotEmpty) {
+          // best-effort: keep existing warning chips logic if any
+        }
+      });
+    } catch (_) {}
+  }
+
+Future<void> _save({required bool asDraft}) async {
     final title = _titleController.text.trim();
     final summary = _summaryController.text.trim();
     final author = _authorController.text.trim();
@@ -339,7 +386,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         'tags': List<String>.from(_selectedTags.take(3)),
         'status_text': statusText,
         'language': _language,
-        if ((_audience ?? '').trim().isNotEmpty) 'audience': _audience!.trim(),
+        'audience': (_audience ?? '').trim(),
         if (_coverPath.isNotEmpty) 'cover_path': _coverPath,
       };
 
@@ -488,7 +535,6 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   @override
   Widget build(BuildContext context) {
     final titleLen = _titleController.text.length;
-    final summaryLen = _summaryController.text.length;
 
     // Force light theme for the entire New Story / story creation page
     return Theme(
@@ -746,8 +792,11 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: Text(
-                      '$summaryLen / 500',
-                      style: TextStyle(fontSize: 11, color: summaryLen >= 500 ? _amber : _textFaint),
+                      '${_summaryController.text.length} / 500',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: _summaryController.text.length >= 500 ? _amber : _textFaint,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 14),

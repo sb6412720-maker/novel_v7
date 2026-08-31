@@ -136,6 +136,8 @@ class StoryCreateRequest(BaseModel):
 
 
 class StoryUpdateRequest(BaseModel):
+    model_config = {"extra": "ignore"}
+
     title: str | None = None
     author: str | None = None
     description: str | None = None
@@ -144,6 +146,8 @@ class StoryUpdateRequest(BaseModel):
     tags: list[str] | None = None
     content_warnings: str | None = None
     status_text: str | None = None
+    language: str | None = None
+    audience: str | None = None
 
 
 class ReviewCreateRequest(BaseModel):
@@ -3809,6 +3813,19 @@ def _row_get(row: Any, key: str, default: Any = None) -> Any:
 
 
 
+
+def _ensure_book_meta_columns() -> None:
+    """Best-effort audience/language columns on books."""
+    for sql in (
+        "ALTER TABLE books ADD COLUMN audience VARCHAR(64) NULL",
+        "ALTER TABLE books ADD COLUMN language VARCHAR(64) NULL",
+    ):
+        try:
+            execute_write(sql)
+        except Exception:
+            pass
+
+
 def _ensure_book_view_count_column() -> None:
     """Add books.view_count if missing (MySQL / SQLite)."""
     try:
@@ -4003,6 +4020,17 @@ def create_writer_story(
             )
         except Exception:
             pass
+    try:
+        _ensure_book_meta_columns()
+        aud = (payload.audience or "").strip()
+        lang = (payload.language or "").strip()
+        if aud or lang:
+            execute_write(
+                "UPDATE books SET audience=%s, language=%s WHERE id=%s",
+                (aud, lang, story_id),
+            )
+    except Exception as _meta_exc:
+        LOGGER.warning("create story meta save: %s", _meta_exc)
     # Author flag is set when first chapter with >= 50 words is saved (see chapter endpoints).
     bump_content_version()
     return {"ok": True, "id": story_id, "status_text": status}
@@ -4038,25 +4066,61 @@ def update_writer_story(
         if st.lower() in ("publish", "published", "live", "public"):
             st = "Published"
         next_status = st
-    _, affected = execute_write(
-        """
-        UPDATE books
-        SET title=%s, author=%s, description=%s, genre=%s, primary_genre=%s, cover_path=%s, user_id=%s, content_warnings=%s, status_text=%s
-        WHERE id=%s
-        """,
-        (
-            payload.title or _row_get(current, "title"),
-            payload.author or _row_get(current, "author"),
-            payload.description or _row_get(current, "description"),
-            payload.genre or _row_get(current, "genre"),
-            payload.genre or _row_get(current, "primary_genre") or _row_get(current, "genre"),
-            next_cover,
-            user["user_id"],
-            next_warnings,
-            next_status,
-            story_id,
-        ),
+    _ensure_book_meta_columns()
+    next_audience = (
+        (payload.audience if payload.audience is not None else None)
+        or _row_get(current, "audience")
+        or ""
     )
+    next_language = (
+        (payload.language if payload.language is not None else None)
+        or _row_get(current, "language")
+        or ""
+    )
+    try:
+        _, affected = execute_write(
+            """
+            UPDATE books
+            SET title=%s, author=%s, description=%s, genre=%s, primary_genre=%s,
+                cover_path=%s, user_id=%s, content_warnings=%s, status_text=%s,
+                audience=%s, language=%s
+            WHERE id=%s
+            """,
+            (
+                payload.title or _row_get(current, "title"),
+                payload.author or _row_get(current, "author"),
+                payload.description if payload.description is not None else _row_get(current, "description"),
+                payload.genre or _row_get(current, "genre"),
+                payload.genre or _row_get(current, "primary_genre") or _row_get(current, "genre"),
+                next_cover,
+                user["user_id"],
+                next_warnings,
+                next_status,
+                next_audience,
+                next_language,
+                story_id,
+            ),
+        )
+    except Exception:
+        _, affected = execute_write(
+            """
+            UPDATE books
+            SET title=%s, author=%s, description=%s, genre=%s, primary_genre=%s, cover_path=%s, user_id=%s, content_warnings=%s, status_text=%s
+            WHERE id=%s
+            """,
+            (
+                payload.title or _row_get(current, "title"),
+                payload.author or _row_get(current, "author"),
+                payload.description if payload.description is not None else _row_get(current, "description"),
+                payload.genre or _row_get(current, "genre"),
+                payload.genre or _row_get(current, "primary_genre") or _row_get(current, "genre"),
+                next_cover,
+                user["user_id"],
+                next_warnings,
+                next_status,
+                story_id,
+            ),
+        )
     if affected == 0:
         raise HTTPException(status_code=400, detail="Failed to update story")
 
@@ -4068,15 +4132,49 @@ def update_writer_story(
 
 
 @app.get("/api/write/stories/{story_id}")
-def get_writer_story(story_id: int):
-    rows = fetch_all(
-        "SELECT id, title, author, description, genre, cover_path, accent_hex, status_text, rating, content_warnings FROM books WHERE id=%s",
-        (story_id,),
-    )
+def get_writer_story(story_id: int, user: dict[str, Any] = Depends(require_user)):
+    _ensure_book_meta_columns()
+    try:
+        rows = fetch_all(
+            """
+            SELECT id, user_id, title, author, description, genre, cover_path, accent_hex,
+                   status_text, rating, content_warnings, audience, language
+            FROM books WHERE id=%s LIMIT 1
+            """,
+            (story_id,),
+        )
+    except Exception:
+        rows = fetch_all(
+            "SELECT id, user_id, title, author, description, genre, cover_path, accent_hex, status_text, rating, content_warnings FROM books WHERE id=%s LIMIT 1",
+            (story_id,),
+        )
     if not rows:
         raise HTTPException(status_code=404, detail="Story not found")
-    story = rows[0]
-    return _serialize_book(story)
+    story = dict(rows[0]) if not isinstance(rows[0], dict) else dict(rows[0])
+    # Owner-only
+    try:
+        if int(_row_get(rows[0], "user_id") or 0) != int(user["user_id"]):
+            raise HTTPException(status_code=403, detail="Not your story")
+    except HTTPException:
+        raise
+    except Exception:
+        pass
+    out = {
+        "id": _row_get(rows[0], "id"),
+        "user_id": _row_get(rows[0], "user_id"),
+        "title": _row_get(rows[0], "title") or "",
+        "author": _row_get(rows[0], "author") or "",
+        "description": _row_get(rows[0], "description") or "",
+        "genre": _row_get(rows[0], "genre") or "",
+        "cover_path": _normalize_cover_path(_row_get(rows[0], "cover_path")),
+        "accent_hex": _row_get(rows[0], "accent_hex") or "#A1A1A1",
+        "status_text": _row_get(rows[0], "status_text") or "Draft",
+        "content_warnings": str(_row_get(rows[0], "content_warnings") or ""),
+        "audience": str(_row_get(rows[0], "audience") or story.get("audience") or ""),
+        "language": str(_row_get(rows[0], "language") or story.get("language") or ""),
+        "tags": _story_tags_for_book(int(story_id)),
+    }
+    return out
 
 
 @app.get("/api/books/{book_id}")

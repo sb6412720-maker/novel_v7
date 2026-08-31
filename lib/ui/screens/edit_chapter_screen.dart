@@ -195,16 +195,38 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
 
 
   Future<void> _publishStoryAndChapter() async {
+    final content = _textController.text.trim();
+    final title = _titleController.text.trim();
+    if (title.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter chapter title')),
+      );
+      return;
+    }
+    if (content.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("You can't publish an empty chapter")),
+      );
+      return;
+    }
+    // Require some real text (not only whitespace/newlines)
+    if (content.replaceAll(RegExp(r'\s+'), '').isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("You can't publish an empty chapter")),
+      );
+      return;
+    }
+
     await _saveChapter(
       submissionStatus: 'published',
       scheduledFor: null,
       successMessage: 'Chapter published',
     );
-    // Mark parent book completed/published
+    // Publish → Submitted as Ongoing (Complete later from Manage Story ⋮ menu)
     try {
       await widget.apiService.updateWriterStory(
         widget.storyId,
-        {'status_text': 'Completed'},
+        {'status_text': 'Ongoing'},
       );
     } catch (_) {
       try {
@@ -216,8 +238,11 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
     }
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Story published — moved to Submitted')),
+      const SnackBar(
+        content: Text('Published — under Submitted as Ongoing'),
+      ),
     );
+    // Pop back to Manage Stories (root Write tab), not one screen at a time
     Navigator.of(context).popUntil((r) => r.isFirst);
   }
 
