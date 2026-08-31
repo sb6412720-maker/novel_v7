@@ -126,7 +126,7 @@ const DUMMY_NOVELS = [
   },
 ];
 
-const EMPTY_CATEGORY = { name: "", topic_count: 0, tab_group: "explore", sort_order: 999 };
+const EMPTY_CATEGORY = { name: "", topic_count: 0, tab_group: "explore", sort_order: 999, image_path: "" };
 const EMPTY_NOTIFICATION = { tab: "Story", title: "", message: "", created_at: "Now" };
 
 function asArray(v) {
@@ -1334,7 +1334,7 @@ function SettingsPage({
                 <tr key={c.id}>
                   <td>
                     {c.image_path ? (
-                      <img src={c.image_path.startsWith("http") ? c.image_path : `${API_BASE}${c.image_path}`} alt="" style={{width:40,height:40,objectFit:"cover",borderRadius:6}} />
+                      <img src={c.image_path.startsWith("http") ? c.image_path : `${API_BASE_URL}${c.image_path}`} alt="" style={{width:40,height:40,objectFit:"cover",borderRadius:6}} />
                     ) : (
                       <span style={{color:"var(--text-muted)"}}>—</span>
                     )}
@@ -1510,35 +1510,87 @@ function BookModal({ book, storyImages, onClose, onSave, onUpload }) {
 
 function CategoryModal({ item, onClose, onSave }) {
   const [form, setForm] = useState(item);
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function onPickFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setErr("");
+    setUploading(true);
+    try {
+      const res = await uploadImage(file);
+      const path = res.path || res.cover_path || res.url || "";
+      if (!path) throw new Error("Upload returned empty path");
+      setForm((f) => ({ ...f, image_path: path }));
+    } catch (ex) {
+      setErr(ex.message || "Upload failed");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  }
+
+  const preview = form.image_path
+    ? (form.image_path.startsWith("http")
+        ? form.image_path
+        : `${API_BASE_URL}${form.image_path.startsWith("/") ? "" : "/"}${form.image_path}`)
+    : "";
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>{item.id ? "Edit category" : "New category"}</h2>
+        <h2>{item.id ? "Edit category / genre" : "New category / genre"}</h2>
         <div className="field" style={{ marginBottom: 8 }}>
           <label>Name</label>
           <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
         </div>
         <div className="field" style={{ marginBottom: 8 }}>
           <label>Tab group</label>
-          <input value={form.tab_group || ""} onChange={(e) => setForm({ ...form, tab_group: e.target.value })} />
+          <select
+            value={form.tab_group || "explore"}
+            onChange={(e) => setForm({ ...form, tab_group: e.target.value })}
+          >
+            <option value="explore">explore</option>
+            <option value="discover">discover</option>
+          </select>
         </div>
         <div className="field" style={{ marginBottom: 8 }}>
-          <label>Genre image URL or path</label>
+          <label>Genre image</label>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <label className="btn btn-sm" style={{ cursor: uploading ? "wait" : "pointer" }}>
+              {uploading ? "Uploading…" : "Upload image"}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                style={{ display: "none" }}
+                disabled={uploading}
+                onChange={onPickFile}
+              />
+            </label>
+            <span style={{ color: "var(--text-muted)", fontSize: 12 }}>or paste path/URL</span>
+          </div>
           <input
+            style={{ marginTop: 8 }}
             value={form.image_path || ""}
             onChange={(e) => setForm({ ...form, image_path: e.target.value })}
-            placeholder="/uploads/genre.jpg or https://..."
+            placeholder="/api/media/123 or https://..."
           />
-          {form.image_path ? (
-            <div style={{marginTop:8}}>
+          {err ? <div style={{ color: "#c00", marginTop: 6, fontSize: 13 }}>{err}</div> : null}
+          {preview ? (
+            <div style={{ marginTop: 8 }}>
               <img
-                src={form.image_path.startsWith("http") ? form.image_path : `${API_BASE}${form.image_path}`}
+                src={preview}
                 alt="preview"
-                style={{maxWidth:120,maxHeight:120,borderRadius:8,objectFit:"cover"}}
-                onError={(e)=>{e.currentTarget.style.display="none"}}
+                style={{ maxWidth: 120, maxHeight: 120, borderRadius: 8, objectFit: "cover" }}
+                onError={(e) => { e.currentTarget.style.display = "none"; }}
               />
-              <div style={{marginTop:6}}>
-                <button type="button" className="btn btn-sm btn-danger" onClick={() => setForm({ ...form, image_path: "" })}>
+              <div style={{ marginTop: 6 }}>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-danger"
+                  onClick={() => setForm({ ...form, image_path: "" })}
+                >
                   Remove image
                 </button>
               </div>
@@ -1547,7 +1599,9 @@ function CategoryModal({ item, onClose, onSave }) {
         </div>
         <div className="modal-actions">
           <button type="button" className="btn" onClick={onClose}>Cancel</button>
-          <button type="button" className="btn btn-primary" onClick={() => onSave(form)}>Save</button>
+          <button type="button" className="btn btn-primary" onClick={() => onSave(form)} disabled={uploading}>
+            Save
+          </button>
         </div>
       </div>
     </div>
