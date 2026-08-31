@@ -682,7 +682,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   SliverAppBar(
                     expandedHeight: 200,
                     pinned: true,
-                    backgroundColor: const Color(0xFF1A2030),
+                    backgroundColor: const Color(0xFF3B2A6B),
                     leading: IconButton(
                       icon: const Icon(Icons.arrow_back, color: Colors.white),
                       onPressed: () => Navigator.of(context).maybePop(),
@@ -779,9 +779,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                         labelColor: brand,
                         unselectedLabelColor: muted,
                         indicatorColor: brand,
-                        indicatorWeight: 2.5,
+                        indicatorWeight: 3,
                         labelStyle: const TextStyle(
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                           fontSize: 14,
                         ),
                         tabs: const [
@@ -815,7 +815,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF1A2030), Color(0xFF2D3A4A)],
+          colors: [Color(0xFF3B2A6B), Color(0xFF6C3CE1)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -841,8 +841,9 @@ class _ProfileScreenState extends State<ProfileScreen>
               Text(
                 _displayName,
                 style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.4,
                   color: Color(0xFF1A1A1A),
                 ),
               ),
@@ -853,7 +854,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   width: 18,
                   height: 18,
                   decoration: const BoxDecoration(
-                    color: Color(0xFF0D9488),
+                    color: Color(0xFF6C3CE1),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(Icons.edit, size: 11, color: Colors.white),
@@ -895,13 +896,45 @@ class _ProfileScreenState extends State<ProfileScreen>
             ],
           ),
           const SizedBox(height: 14),
+          // Reading stats strip (UI)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _ProfileStatChip(
+                    icon: Icons.menu_book_outlined,
+                    value: '$_chaptersRead',
+                    label: 'Chapters',
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _ProfileStatChip(
+                    icon: Icons.local_fire_department_outlined,
+                    value: '$_streak',
+                    label: 'Day streak',
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _ProfileStatChip(
+                    icon: Icons.auto_awesome_outlined,
+                    value: '$_karma',
+                    label: 'Karma',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
           // Follow / Edit button — solid green Follow (video), outlined otherwise
           if (_isOwnProfile)
             OutlinedButton(
               onPressed: _editProfile,
               style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF1A1A1A),
-                side: const BorderSide(color: Color(0xFFD0D5DD)),
+                foregroundColor: brand,
+                side: const BorderSide(color: Color(0xFF6C3CE1), width: 1.4),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 40,
                   vertical: 10,
@@ -912,15 +945,15 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
               child: const Text(
                 'Edit profile',
-                style: TextStyle(fontWeight: FontWeight.w600),
+                style: TextStyle(fontWeight: FontWeight.w700),
               ),
             )
           else if (_isFollowing)
             OutlinedButton(
               onPressed: _toggleFollow,
               style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF1A1A1A),
-                side: const BorderSide(color: Color(0xFFD0D5DD)),
+                foregroundColor: brand,
+                side: const BorderSide(color: Color(0xFF6C3CE1), width: 1.4),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 40,
                   vertical: 10,
@@ -931,7 +964,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
               child: const Text(
                 'Following',
-                style: TextStyle(fontWeight: FontWeight.w600),
+                style: TextStyle(fontWeight: FontWeight.w700),
               ),
             )
           else
@@ -951,7 +984,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
               child: const Text(
                 'Follow',
-                style: TextStyle(fontWeight: FontWeight.w600),
+                style: TextStyle(fontWeight: FontWeight.w700),
               ),
             ),
           const SizedBox(height: 8),
@@ -1003,7 +1036,11 @@ class _ProfileScreenState extends State<ProfileScreen>
         const SizedBox(height: 12),
         Text(
           'About $_displayName',
-          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.3,
+          ),
         ),
         const SizedBox(height: 8),
         Text(
@@ -1020,29 +1057,42 @@ class _ProfileScreenState extends State<ProfileScreen>
             onTap: () {
               // open externally via share_plus or url - use simple snack for now
             },
-            child: Row(
-              children: [
-                const Icon(Icons.facebook, color: Color(0xFF1877F2), size: 22),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    _facebookUrl,
-                    style: const TextStyle(
-                      color: Color(0xFF1877F2),
-                      fontWeight: FontWeight.w600,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0F5FF),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFD6E4FF)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.facebook, color: Color(0xFF1877F2), size: 24),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _facebookUrl,
+                      style: const TextStyle(
+                        color: Color(0xFF1877F2),
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-              ],
+                  const Icon(Icons.open_in_new, size: 16, color: Color(0xFF1877F2)),
+                ],
+              ),
             ),
           ),
         ],
         const SizedBox(height: 24),
         const Text(
           'Reading Lists',
-          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.3,
+          ),
         ),
         const SizedBox(height: 4),
         const Text(
@@ -1343,7 +1393,11 @@ class _ProfileScreenState extends State<ProfileScreen>
         const SizedBox(height: 28),
         const Text(
           'Achievements',
-          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.3,
+          ),
         ),
         const SizedBox(height: 12),
         _buildAchievementsGrid(),
