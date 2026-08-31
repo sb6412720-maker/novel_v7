@@ -1109,60 +1109,111 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final recent = _recentForScope;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final fg = isDark ? Colors.white : const Color(0xFF1A1A1A);
+    final muted = isDark ? Colors.white60 : AppTheme.muted;
+
+    // Suggested trending terms when no personal history (UI only)
+    const suggestedTrending = [
+      'Romance',
+      'Werewolf',
+      'Billionaire',
+      'Fantasy',
+      'Mystery',
+      'Young Adult',
+      'Sci-Fi',
+      'Thriller',
+    ];
+    const browseGenres = [
+      ('Romance', Icons.favorite_border_rounded),
+      ('Fantasy', Icons.castle_outlined),
+      ('Mystery', Icons.search_rounded),
+      ('Horror', Icons.nightlight_round),
+      ('Sci-Fi', Icons.rocket_launch_outlined),
+      ('Action', Icons.bolt_outlined),
+    ];
+
     return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF121212) : Colors.white,
       appBar: AppBar(
+        backgroundColor: isDark ? const Color(0xFF121212) : Colors.white,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: fg),
           onPressed: () => Navigator.pop(context),
         ),
-        title: TextField(
-          controller: _searchController,
-          focusNode: _searchFocus,
-          decoration: InputDecoration(
-            hintText: 'Search stories, people, lists...',
-            border: InputBorder.none,
-            hintStyle: Theme.of(context).textTheme.bodyMedium,
+        titleSpacing: 0,
+        title: Container(
+          height: 42,
+          margin: const EdgeInsets.only(right: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF3F0FF),
+            borderRadius: BorderRadius.circular(22),
           ),
-          textInputAction: TextInputAction.search,
-          onTap: () {
-            if (_searchQuery.trim().isEmpty) {
-              setState(() => _showRecent = true);
-            }
-          },
-          onChanged: (value) {
-            _searchDebounce?.cancel();
-            setState(() {
-              _searchQuery = value;
-              _showRecent = value.trim().isEmpty;
-            });
-            // Don't pollute history while typing
-            _searchDebounce = Timer(const Duration(milliseconds: 300), () {
-              if (mounted) _runSearch(recordHistory: false);
-            });
-          },
-          onSubmitted: (value) {
-            setState(() {
-              _searchQuery = value;
-              _showRecent = false;
-            });
-            _runSearch(recordHistory: true);
-          },
+          child: Row(
+            children: [
+              Icon(Icons.search_rounded, size: 20, color: Colors.grey.shade500),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  focusNode: _searchFocus,
+                  style: TextStyle(color: fg, fontSize: 15),
+                  decoration: InputDecoration(
+                    hintText: 'Search stories, people, lists…',
+                    border: InputBorder.none,
+                    isDense: true,
+                    hintStyle: TextStyle(
+                      color: Colors.grey.shade500,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  textInputAction: TextInputAction.search,
+                  onTap: () {
+                    if (_searchQuery.trim().isEmpty) {
+                      setState(() => _showRecent = true);
+                    }
+                  },
+                  onChanged: (value) {
+                    _searchDebounce?.cancel();
+                    setState(() {
+                      _searchQuery = value;
+                      _showRecent = value.trim().isEmpty;
+                    });
+                    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+                      if (mounted) _runSearch(recordHistory: false);
+                    });
+                  },
+                  onSubmitted: (value) {
+                    setState(() {
+                      _searchQuery = value;
+                      _showRecent = false;
+                    });
+                    _runSearch(recordHistory: true);
+                  },
+                ),
+              ),
+              if (_searchQuery.isNotEmpty)
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _searchQuery = '';
+                      _showRecent = true;
+                    });
+                    _searchController.clear();
+                    _runSearch();
+                  },
+                  child: Icon(Icons.close_rounded, size: 18, color: Colors.grey.shade500),
+                ),
+            ],
+          ),
         ),
         actions: [
-          if (_searchQuery.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.close_rounded),
-              onPressed: () {
-                setState(() {
-                  _searchQuery = '';
-                  _showRecent = true;
-                });
-                _searchController.clear();
-                _runSearch();
-              },
-            ),
           IconButton(
-            icon: const Icon(Icons.tune_rounded),
+            icon: const Icon(Icons.tune_rounded, color: Color(0xFF6C3CE1)),
             onPressed: () async {
               final selected = await showModalBottomSheet<_SearchFilters>(
                 context: context,
@@ -1183,9 +1234,9 @@ class _SearchScreenState extends State<SearchScreen> {
       ),
       body: Column(
         children: [
-          // Wattpad-style scope chips
+          // Scope chips
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
             child: Row(
               children: [
                 for (final entry in const [
@@ -1205,7 +1256,6 @@ class _SearchScreenState extends State<SearchScreen> {
                         });
                         await _reloadRecentForScope();
                         if (_searchQuery.trim().isEmpty) {
-                          // Keep chips visible; clear result list to recent only
                           if (mounted) {
                             setState(() {
                               _results = <Map<String, dynamic>>[];
@@ -1217,14 +1267,19 @@ class _SearchScreenState extends State<SearchScreen> {
                           _runSearch(recordHistory: false);
                         }
                       },
-                      selectedColor: const Color(
-                        0xFF6C3CE1,
-                      ).withValues(alpha: 0.18),
-                      labelStyle: TextStyle(
-                        fontWeight: FontWeight.w600,
+                      selectedColor: const Color(0xFF6C3CE1).withValues(alpha: 0.18),
+                      backgroundColor: isDark ? const Color(0xFF1E1E1E) : const Color(0xFFF7F5FC),
+                      side: BorderSide(
                         color: _searchScope == entry['id']
                             ? const Color(0xFF6C3CE1)
-                            : null,
+                            : (isDark ? const Color(0xFF2C2C2C) : const Color(0xFFEDE9FE)),
+                      ),
+                      labelStyle: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        color: _searchScope == entry['id']
+                            ? const Color(0xFF6C3CE1)
+                            : muted,
                       ),
                     ),
                   ),
@@ -1232,238 +1287,461 @@ class _SearchScreenState extends State<SearchScreen> {
               ],
             ),
           ),
-          // Recent searches (per scope): last 5 from local cache — always when query empty
+          // Empty query: recent + browse genres + trending
           if (_showRecent || _searchQuery.trim().isEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Recent ${_searchScope == 'tag'
-                        ? 'tag'
-                        : _searchScope == 'profile'
-                        ? 'profile'
-                        : 'title'} searches',
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: AppTheme.muted,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  if (recent.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 4, bottom: 4),
-                      child: Text(
-                        'No recent searches yet',
-                        style: TextStyle(fontSize: 13, color: Colors.black54),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  await _reloadRecentForScope();
+                },
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                  children: [
+                    Text(
+                      'Recent searches',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: fg,
                       ),
-                    )
-                  else
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
+                    ),
+                    const SizedBox(height: 10),
+                    if (recent.isEmpty)
+                      Text(
+                        'No recent searches yet',
+                        style: TextStyle(fontSize: 13, color: muted),
+                      )
+                    else
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final term in recent.take(8))
+                            ActionChip(
+                              avatar: Icon(Icons.history, size: 16, color: muted),
+                              label: Text(term),
+                              backgroundColor: isDark
+                                  ? const Color(0xFF1E1E1E)
+                                  : const Color(0xFFF7F5FC),
+                              side: BorderSide(
+                                color: isDark
+                                    ? const Color(0xFF2C2C2C)
+                                    : const Color(0xFFEDE9FE),
+                              ),
+                              onPressed: () {
+                                _searchController.text = term;
+                                setState(() {
+                                  _searchQuery = term;
+                                  _showRecent = false;
+                                });
+                                _runSearch(recordHistory: true);
+                              },
+                            ),
+                        ],
+                      ),
+                    const SizedBox(height: 22),
+                    Text(
+                      'Browse genres',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: fg,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    GridView.count(
+                      crossAxisCount: 3,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      mainAxisSpacing: 10,
+                      crossAxisSpacing: 10,
+                      childAspectRatio: 1.15,
                       children: [
-                        for (final term in recent.take(5))
-                          ActionChip(
-                            avatar: const Icon(Icons.history, size: 16),
-                            label: Text(term),
-                            onPressed: () {
-                              _searchController.text = term;
+                        for (final g in browseGenres)
+                          GestureDetector(
+                            onTap: () {
                               setState(() {
-                                _searchQuery = term;
+                                _genre = g.$1;
+                                _searchQuery = g.$1;
                                 _showRecent = false;
                               });
+                              _searchController.text = g.$1;
                               _runSearch(recordHistory: true);
                             },
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? const Color(0xFF1E1E1E)
+                                    : const Color(0xFFF7F5FC),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: isDark
+                                      ? const Color(0xFF2C2C2C)
+                                      : const Color(0xFFEDE9FE),
+                                ),
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(g.$2, color: const Color(0xFF6C3CE1), size: 26),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    g.$1,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: isDark ? Colors.white70 : const Color(0xFF3A3A3A),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                       ],
                     ),
-                ],
-              ),
-            ),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: () async {
-                await _reloadRecentForScope();
-                if (_searchQuery.trim().isNotEmpty) {
-                  await _runSearch(recordHistory: false);
-                }
-              },
-              child: _loading
-                  ? ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      children: const [
-                        SizedBox(height: 120),
-                        Center(child: CircularProgressIndicator()),
-                      ],
-                    )
-                  : _results.isEmpty
-                  ? ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      children: [
-                        SizedBox(height: 120),
-                        Center(
-                          child: Text(
-                            _searchQuery.isEmpty
-                                ? 'Search stories, tags or people'
-                                : 'No results',
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                        ),
-                      ],
-                    )
-                  : ListView.separated(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.all(12),
-                      itemCount: _results.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                      final item = _results[index];
-                      final kind = (item['_kind'] ?? 'book').toString();
-                      final cover =
-                          (item['cover_path'] ?? item['photo_url'] ?? '')
-                              .toString();
-                      Widget leading;
-                      if (kind == 'profile') {
-                        leading = CircleAvatar(
-                          radius: 22,
-                          backgroundColor: const Color(0xFFE8EEF9),
-                          backgroundImage: cover.isNotEmpty
-                              ? NetworkImage(
-                                  widget.apiService.resolveAssetUrl(cover),
-                                )
-                              : null,
-                          child: cover.isEmpty
-                              ? Text(
-                                  ((item['title'] ?? '?').toString().isNotEmpty
-                                          ? item['title'].toString()[0]
-                                          : '?')
-                                      .toUpperCase(),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF6C3CE1),
-                                  ),
-                                )
-                              : null,
-                        );
-                      } else if (kind == 'tag') {
-                        leading = const CircleAvatar(
-                          radius: 22,
-                          backgroundColor: Color(0xFFE8EEF9),
-                          child: Icon(Icons.tag, color: Color(0xFF6C3CE1)),
-                        );
-                      } else {
-                        leading = SizedBox(
-                          width: 40,
-                          height: 56,
-                          child: cover.isNotEmpty
-                              ? Image.network(
-                                  widget.apiService.resolveAssetUrl(cover),
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) => const ColoredBox(
-                                    color: Color(0xFFE4E4E4),
-                                  ),
-                                )
-                              : const ColoredBox(color: Color(0xFFE4E4E4)),
-                        );
-                      }
-                      return ListTile(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          side: const BorderSide(color: Color(0xFFE8E8E8)),
-                        ),
-                        onTap: () async {
-                          if (kind == 'tag') {
-                            final tag =
-                                (item['tag_name'] ?? item['title'] ?? '')
-                                    .toString()
-                                    .replaceFirst('#', '');
-                            if (tag.isEmpty) return;
-                            final books = await widget.apiService
-                                .fetchBooksByTag(tag);
-                            if (!context.mounted) return;
-                            await Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => _GenreBooksScreen(
-                                  genre: tag,
-                                  books: books,
-                                  apiService: widget.apiService,
+                    const SizedBox(height: 22),
+                    Text(
+                      'Trending searches',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: fg,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ...[
+                      for (var i = 0; i < suggestedTrending.length; i++)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Material(
+                            color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: () {
+                                final term = suggestedTrending[i];
+                                _searchController.text = term;
+                                setState(() {
+                                  _searchQuery = term;
+                                  _showRecent = false;
+                                });
+                                _runSearch(recordHistory: true);
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 12,
                                 ),
-                              ),
-                            );
-                            return;
-                          }
-                          if (kind == 'profile') {
-                            final uid =
-                                (item['author_user_id'] as num?)?.toInt() ??
-                                (item['id'] as num?)?.toInt();
-                            if (uid == null || uid <= 0) return;
-                            final name = (item['title'] ?? 'Author').toString();
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => ProfileScreen(
-                                  apiService: widget.apiService,
-                                  viewingUserId: uid,
-                                  achievements: const [],
-                                  profile: ProfileModel(
-                                    id: uid,
-                                    displayName: name,
-                                    username: name.toLowerCase().replaceAll(
-                                      ' ',
-                                      '',
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: isDark
+                                        ? const Color(0xFF2C2C2C)
+                                        : const Color(0xFFEDE9FE),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 26,
+                                      height: 26,
+                                      alignment: Alignment.center,
+                                      decoration: BoxDecoration(
+                                        color: i < 3
+                                            ? const Color(0xFF6C3CE1)
+                                            : (isDark
+                                                ? const Color(0xFF2A2A2A)
+                                                : const Color(0xFFF3F0FF)),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        '${i + 1}',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 12,
+                                          color: i < 3
+                                              ? Colors.white
+                                              : const Color(0xFF6C3CE1),
+                                        ),
+                                      ),
                                     ),
-                                    photoUrl: cover,
-                                    coverUrl: '',
-                                    following: 0,
-                                    followers: 0,
-                                    blocked: 0,
-                                    chaptersRead: 0,
-                                    socialKarma: 0,
-                                    dayStreak: 0,
-                                    readingLists: const [],
-                                  ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        suggestedTrending[i],
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 14,
+                                          color: fg,
+                                        ),
+                                      ),
+                                    ),
+                                    Icon(Icons.north_east_rounded, size: 16, color: muted),
+                                  ],
                                 ),
-                              ),
-                            );
-                            return;
-                          }
-                          final id = (item['id'] as num?)?.toInt();
-                          if (id == null) return;
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => StoryDetailScreen(
-                                apiService: widget.apiService,
-                                book: BookDetailModel.fromMap(item),
                               ),
                             ),
-                          );
-                        },
-                        leading: leading,
-                        title: Text(item['title']?.toString() ?? ''),
-                        subtitle: Text(item['author']?.toString() ?? ''),
-                        trailing: kind == 'book'
-                            ? Text(
-                                (item['rating'] ?? '').toString(),
-                                style: Theme.of(context).textTheme.bodySmall,
-                              )
-                            : Icon(
-                                kind == 'profile'
-                                    ? Icons.person_outline
-                                    : Icons.chevron_right,
-                                color: Colors.grey,
+                          ),
+                        ),
+                    ],
+                  ],
+                ),
+              ),
+            )
+          else
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  await _reloadRecentForScope();
+                  if (_searchQuery.trim().isNotEmpty) {
+                    await _runSearch(recordHistory: false);
+                  }
+                },
+                child: _loading
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: const [
+                          SizedBox(height: 120),
+                          Center(child: CircularProgressIndicator()),
+                        ],
+                      )
+                    : _results.isEmpty
+                        ? ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            children: [
+                              SizedBox(height: 80),
+                              Icon(Icons.search_off_rounded, size: 48, color: muted),
+                              const SizedBox(height: 12),
+                              Center(
+                                child: Text(
+                                  'No results found',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: fg,
+                                  ),
+                                ),
                               ),
-                      );
-                    },
-                  ),
+                              const SizedBox(height: 6),
+                              Center(
+                                child: Text(
+                                  'Try a different keyword or filter',
+                                  style: TextStyle(fontSize: 13, color: muted),
+                                ),
+                              ),
+                            ],
+                          )
+                        : ListView.separated(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+                            itemCount: _results.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 8),
+                            itemBuilder: (context, index) {
+                              final item = _results[index];
+                              final kind = (item['kind'] ?? item['type'] ?? 'book')
+                                  .toString()
+                                  .toLowerCase();
+                              final cover = (item['cover_path'] ??
+                                      item['photo_url'] ??
+                                      item['avatar_url'] ??
+                                      '')
+                                  .toString();
+                              final coverUrl = cover.isEmpty
+                                  ? ''
+                                  : widget.apiService.resolveAssetUrl(cover);
+                              Widget leading;
+                              if (kind == 'profile') {
+                                leading = CircleAvatar(
+                                  backgroundColor: const Color(0xFFEDE9FE),
+                                  backgroundImage: coverUrl.isNotEmpty
+                                      ? NetworkImage(coverUrl)
+                                      : null,
+                                  child: coverUrl.isEmpty
+                                      ? const Icon(Icons.person, color: Color(0xFF6C3CE1))
+                                      : null,
+                                );
+                              } else if (kind == 'tag') {
+                                leading = Container(
+                                  width: 44,
+                                  height: 44,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFEDE9FE),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Icon(Icons.tag, color: Color(0xFF6C3CE1)),
+                                );
+                              } else {
+                                leading = ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: SizedBox(
+                                    width: 48,
+                                    height: 64,
+                                    child: coverUrl.isNotEmpty
+                                        ? Image.network(
+                                            coverUrl,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) => Container(
+                                              color: const Color(0xFFEDE9FE),
+                                              child: const Icon(Icons.menu_book),
+                                            ),
+                                          )
+                                        : Container(
+                                            color: const Color(0xFFEDE9FE),
+                                            child: const Icon(Icons.menu_book),
+                                          ),
+                                  ),
+                                );
+                              }
+                              return Material(
+                                color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
+                                borderRadius: BorderRadius.circular(14),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(14),
+                                  onTap: () {
+                                    if (kind == 'tag') {
+                                      final tag = (item['tag_name'] ??
+                                              item['title'] ??
+                                              '')
+                                          .toString();
+                                      if (tag.isEmpty) return;
+                                      setState(() {
+                                        _searchScope = 'tag';
+                                        _searchQuery = tag;
+                                        _showRecent = false;
+                                      });
+                                      _searchController.text = tag;
+                                      _runSearch(recordHistory: true);
+                                      return;
+                                    }
+                                    if (kind == 'profile') {
+                                      final uid =
+                                          (item['author_user_id'] as num?)?.toInt() ??
+                                          (item['id'] as num?)?.toInt() ??
+                                          0;
+                                      final name =
+                                          (item['title'] ?? item['display_name'] ?? 'Author')
+                                              .toString();
+                                      if (uid <= 0) return;
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute<void>(
+                                          builder: (_) => ProfileScreen(
+                                            apiService: widget.apiService,
+                                            viewingUserId: uid,
+                                            achievements: const [],
+                                            profile: ProfileModel(
+                                              id: uid,
+                                              displayName: name,
+                                              username: name
+                                                  .toLowerCase()
+                                                  .replaceAll(' ', ''),
+                                              photoUrl: cover,
+                                              coverUrl: '',
+                                              following: 0,
+                                              followers: 0,
+                                              blocked: 0,
+                                              chaptersRead: 0,
+                                              socialKarma: 0,
+                                              dayStreak: 0,
+                                              readingLists: const [],
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                      return;
+                                    }
+                                    final id = (item['id'] as num?)?.toInt();
+                                    if (id == null) return;
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute<void>(
+                                        builder: (_) => StoryDetailScreen(
+                                          apiService: widget.apiService,
+                                          book: BookDetailModel.fromMap(item),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                        color: isDark
+                                            ? const Color(0xFF2C2C2C)
+                                            : const Color(0xFFEDE9FE),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        leading,
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                item['title']?.toString() ?? '',
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 14,
+                                                  color: fg,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                item['author']?.toString() ?? '',
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: muted,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        if (kind == 'book' &&
+                                            (item['rating'] != null &&
+                                                item['rating'].toString().isNotEmpty))
+                                          Row(
+                                            children: [
+                                              Icon(Icons.star_rounded,
+                                                  size: 14, color: Colors.amber.shade600),
+                                              const SizedBox(width: 2),
+                                              Text(
+                                                item['rating'].toString(),
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: fg,
+                                                ),
+                                              ),
+                                            ],
+                                          )
+                                        else
+                                          Icon(
+                                            kind == 'profile'
+                                                ? Icons.person_outline
+                                                : Icons.chevron_right,
+                                            color: muted,
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+              ),
             ),
-          ),
         ],
       ),
     );
   }
 }
+
 
 class _SearchFilters {
   const _SearchFilters({required this.genre, required this.minRating});
@@ -1567,12 +1845,20 @@ class _FilterSheetState extends State<_FilterSheet> {
           const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
-            child: ElevatedButton(
+            child: FilledButton(
               onPressed: () => Navigator.pop(
                 context,
                 _SearchFilters(
                   genre: _selectedGenre ?? '',
                   minRating: _ratingFilter,
+                ),
+              ),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF6C3CE1),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
                 ),
               ),
               child: const Text('View Results'),
