@@ -4,6 +4,7 @@ import '../../data/models/app_bootstrap.dart';
 import '../../data/services/api_service.dart';
 import 'story_detail_screen.dart';
 import 'chapter_reader_screen.dart';
+import 'notifications_screen.dart';
 
 /// Library: Ongoing Reading (in-progress) + Reading Lists + History (completed).
 class LibraryScreen extends StatefulWidget {
@@ -243,18 +244,133 @@ class _LibraryScreenState extends State<LibraryScreen>
     final history = _entries.where(_isCompleted).toList();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final muted = isDark ? const Color(0xFFA0A0A0) : AppTheme.muted;
+    final fg = isDark ? Colors.white : const Color(0xFF1A1A1A);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Header: title + Premium + bell
         Padding(
-          padding: const EdgeInsets.fromLTRB(24, 18, 24, 16),
-          child: Text(
-            'Library',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              fontSize: 26,
-              fontWeight: FontWeight.w600,
+          padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
+          child: Row(
+            children: [
+              Text(
+                'Library',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.6,
+                  color: fg,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF2A2140) : const Color(0xFFF3EEFF),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF4C3A7A) : const Color(0xFFD6C7FF),
+                  ),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.diamond_outlined, size: 14, color: Color(0xFF6C3CE1)),
+                    SizedBox(width: 4),
+                    Text(
+                      'Premium',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF6C3CE1),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Notifications',
+                icon: Icon(Icons.notifications_none_rounded, size: 26, color: fg),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => NotificationsScreen(
+                        apiService: widget.apiService,
+                        onOpenDiscover: widget.onOpenDiscover,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+        // Soft search (filters current tab client-side via existing lists — opens focus on lists)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF3F0FF),
+              borderRadius: BorderRadius.circular(28),
             ),
+            child: Row(
+              children: [
+                Icon(Icons.search_rounded, size: 20, color: Colors.grey.shade500),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Search in your library…',
+                    style: TextStyle(
+                      color: Colors.grey.shade500,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        // Stats strip
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: _LibraryStatChip(
+                  icon: Icons.menu_book_outlined,
+                  value: '${_entries.length}',
+                  label: 'Stories',
+                  color: const Color(0xFF6C3CE1),
+                ),
+              ),
+              Expanded(
+                child: _LibraryStatChip(
+                  icon: Icons.timelapse_rounded,
+                  value: '${ongoing.length}',
+                  label: 'In Progress',
+                  color: const Color(0xFFF59E0B),
+                ),
+              ),
+              Expanded(
+                child: _LibraryStatChip(
+                  icon: Icons.check_circle_outline,
+                  value: '${history.length}',
+                  label: 'Completed',
+                  color: const Color(0xFF10B981),
+                ),
+              ),
+              Expanded(
+                child: _LibraryStatChip(
+                  icon: Icons.bookmark_border_rounded,
+                  value: '${_readingLists.length}',
+                  label: 'Lists',
+                  color: const Color(0xFFEC4899),
+                ),
+              ),
+            ],
           ),
         ),
         TabBar(
@@ -262,6 +378,8 @@ class _LibraryScreenState extends State<LibraryScreen>
           labelColor: AppTheme.brand,
           unselectedLabelColor: muted,
           indicatorColor: AppTheme.brand,
+          indicatorWeight: 3,
+          labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
           tabs: const [
             Tab(text: 'Ongoing'),
             Tab(text: 'Reading Lists'),
@@ -315,6 +433,57 @@ class _LibraryScreenState extends State<LibraryScreen>
   }
 }
 
+class _LibraryStatChip extends StatelessWidget {
+  const _LibraryStatChip({
+    required this.icon,
+    required this.value,
+    required this.label,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String value;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E1E) : color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 15,
+              color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+            ),
+          ),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+              color: isDark ? Colors.white60 : Colors.grey.shade600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _EntriesList extends StatelessWidget {
   const _EntriesList({
     required this.entries,
@@ -348,10 +517,11 @@ class _EntriesList extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(24, 14, 24, 30),
         children: [
           Text(
-            history ? 'Completed books' : 'Ongoing',
+            history ? 'Completed' : 'Continue Reading',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
               fontSize: 18,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.3,
             ),
           ),
           const SizedBox(height: 8),
@@ -474,12 +644,22 @@ class _EntriesList extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
+                          color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
+                          borderRadius: BorderRadius.circular(16),
                           border: Border.all(
                             color: isDark
                                 ? const Color(0xFF2C2C2C)
-                                : const Color(0xFFE8E8E8),
+                                : const Color(0xFFEDE9FE),
                           ),
+                          boxShadow: isDark
+                              ? const []
+                              : [
+                                  BoxShadow(
+                                    color: const Color(0xFF6C3CE1).withValues(alpha: 0.05),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
                         ),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -529,9 +709,17 @@ class _EntriesList extends StatelessWidget {
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    e.book.author.isNotEmpty
-                                        ? 'By ${e.book.author}'
-                                        : e.readingStatus,
+                                    () {
+                                      final genre = e.primaryGenre.isNotEmpty
+                                          ? e.primaryGenre
+                                          : e.book.primaryGenre;
+                                      if (genre.isNotEmpty && e.book.author.isNotEmpty) {
+                                        return '$genre · ${e.book.author}';
+                                      }
+                                      if (genre.isNotEmpty) return genre;
+                                      if (e.book.author.isNotEmpty) return 'By ${e.book.author}';
+                                      return e.readingStatus;
+                                    }(),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
@@ -592,24 +780,40 @@ class _EntriesList extends StatelessWidget {
                                     const SizedBox(height: 8),
                                     ClipRRect(
                                       borderRadius: BorderRadius.circular(3),
-                                      child: LinearProgressIndicator(color: const Color(0xFF6C3CE1), 
+                                      child: LinearProgressIndicator(
                                         value: progress < 0.05 ? 0.05 : progress,
-                                        minHeight: 4,
+                                        minHeight: 6,
                                         backgroundColor: isDark
                                             ? const Color(0xFF333333)
-                                            : const Color(0xFFE8E8E8),
-                                        color: const Color(0xFFFF5722),
+                                            : const Color(0xFFEDE9FE),
+                                        color: const Color(0xFF6C3CE1),
                                       ),
                                     ),
                                     const SizedBox(height: 4),
-                                    Text(
-                                      e.updatedText.isNotEmpty
-                                          ? e.updatedText
-                                          : 'Ch. ${e.lastChapterNumber}',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: muted,
-                                      ),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            e.chapters > 0
+                                                ? 'Chapter ${e.lastChapterNumber} of ${e.chapters}'
+                                                : (e.updatedText.isNotEmpty
+                                                    ? e.updatedText
+                                                    : 'Ch. ${e.lastChapterNumber}'),
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: muted,
+                                            ),
+                                          ),
+                                        ),
+                                        Text(
+                                          '${(progress.clamp(0.0, 1.0) * 100).round()}%',
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                            color: Color(0xFF6C3CE1),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ],
@@ -645,10 +849,21 @@ class _EntriesList extends StatelessWidget {
             ),
           if (!history) ...[
             const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: onDiscover,
-              icon: const Icon(Icons.auto_stories_outlined),
-              label: const Text('Discover more stories'),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: onDiscover,
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF6C3CE1),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                icon: const Icon(Icons.auto_stories_outlined),
+                label: const Text('Discover more stories'),
+              ),
             ),
           ],
         ],
@@ -684,10 +899,11 @@ class _ListsPane extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(24, 14, 24, 30),
         children: [
           Text(
-            'Private Reading Lists',
+            'My Collections',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
               fontSize: 18,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.3,
             ),
           ),
           const SizedBox(height: 6),
@@ -703,23 +919,89 @@ class _ListsPane extends StatelessWidget {
               child: Text('No lists yet', style: TextStyle(color: muted)),
             )
           else
-            ...lists.map(
-              (l) => Card(
-                child: ListTile(
-                  onTap: () => onOpen(l),
-                  leading: const Icon(Icons.library_books_outlined),
-                  title: Text(l.name),
-                  subtitle: Text('${l.storyCount} stories'),
-                  trailing: const Icon(Icons.chevron_right),
-                ),
-              ),
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 1.15,
+              children: [
+                for (final l in lists)
+                  GestureDetector(
+                    onTap: () => onOpen(l),
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF7F5FC),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isDark
+                              ? const Color(0xFF2C2C2C)
+                              : const Color(0xFFEDE9FE),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF6C3CE1).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.collections_bookmark_outlined,
+                              color: Color(0xFF6C3CE1),
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            l.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                              color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${l.storyCount} stories',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: muted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
             ),
           const SizedBox(height: 20),
-          OutlinedButton.icon(
-            onPressed: () => onCreate(),
-            icon: const Icon(Icons.add),
-            label: const Text('Create New List'),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => onCreate(),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF6C3CE1),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              icon: const Icon(Icons.add),
+              label: const Text('Create New List'),
+            ),
           ),
+          const SizedBox(height: 8),
+          // keep spacer for layout parity
+          const SizedBox.shrink(),
+
         ],
       ),
     );

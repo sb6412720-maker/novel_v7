@@ -242,39 +242,182 @@ Future<void> _deleteStory(Map<String, dynamic> story) async {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final fg = isDark ? Colors.white : const Color(0xFF1A1A1A);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Header
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
+          padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
           child: Row(
             children: [
               Text(
                 'Write',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w700,
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.6,
+                  color: fg,
                 ),
               ),
               const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF2A2140) : const Color(0xFFF3EEFF),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF4C3A7A) : const Color(0xFFD6C7FF),
+                  ),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.diamond_outlined, size: 14, color: Color(0xFF6C3CE1)),
+                    SizedBox(width: 4),
+                    Text(
+                      'Premium',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF6C3CE1),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               IconButton(
                 onPressed: () => _openCreateStory(),
-                icon: const Icon(Icons.add_rounded, size: 28),
+                icon: Icon(Icons.add_circle_rounded, size: 30, color: AppTheme.brand),
                 tooltip: 'Create Story',
               ),
             ],
           ),
         ),
+        // Hero banner (UI only — same create action)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+          child: GestureDetector(
+            onTap: () => _openCreateStory(),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: isDark
+                      ? const [Color(0xFF3B2A6B), Color(0xFF1A1228)]
+                      : const [Color(0xFF6C3CE1), Color(0xFF9B6DFF)],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF6C3CE1).withValues(alpha: 0.28),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text(
+                          'Start Writing',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                        SizedBox(height: 6),
+                        Text(
+                          'Turn your ideas into stories readers will love.',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 13,
+                            height: 1.3,
+                          ),
+                        ),
+                        SizedBox(height: 12),
+                        // CTA chip
+                      ],
+                    ),
+                  ),
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.18),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.edit_note_rounded,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        // Writing tools row (visual shortcuts → same create / manage)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: _WriteToolChip(
+                  icon: Icons.add_box_outlined,
+                  label: 'New Story',
+                  onTap: () => _openCreateStory(),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _WriteToolChip(
+                  icon: Icons.library_books_outlined,
+                  label: 'My Stories',
+                  onTap: () {
+                    if (_mainTabs.index != 0) _mainTabs.animateTo(0);
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _WriteToolChip(
+                  icon: Icons.insights_outlined,
+                  label: 'Analytics',
+                  onTap: () {
+                    if (_mainTabs.index != 1) _mainTabs.animateTo(1);
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
         Container(
-          decoration: const BoxDecoration(
-            border: Border(bottom: BorderSide(color: AppTheme.border)),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: isDark ? const Color(0xFF2C2C2C) : const Color(0xFFEDE9FE),
+              ),
+            ),
           ),
           child: TabBar(
             controller: _mainTabs,
             labelColor: AppTheme.brand,
-            unselectedLabelColor: AppTheme.muted,
+            unselectedLabelColor: isDark ? Colors.white60 : AppTheme.muted,
             indicatorColor: AppTheme.brand,
-            indicatorWeight: 2.5,
+            indicatorWeight: 3,
+            labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
             tabs: const [
               Tab(text: 'Manage Stories'),
               Tab(text: 'Analytics'),
@@ -302,6 +445,50 @@ Future<void> _deleteStory(Map<String, dynamic> story) async {
               : _AnalyticsTab(analyticsSubTabs: _analyticsSubTabs),
         ),
       ],
+    );
+  }
+}
+
+class _WriteToolChip extends StatelessWidget {
+  const _WriteToolChip({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Material(
+      color: isDark ? const Color(0xFF1E1E1E) : const Color(0xFFF7F5FC),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          child: Column(
+            children: [
+              Icon(icon, size: 22, color: const Color(0xFF6C3CE1)),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white70 : const Color(0xFF3A3A3A),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -344,14 +531,22 @@ class _ManageStoriesTab extends StatelessWidget {
     return Column(
       children: [
         Container(
-          decoration: const BoxDecoration(
-            border: Border(bottom: BorderSide(color: AppTheme.border)),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xFF2C2C2C)
+                    : const Color(0xFFEDE9FE),
+              ),
+            ),
           ),
           child: TabBar(
             controller: storySubTabs,
             labelColor: AppTheme.brand,
             unselectedLabelColor: AppTheme.muted,
             indicatorColor: AppTheme.brand,
+            indicatorWeight: 3,
+            labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
             // Fixed labels — do not use bootstrap "Stories/Series"
             tabs: const [
               Tab(text: 'Submitted'),
@@ -364,13 +559,16 @@ class _ManageStoriesTab extends StatelessWidget {
           child: TextField(
             onChanged: onQueryChange,
             decoration: InputDecoration(
-              hintText: 'Search',
-              prefixIcon: const Icon(Icons.search_rounded, size: 20),
-              contentPadding: const EdgeInsets.symmetric(vertical: 10),
+              hintText: 'Search your stories…',
+              hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 14),
+              prefixIcon: Icon(Icons.search_rounded, size: 20, color: Colors.grey.shade500),
+              contentPadding: const EdgeInsets.symmetric(vertical: 12),
               filled: true,
-              fillColor: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2C2C2C) : const Color(0xFFF5F5F5),
+              fillColor: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF2A2A2A)
+                  : const Color(0xFFF3F0FF),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(28),
                 borderSide: BorderSide.none,
               ),
             ),
@@ -668,16 +866,16 @@ class _StoryListCard extends StatelessWidget {
     final Color statusFg;
     if (stLower.contains('complete')) {
       statusLabel = 'Completed';
-      statusBg = const Color(0xFFDCEFD9);
-      statusFg = const Color(0xFF24613A);
+      statusBg = const Color(0xFFD1FAE5);
+      statusFg = const Color(0xFF047857);
     } else if (stLower.contains('ongoing') || stLower.contains('publish')) {
       statusLabel = 'Ongoing';
-      statusBg = const Color(0xFFD6EAF8);
-      statusFg = const Color(0xFF1A5276);
+      statusBg = const Color(0xFFEDE9FE);
+      statusFg = const Color(0xFF6C3CE1);
     } else {
       statusLabel = 'Draft';
-      statusBg = const Color(0xFFF7E1B5);
-      statusFg = const Color(0xFF8A5A00);
+      statusBg = const Color(0xFFFEF3C7);
+      statusFg = const Color(0xFFB45309);
     }
     final coverPath = story['cover_path']?.toString() ?? '';
     final coverUrl = coverPath.isEmpty ? '' : apiService.resolveAssetUrl(coverPath);
@@ -691,10 +889,23 @@ class _StoryListCard extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: Theme.of(context).brightness == Brightness.dark
-                ? const Color(0xFF1E1E1E)
+                ? const Color(0xFF1A1A1A)
                 : Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppTheme.border),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF2C2C2C)
+                  : const Color(0xFFEDE9FE),
+            ),
+            boxShadow: Theme.of(context).brightness == Brightness.dark
+                ? const []
+                : [
+                    BoxShadow(
+                      color: const Color(0xFF6C3CE1).withValues(alpha: 0.06),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
