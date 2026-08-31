@@ -1328,10 +1328,17 @@ function SettingsPage({
             <button type="button" className="btn btn-sm btn-primary" onClick={openCategory}>Add</button>
           </div>
           <table className="data">
-            <thead><tr><th>Name</th><th>Group</th><th></th></tr></thead>
+            <thead><tr><th>Image</th><th>Name</th><th>Group</th><th></th></tr></thead>
             <tbody>
               {categories.map((c) => (
                 <tr key={c.id}>
+                  <td>
+                    {c.image_path ? (
+                      <img src={c.image_path.startsWith("http") ? c.image_path : `${API_BASE}${c.image_path}`} alt="" style={{width:40,height:40,objectFit:"cover",borderRadius:6}} />
+                    ) : (
+                      <span style={{color:"var(--text-muted)"}}>—</span>
+                    )}
+                  </td>
                   <td>{c.name}</td>
                   <td>{c.tab_group}</td>
                   <td className="btn-row">
@@ -1514,6 +1521,29 @@ function CategoryModal({ item, onClose, onSave }) {
         <div className="field" style={{ marginBottom: 8 }}>
           <label>Tab group</label>
           <input value={form.tab_group || ""} onChange={(e) => setForm({ ...form, tab_group: e.target.value })} />
+        </div>
+        <div className="field" style={{ marginBottom: 8 }}>
+          <label>Genre image URL or path</label>
+          <input
+            value={form.image_path || ""}
+            onChange={(e) => setForm({ ...form, image_path: e.target.value })}
+            placeholder="/uploads/genre.jpg or https://..."
+          />
+          {form.image_path ? (
+            <div style={{marginTop:8}}>
+              <img
+                src={form.image_path.startsWith("http") ? form.image_path : `${API_BASE}${form.image_path}`}
+                alt="preview"
+                style={{maxWidth:120,maxHeight:120,borderRadius:8,objectFit:"cover"}}
+                onError={(e)=>{e.currentTarget.style.display="none"}}
+              />
+              <div style={{marginTop:6}}>
+                <button type="button" className="btn btn-sm btn-danger" onClick={() => setForm({ ...form, image_path: "" })}>
+                  Remove image
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
         <div className="modal-actions">
           <button type="button" className="btn" onClick={onClose}>Cancel</button>

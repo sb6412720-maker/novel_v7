@@ -1161,8 +1161,13 @@ class _ContinueReadingSectionState extends State<_ContinueReadingSection> {
   List<LibraryEntryModel> _filterOngoing(List<LibraryEntryModel> list) {
     return list.where((e) {
       final st = e.readingStatus.toLowerCase().trim();
-      if (st.contains('complete') || st.contains('finished')) return false;
-      // Keep if any progress or just started
+      if (st.contains('complete') || st.contains('finished') || st.contains('done')) {
+        return false;
+      }
+      // Fully read (chapters_read >= chapters)
+      if (e.chapters > 0 && e.chaptersRead >= e.chapters && e.progressFraction >= 0.99) {
+        return false;
+      }
       return e.book.id > 0;
     }).toList();
   }

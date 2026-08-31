@@ -382,7 +382,26 @@ class ApiService {
     return const <String, dynamic>{};
   }
 
-  Future<List<Map<String, dynamic>>> fetchNotifications({String? tab}) async {
+  
+  Future<List<Map<String, dynamic>>> fetchMyActivity() async {
+    try {
+      final response = await _get('/api/me/activity');
+      if (response.statusCode != 200) return const [];
+      final payload = jsonDecode(response.body);
+      if (payload is Map && payload['items'] is List) {
+        return (payload['items'] as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      return const [];
+    } catch (e) {
+      debugPrint('fetchMyActivity: $e');
+      return const [];
+    }
+  }
+
+Future<List<Map<String, dynamic>>> fetchNotifications({String? tab}) async {
     try {
       final response = await _get(
         '/api/notifications${tab != null && tab.trim().isNotEmpty ? '?tab=${Uri.encodeComponent(tab)}' : ''}',

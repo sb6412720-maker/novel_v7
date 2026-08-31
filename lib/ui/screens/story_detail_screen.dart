@@ -238,7 +238,56 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
     }
   }
 
-  Future<void> _checkSavedAndReviewed() async {
+  
+  Future<void> _openReviewsPage() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _BookReviewsPage(
+          book: _book,
+          apiService: widget.apiService,
+          isOwner: _isOwner,
+          hasMyReview: _hasMyReview,
+          onReviewPosted: () async {
+            setState(() => _hasMyReview = true);
+            final reviews = await widget.apiService.fetchBookReviews(_book.id);
+            if (mounted) setState(() => _reviews = reviews);
+          },
+        ),
+      ),
+    );
+  }
+
+  void _onWriteReviewPressed() {
+    if (_isOwner) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Author can't make reviews on their own book"),
+        ),
+      );
+      return;
+    }
+    if (_hasMyReview) {
+      _openReviewsPage();
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _WriteReviewScreen(
+          apiService: widget.apiService,
+          bookId: _book.id,
+          bookTitle: _book.title,
+        ),
+      ),
+    ).then((ok) async {
+      if (ok == true) {
+        setState(() => _hasMyReview = true);
+        final reviews = await widget.apiService.fetchBookReviews(_book.id);
+        if (mounted) setState(() => _reviews = reviews);
+      }
+    });
+  }
+
+Future<void> _checkSavedAndReviewed() async {
     try {
       final me = await widget.apiService.fetchMe();
       final uid = (me['id'] as num?)?.toInt() ??
@@ -564,6 +613,16 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                   if (action == 'list') {
                     await _openReadingListPicker();
                   } else if (action == 'review') {
+                    if (_isOwner) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            "Author can't make reviews on their own book",
+                          ),
+                        ),
+                      );
+                      return;
+                    }
                     if (!mounted) return;
                     await Navigator.of(context).push(
                       MaterialPageRoute<void>(
@@ -715,11 +774,14 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                         ),
                       ],
                     ),
-                    _statCell(
-                      'Reviews',
-                      _book.rating > 0
-                          ? '★ ${_book.rating.toStringAsFixed(1)}'
-                          : '${_reviews.length}',
+                    GestureDetector(
+                      onTap: _openReviewsPage,
+                      child: _statCell(
+                        'Reviews',
+                        _book.rating > 0
+                            ? '★ ${_book.rating.toStringAsFixed(1)}'
+                            : '${_reviews.length}',
+                      ),
                     ),
                   ],
                 ),
@@ -1712,7 +1774,16 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                if (!widget.isOwner)
+                if (widget.isOwner)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Text(
+                      "Authors can't write reviews on their own books. You can still read reviews below.",
+                      style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                      textAlign: TextAlign.center,
+                    ),
+                  )
+                else if (!widget.isOwner)
                   Center(
                     child: FilledButton(
                       style: FilledButton.styleFrom(

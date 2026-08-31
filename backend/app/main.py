@@ -190,6 +190,7 @@ class ProfileUpdateRequest(BaseModel):
     gender: str | None = None
     birth_date: str | None = None
     country: str | None = None
+    facebook_url: str | None = None
     profile_complete: bool | None = None
 
 
@@ -198,6 +199,7 @@ class CategoryCreateRequest(BaseModel):
     topic_count: int = 0
     tab_group: str
     sort_order: int = 0
+    image_path: str | None = None
 
 
 class CategoryUpdateRequest(BaseModel):
@@ -205,6 +207,7 @@ class CategoryUpdateRequest(BaseModel):
     topic_count: int | None = None
     tab_group: str | None = None
     sort_order: int | None = None
+    image_path: str | None = None
 
 
 class AdminBookCreateRequest(BaseModel):
@@ -841,6 +844,7 @@ def _ensure_profile_extra_columns() -> None:
         ("gender", "ALTER TABLE app_users ADD COLUMN gender VARCHAR(40) NULL"),
         ("birth_date", "ALTER TABLE app_users ADD COLUMN birth_date VARCHAR(20) NULL"),
         ("country", "ALTER TABLE app_users ADD COLUMN country VARCHAR(64) NULL"),
+        ("facebook_url", "ALTER TABLE app_users ADD COLUMN facebook_url VARCHAR(255) NULL"),
         ("profile_complete", "ALTER TABLE app_users ADD COLUMN profile_complete TINYINT(1) NOT NULL DEFAULT 0"),
     ]
     for col, sql in cols:
@@ -1908,6 +1912,7 @@ def get_me(user: dict[str, Any] = Depends(require_user)):
         "gender": _row_get(u, "gender") or "",
         "birth_date": _row_get(u, "birth_date") or "",
         "country": _row_get(u, "country") or "",
+        "facebook_url": _row_get(u, "facebook_url") or "",
         "profile_complete": bool(int(_row_get(u, "profile_complete") or 0)),
         "is_author": bool(int(_row_get(u, "is_author") or 0)),
     }
@@ -2052,6 +2057,9 @@ def update_me(
     if payload.country is not None:
         sets.append("country=%s")
         args.append(payload.country)
+    if payload.facebook_url is not None:
+        sets.append("facebook_url=%s")
+        args.append(payload.facebook_url)
     if payload.profile_complete is not None:
         sets.append("profile_complete=%s")
         args.append(1 if payload.profile_complete else 0)
@@ -2764,6 +2772,110 @@ def search_stories(
 
     return {"items": [_card(r) for r in (rows or [])]}
 
+
+
+
+@app.get("/api/me/activity")
+def get_my_activity(user: dict[str, Any] = Depends(require_user)):
+    """What *I* did: likes, reviews, follows, library saves by current user."""
+    uid = int(user["user_id"])
+    items: list[dict[str, Any]] = []
+    try:
+        rows = fetch_all(
+            """
+            SELECT bl.book_id, bl.created_at, b.title, b.cover_path
+            FROM book_likes bl
+            JOIN books b ON b.id = bl.book_id
+            WHERE bl.user_id=%s
+            ORDER BY bl.id DESC LIMIT 30
+            """,
+            (uid,),
+        )
+        for r in rows or []:
+            items.append({
+                "id": f"like-{_row_get(r,'book_id')}",
+                "type": "like",
+                "title": f"You liked {_row_get(r,'title') or 'a story'}",
+                "message": "Like",
+                "created_at": str(_row_get(r, "created_at") or ""),
+                "book_id": _row_get(r, "book_id"),
+                "cover_path": _normalize_cover_path(_row_get(r, "cover_path") or ""),
+            })
+    except Exception as exc:
+        LOGGER.warning("my activity likes: %s", exc)
+    try:
+        rows = fetch_all(
+            """
+            SELECT r.book_id, r.rating, r.created_at, b.title, b.cover_path
+            FROM reviews r
+            JOIN books b ON b.id = r.book_id
+            WHERE r.user_id=%s
+            ORDER BY r.id DESC LIMIT 30
+            """,
+            (uid,),
+        )
+        for r in rows or []:
+            items.append({
+                "id": f"review-{_row_get(r,'book_id')}",
+                "type": "review",
+                "title": f"You reviewed {_row_get(r,'title') or 'a story'}",
+                "message": f"Rating {_row_get(r,'rating')}",
+                "created_at": str(_row_get(r, "created_at") or ""),
+                "book_id": _row_get(r, "book_id"),
+                "cover_path": _normalize_cover_path(_row_get(r, "cover_path") or ""),
+            })
+    except Exception as exc:
+        LOGGER.warning("my activity reviews: %s", exc)
+    try:
+        rows = fetch_all(
+            """
+            SELECT f.following_id, f.created_at,
+                   COALESCE(u.display_name, u.email, 'someone') AS name,
+                   COALESCE(u.photo_url,'') AS photo
+            FROM follows f
+            LEFT JOIN app_users u ON u.id = f.following_id
+            WHERE f.follower_id=%s
+            ORDER BY f.id DESC LIMIT 30
+            """,
+            (uid,),
+        )
+        for r in rows or []:
+            items.append({
+                "id": f"follow-{_row_get(r,'following_id')}",
+                "type": "follow",
+                "title": f"You followed {_row_get(r,'name') or 'someone'}",
+                "message": "Follow",
+                "created_at": str(_row_get(r, "created_at") or ""),
+                "actor_user_id": _row_get(r, "following_id"),
+            })
+    except Exception as exc:
+        LOGGER.warning("my activity follows: %s", exc)
+    try:
+        rows = fetch_all(
+            """
+            SELECT le.book_id, le.updated_at, b.title, b.cover_path
+            FROM library_entries le
+            JOIN books b ON b.id = le.book_id
+            WHERE le.user_id=%s
+            ORDER BY le.id DESC LIMIT 30
+            """,
+            (uid,),
+        )
+        for r in rows or []:
+            items.append({
+                "id": f"save-{_row_get(r,'book_id')}",
+                "type": "save",
+                "title": f"You saved {_row_get(r,'title') or 'a story'}",
+                "message": "Library",
+                "created_at": str(_row_get(r, "updated_at") or ""),
+                "book_id": _row_get(r, "book_id"),
+                "cover_path": _normalize_cover_path(_row_get(r, "cover_path") or ""),
+            })
+    except Exception as exc:
+        LOGGER.warning("my activity saves: %s", exc)
+
+    items.sort(key=lambda x: str(x.get("created_at") or ""), reverse=True)
+    return {"items": items[:50]}
 
 
 @app.get("/api/notifications")
@@ -5177,7 +5289,7 @@ def delete_writer_story(story_id: int, user: dict[str, Any] = Depends(require_us
 @app.get("/api/admin/bootstrap")
 def admin_bootstrap(_: dict[str, Any] = Depends(require_admin)):
     categories = fetch_all(
-        "SELECT id, name, topic_count, tab_group, sort_order FROM categories ORDER BY tab_group, sort_order, id"
+        "SELECT id, name, topic_count, tab_group, sort_order, COALESCE(image_path, '') AS image_path FROM categories ORDER BY tab_group, sort_order, id"
     )
     books = fetch_all(
         """
@@ -5264,8 +5376,8 @@ def admin_create_category(
     _: dict[str, Any] = Depends(require_admin),
 ):
     _, affected = execute_write(
-        "INSERT INTO categories (name, topic_count, tab_group, sort_order) VALUES (%s, %s, %s, %s)",
-        (payload.name, payload.topic_count, payload.tab_group, payload.sort_order),
+        "INSERT INTO categories (name, topic_count, tab_group, sort_order, image_path) VALUES (%s, %s, %s, %s, %s)",
+        (payload.name, payload.topic_count, payload.tab_group, payload.sort_order, payload.image_path or ""),
     )
     if affected == 0:
         raise HTTPException(status_code=400, detail="Failed to create category")
@@ -5287,7 +5399,7 @@ def admin_update_category(
     _, affected = execute_write(
         """
         UPDATE categories
-        SET name=%s, topic_count=%s, tab_group=%s, sort_order=%s
+        SET name=%s, topic_count=%s, tab_group=%s, sort_order=%s, image_path=%s
         WHERE id=%s
         """,
         (
@@ -5295,6 +5407,7 @@ def admin_update_category(
             payload.topic_count if payload.topic_count is not None else current["topic_count"],
             payload.tab_group or current["tab_group"],
             payload.sort_order if payload.sort_order is not None else current["sort_order"],
+            payload.image_path if payload.image_path is not None else current.get("image_path") or "",
             category_id,
         ),
     )

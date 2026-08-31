@@ -187,17 +187,21 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
       final map = Map<String, dynamic>.from(
         (jsonDecode(raw) as Map?) ?? const {},
       );
-      map['$bookId'] = {
-        ...payload,
-        'book': {
-          'id': bookId,
-          'title': widget.title,
-          'author': widget.author,
-          'cover_path': widget.coverPath,
-          'author_user_id': widget.authorUserId,
-        },
-        'updated_at': DateTime.now().toIso8601String(),
-      };
+      if (completed) {
+        map.remove('$bookId');
+      } else {
+        map['$bookId'] = {
+          ...payload,
+          'book': {
+            'id': bookId,
+            'title': widget.title,
+            'author': widget.author,
+            'cover_path': widget.coverPath,
+            'author_user_id': widget.authorUserId,
+          },
+          'updated_at': DateTime.now().toIso8601String(),
+        };
+      }
       await prefs.setString('continue_reading_v1', jsonEncode(map));
     } catch (e) {
       debugPrint('Local continue cache failed: $e');
@@ -239,11 +243,35 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     }
   }
 
+  Future<void> _persistReadTime() async {
+    if (_readSeconds <= 0) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = 'reading_seconds_by_day_v1';
+      final raw = prefs.getString(key) ?? '{}';
+      final map = Map<String, dynamic>.from((jsonDecode(raw) as Map?) ?? {});
+      final now = DateTime.now();
+      // Monday=1 ... use weekday name
+      final dayKey = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      final prev = (map[dayKey] as num?)?.toInt() ?? 0;
+      map[dayKey] = prev + _readSeconds;
+      // Keep last 60 days
+      if (map.length > 60) {
+        final keys = map.keys.map((k) => k.toString()).toList()..sort();
+        for (final k in keys.take(map.length - 60)) {
+          map.remove(k);
+        }
+      }
+      await prefs.setString(key, jsonEncode(map));
+    } catch (_) {}
+  }
+
   @override
   void dispose() {
     _readTimer?.cancel();
+    unawaited(_persistReadTime());
 
-    // Persist exact stop position as ongoing read
+    // Persist exact stop position as ongoing read (unless already completed)
     unawaited(_markLibraryProgress(completed: false));
     _scrollController.removeListener(_updateVisibleParagraphFromScroll);
     _scrollController.dispose();
@@ -331,7 +359,16 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
   }
 
   Future<void> _goNext() async {
-    if (_chapterIndex >= _chapters.length - 1) return;
+    if (_chapterIndex >= _chapters.length - 1) {
+      // Finished last chapter → remove from continue reading
+      await _markLibraryProgress(completed: true);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Story completed')),
+        );
+      }
+      return;
+    }
     setState(() {
       _chapterIndex++;
       _lastParagraphIndex = 0;
@@ -1071,17 +1108,16 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
         elevation: 0,
         centerTitle: true,
         title: Text(pageLabel, style: TextStyle(color: _muted, fontSize: 14)),
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: _fg),
+          onPressed: () async {
+            await _persistReadTime();
+            await _markLibraryProgress(completed: false);
+            if (!mounted) return;
+            Navigator.of(context).pop();
+          },
+        ),
         actions: [
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Center(
-                child: Text(
-                  '${(_readSeconds ~/ 60).toString().padLeft(2, '0')}:${(_readSeconds % 60).toString().padLeft(2, '0')}',
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                ),
-              ),
-            ),
-
           IconButton(
             icon: Icon(Icons.info_outline, color: _muted),
             onPressed: () {

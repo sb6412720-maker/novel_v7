@@ -1,10 +1,13 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../data/models/app_bootstrap.dart';
 
-/// Inkitt-style Reading Stats: summary cards + simple weekly chart.
-class ReadingStatsScreen extends StatelessWidget {
+/// Reading Stats: minutes per weekday from tracked chapter reading time.
+class ReadingStatsScreen extends StatefulWidget {
   const ReadingStatsScreen({
     super.key,
     required this.profile,
@@ -13,176 +16,149 @@ class ReadingStatsScreen extends StatelessWidget {
   final ProfileModel profile;
 
   @override
+  State<ReadingStatsScreen> createState() => _ReadingStatsScreenState();
+}
+
+class _ReadingStatsScreenState extends State<ReadingStatsScreen> {
+  /// Minutes for last 7 days Mon..Sun order of current week
+  List<double> _minutes = List<double>.filled(7, 0);
+  final _labels = const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('reading_seconds_by_day_v1') ?? '{}';
+      final map = Map<String, dynamic>.from((jsonDecode(raw) as Map?) ?? {});
+      final now = DateTime.now();
+      // Start of week (Monday)
+      final monday = DateTime(now.year, now.month, now.day)
+          .subtract(Duration(days: now.weekday - 1));
+      final mins = <double>[];
+      for (var i = 0; i < 7; i++) {
+        final d = monday.add(Duration(days: i));
+        final key =
+            '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+        final sec = (map[key] as num?)?.toInt() ?? 0;
+        mins.add(sec / 60.0);
+      }
+      if (mounted) {
+        setState(() {
+          _minutes = mins;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Synthetic weekly bars for chart (replace with API series when available)
-    final week = <double>[0.4, 0.7, 0.55, 0.9, 0.65, 0.35, 0.8];
-    final labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    final profile = widget.profile;
+    final maxM = _minutes.fold<double>(0, (a, b) => a > b ? a : b);
+    final scale = maxM <= 0 ? 1.0 : maxM;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Reading Stats'),
         centerTitle: true,
         elevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1A1A1A),
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: _statCard(
-                  icon: Icons.menu_book_rounded,
-                  color: const Color(0xFF9B59B6),
-                  label: 'CHAPTERS READ',
-                  value: '${profile.chaptersRead}',
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _statCard(
-                  icon: Icons.local_fire_department_outlined,
-                  color: const Color(0xFFE85D4C),
-                  label: 'DAY STREAK',
-                  value: '${profile.dayStreak}',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _statCard(
-            icon: Icons.campaign_outlined,
-            color: AppTheme.brand,
-            label: 'SOCIAL KARMA',
-            value: '${profile.socialKarma}',
-          ),
-          const SizedBox(height: 28),
-          const Text(
-            'This week',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Chapters read per day',
-            style: TextStyle(fontSize: 12, color: Color(0xFF8A8F98)),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 160,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: List.generate(week.length, (i) {
-                return Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Expanded(
-                          child: Align(
-                            alignment: Alignment.bottomCenter,
-                            child: FractionallySizedBox(
-                              heightFactor: week[i].clamp(0.08, 1.0),
-                              widthFactor: 1,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: i == week.length - 1
-                                      ? AppTheme.brand
-                                      : AppTheme.brand.withValues(alpha: 0.35),
-                                  borderRadius: const BorderRadius.vertical(
-                                    top: Radius.circular(6),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          labels[i],
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Color(0xFF8A8F98),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }),
-            ),
-          ),
-          const SizedBox(height: 28),
-          const Text(
-            'Reading lists',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (profile.readingLists.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF7F8FA),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Center(
-                child: Text(
-                  'No reading lists yet',
-                  style: TextStyle(color: Color(0xFF8A8F98)),
-                ),
-              ),
-            )
-          else
-            ...profile.readingLists.map((list) {
-              return Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  border: Border.all(color: const Color(0xFFE8EAED)),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+              children: [
+                Row(
                   children: [
-                    const Icon(
-                      Icons.collections_bookmark_outlined,
-                      color: AppTheme.brand,
-                      size: 22,
+                    Expanded(
+                      child: _statCard(
+                        icon: Icons.menu_book_rounded,
+                        color: const Color(0xFF9B59B6),
+                        label: 'CHAPTERS READ',
+                        value: '${profile.chaptersRead}',
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Text(
-                        list.name,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      '${list.storyCount} stories',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF8A8F98),
+                      child: _statCard(
+                        icon: Icons.local_fire_department_outlined,
+                        color: const Color(0xFFE85D4C),
+                        label: 'DAY STREAK',
+                        value: '${profile.dayStreak}',
                       ),
                     ),
                   ],
                 ),
-              );
-            }),
-        ],
-      ),
+                const SizedBox(height: 12),
+                _statCard(
+                  icon: Icons.timer_outlined,
+                  color: AppTheme.brand,
+                  label: 'MINUTES THIS WEEK',
+                  value: _minutes.fold<double>(0, (a, b) => a + b).round().toString(),
+                ),
+                const SizedBox(height: 28),
+                const Text(
+                  'Reading time this week',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Y axis: minutes · X axis: day of week',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF8A8F98)),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 180,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: List.generate(7, (i) {
+                      final h = 8.0 + (_minutes[i] / scale) * 140.0;
+                      return Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Text(
+                                _minutes[i] < 1
+                                    ? '0'
+                                    : _minutes[i].round().toString(),
+                                style: const TextStyle(fontSize: 10),
+                              ),
+                              const SizedBox(height: 4),
+                              Container(
+                                height: h,
+                                decoration: BoxDecoration(
+                                  color: AppTheme.brand.withValues(alpha: 0.85),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                _labels[i],
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 
@@ -193,46 +169,30 @@ class ReadingStatsScreen extends StatelessWidget {
     required String value,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE8EAED)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, color: color, size: 22),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF8A8F98),
-                    letterSpacing: 0.3,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
+          const SizedBox(height: 10),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade600,
+              letterSpacing: 0.4,
             ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
           ),
         ],
       ),

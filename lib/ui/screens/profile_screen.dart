@@ -51,7 +51,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _loadAll();
   }
 
@@ -225,6 +225,14 @@ class _ProfileScreenState extends State<ProfileScreen>
     return a.isNotEmpty ? a : _bio;
   }
 
+  String get _facebookUrl {
+    return _s(
+      _userProfile?['facebook_url'] ??
+          _userProfile?['facebook'] ??
+          _userProfile?['fb_url'],
+    );
+  }
+
   int get _following =>
       _asInt(_userProfile?['following'] ?? widget.profile.following);
   int get _followers =>
@@ -340,6 +348,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     if (!_isOwnProfile) return;
     final nameCtrl = TextEditingController(text: _displayName);
     final bioCtrl = TextEditingController(text: _bio);
+    final facebookCtrl = TextEditingController(text: _facebookUrl);
     String photoUrl = _s(
       _userProfile?['photo_url'] ?? _userProfile?['avatar_url'],
     );
@@ -511,6 +520,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                   await widget.apiService.updateMe({
                                     'display_name': nameCtrl.text.trim(),
                                     'bio': bioCtrl.text.trim(),
+                                    'facebook_url': facebookCtrl.text.trim(),
                                     if (photoUrl.isNotEmpty)
                                       'photo_url': photoUrl,
                                     if (coverUrl.isNotEmpty)
@@ -778,7 +788,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                           Tab(text: 'About'),
                           Tab(text: 'Stories'),
                           Tab(text: 'Wall'),
-                          Tab(text: 'Activity'),
+
                           Tab(text: 'Reviews'),
                         ],
                       ),
@@ -792,7 +802,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   _buildAboutTab(),
                   _buildStoriesTab(),
                   _buildWallTab(),
-                  _buildActivityTab(),
+
                   _buildReviewsTab(),
                 ],
               ),
@@ -1003,6 +1013,31 @@ class _ProfileScreenState extends State<ProfileScreen>
             color: Color(0xFF3A3A3A),
           ),
         ),
+        if (_facebookUrl.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          InkWell(
+            onTap: () {
+              // open externally via share_plus or url - use simple snack for now
+            },
+            child: Row(
+              children: [
+                const Icon(Icons.facebook, color: Color(0xFF1877F2), size: 22),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _facebookUrl,
+                    style: const TextStyle(
+                      color: Color(0xFF1877F2),
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 24),
         const Text(
           'Reading Lists',

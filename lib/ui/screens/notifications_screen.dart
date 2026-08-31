@@ -1,228 +1,122 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
-import '../../data/models/app_bootstrap.dart';
 import '../../data/services/api_service.dart';
 
+/// Bell tab: activity *you* performed (likes, reviews, follows, saves).
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({
     super.key,
-    required this.data,
     required this.apiService,
-    required this.onOpenDiscover,
+    this.onOpenDiscover,
   });
 
-  final AppBootstrap data;
   final ApiService apiService;
-  final VoidCallback onOpenDiscover;
+  final VoidCallback? onOpenDiscover;
 
   @override
   State<NotificationsScreen> createState() => _NotificationsScreenState();
 }
 
-class _NotificationsScreenState extends State<NotificationsScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _NotificationsScreenState extends State<NotificationsScreen> {
+  late Future<List<Map<String, dynamic>>> _future;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _future = widget.apiService.fetchMyActivity();
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
+  Future<void> _reload() async {
+    setState(() {
+      _future = widget.apiService.fetchMyActivity();
+    });
+    await _future;
+  }
+
+  IconData _iconFor(String type) {
+    switch (type) {
+      case 'like':
+        return Icons.favorite;
+      case 'review':
+        return Icons.star;
+      case 'follow':
+        return Icons.person_add_alt_1;
+      case 'save':
+        return Icons.bookmark;
+      default:
+        return Icons.notifications;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    const tabs = ['Story', 'Community', 'System'];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
-          child: Text(
-            'Notifications',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              fontSize: 26,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-        TabBar(
-          controller: _tabController,
-          labelColor: AppTheme.brand,
-          unselectedLabelColor: AppTheme.muted,
-          indicatorColor: AppTheme.brand,
-          tabs: tabs.map((e) => Tab(text: e)).toList(),
-        ),
-        Expanded(
-          child: TabBarView(
-            controller: _tabController,
-            children: tabs.map((tab) {
-              return _NotificationTab(
-                tab: tab,
-                apiService: widget.apiService,
-                onOpenDiscover: widget.onOpenDiscover,
-              );
-            }).toList(),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _NotificationTab extends StatelessWidget {
-  const _NotificationTab({
-    required this.tab,
-    required this.apiService,
-    required this.onOpenDiscover,
-  });
-
-  final String tab;
-  final ApiService apiService;
-  final VoidCallback onOpenDiscover;
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: apiService.fetchNotifications(tab: tab),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        final rows = snapshot.data ?? <Map<String, dynamic>>[];
-        if (rows.isEmpty) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('My Activity'),
+        centerTitle: true,
+      ),
+      body: RefreshIndicator(
+        onRefresh: _reload,
+        child: FutureBuilder<List<Map<String, dynamic>>>(
+          future: _future,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final rows = snapshot.data ?? [];
+            if (rows.isEmpty) {
+              return ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
                 children: [
-                  const Icon(
-                    Icons.inbox_outlined,
-                    size: 42,
-                    color: Color(0xFFA9A9A9),
-                  ),
+                  const SizedBox(height: 120),
+                  Icon(Icons.inbox_outlined, size: 48, color: Colors.grey.shade400),
                   const SizedBox(height: 12),
-                  Text(
-                    'No updates... yet',
-                    style: Theme.of(context).textTheme.titleMedium,
+                  const Center(
+                    child: Text(
+                      'No activity yet',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    'Follow your favorite authors and save stories to your library to see updates here.',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: 180,
-                    child: FilledButton(
-                      onPressed: onOpenDiscover,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppTheme.brand,
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 32),
+                      child: Text(
+                        'Likes, reviews, follows and saves you make will show up here.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: AppTheme.muted),
                       ),
-                      child: const Text('Discover Stories'),
                     ),
                   ),
                 ],
-              ),
-            ),
-          );
-        }
-
-        return ListView.separated(
-          padding: const EdgeInsets.fromLTRB(14, 14, 14, 20),
-          itemCount: rows.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 12),
-          itemBuilder: (context, index) {
-            final row = rows[index];
-            return AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOut,
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E1E1E) : Colors.white,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2C2C2C) : const Color(0xFFF4F4F4),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      _iconFor(row['type']?.toString() ?? ''),
-                      size: 22,
-                      color: AppTheme.brand,
-                    ),
+              );
+            }
+            return ListView.separated(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: rows.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (context, i) {
+                final n = rows[i];
+                final type = (n['type'] ?? '').toString();
+                final title = (n['title'] ?? 'Activity').toString();
+                final message = (n['message'] ?? '').toString();
+                final when = (n['created_at'] ?? '').toString();
+                return ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: AppTheme.brand.withValues(alpha: 0.12),
+                    child: Icon(_iconFor(type), color: AppTheme.brand, size: 20),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          (row['title']?.toString() ?? '').isNotEmpty
-                              ? row['title'].toString()
-                              : (row['message']?.toString() ?? 'Notification'),
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                        if ((row['message']?.toString() ?? '').isNotEmpty &&
-                            (row['title']?.toString() ?? '') !=
-                                (row['message']?.toString() ?? '')) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            row['message']?.toString() ?? '',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                        const SizedBox(height: 4),
-                        Text(
-                          row['created_at']?.toString() ?? '',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ],
-                    ),
+                  title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: Text(
+                    [message, when].where((s) => s.toString().isNotEmpty).join(' · '),
                   ),
-                ],
-              ),
+                );
+              },
             );
           },
-        );
-      },
+        ),
+      ),
     );
-  }
-}
-
-
-IconData _iconFor(String type) {
-  switch (type.toLowerCase()) {
-    case 'like':
-      return Icons.favorite_rounded;
-    case 'comment':
-      return Icons.chat_bubble_outline_rounded;
-    case 'review':
-      return Icons.star_rounded;
-    case 'follow':
-      return Icons.person_add_alt_1_rounded;
-    case 'wall':
-      return Icons.notes_rounded;
-    default:
-      return Icons.notifications_none_rounded;
   }
 }
