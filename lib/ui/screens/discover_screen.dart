@@ -147,7 +147,19 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                           ],
                         ),
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 2),
+                      IconButton(
+                        tooltip: 'Search',
+                        icon: Icon(Icons.search_rounded, size: 26, color: fg),
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) =>
+                                  SearchScreen(apiService: widget.apiService),
+                            ),
+                          );
+                        },
+                      ),
                       IconButton(
                         tooltip: 'Notifications',
                         icon: Icon(Icons.notifications_none_rounded, size: 26, color: fg),
@@ -343,46 +355,6 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                 ),
               );
             },
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-              child: Material(
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? const Color(0xFF2A2A2A)
-                    : const Color(0xFFF3F0FF),
-                borderRadius: BorderRadius.circular(28),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(28),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => SearchScreen(apiService: widget.apiService),
-                      ),
-                    );
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    child: Row(
-                      children: [
-                        Icon(Icons.search_rounded, size: 22, color: Colors.grey.shade500),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'Search stories, authors, or genres',
-                            style: TextStyle(
-                              color: Colors.grey.shade500,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
           ),
           SliverPersistentHeader(
             pinned: true,

@@ -2606,7 +2606,7 @@ class _HomeFeaturedBanner extends StatelessWidget {
     final coverUrl = cover.isEmpty ? null : apiService.resolveAssetUrl(cover);
 
     return Container(
-      height: 200,
+      constraints: const BoxConstraints(minHeight: 168),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         gradient: LinearGradient(
@@ -2691,7 +2691,7 @@ class _HomeFeaturedBanner extends StatelessWidget {
                       color: isDark ? Colors.white70 : Colors.black54,
                     ),
                   ),
-                const Spacer(),
+                const SizedBox(height: 12),
                 if (genre.trim().isNotEmpty) ...[
                   Wrap(
                     spacing: 6,
@@ -2729,6 +2729,8 @@ class _HomeFeaturedBanner extends StatelessWidget {
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF6C3CE1),
                     foregroundColor: Colors.white,
+                    minimumSize: const Size(0, 40),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 18,
                       vertical: 10,
