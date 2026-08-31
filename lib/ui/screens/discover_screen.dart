@@ -344,9 +344,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
               );
             },
           ),
-          SliverPersistentHeader(
-            pinned: true,
-            SliverToBoxAdapter(
+          SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
               child: Material(
@@ -386,7 +384,9 @@ class _DiscoverScreenState extends State<DiscoverScreen>
               ),
             ),
           ),
-          delegate: _TabBarDelegate(
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _TabBarDelegate(
               child: Container(
                 color: Theme.of(context).brightness == Brightness.dark
                     ? const Color(0xFF121212)
@@ -599,6 +599,22 @@ class _DiscoverScreenState extends State<DiscoverScreen>
         ],
       ),
     );
+  }
+
+
+  List<BookCardModel> _booksForDiscover() {
+    final seen = <int>{};
+    final merged = <BookCardModel>[];
+    final source = widget.data.discoverBooks.isNotEmpty
+        ? widget.data.discoverBooks
+        : [...widget.data.recentlyUpdated, ...widget.data.recentlyCompleted];
+    for (final book in source) {
+      if (!_isValidBook(book)) continue;
+      if (seen.contains(book.id)) continue;
+      seen.add(book.id);
+      merged.add(book);
+    }
+    return merged;
   }
 
   List<_DiscoverRailSection> _discoverSectionsForTab(

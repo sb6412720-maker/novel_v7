@@ -462,21 +462,17 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
         child: IndexedStack(index: _selectedIndex, children: pages),
       ),
       bottomNavigationBar: NavigationBar(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
-        indicatorColor: const Color(0xFFEDE9FE),
-        elevation: 8,
-        shadowColor: Colors.black12,
-        height: 68,
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-
-        height: 76,
         backgroundColor: Theme.of(context).brightness == Brightness.dark
             ? const Color(0xFF1E1E1E)
             : Colors.white,
+        surfaceTintColor: Colors.transparent,
         indicatorColor: Theme.of(context).brightness == Brightness.dark
             ? const Color(0xFF2C2C2C)
-            : Colors.transparent,
+            : const Color(0xFFEDE9FE),
+        elevation: 8,
+        shadowColor: Colors.black12,
+        height: 72,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         selectedIndex: _selectedIndex,
         onDestinationSelected: (value) {
           // Guests and logged-out users: Discover only; other tabs need real account
