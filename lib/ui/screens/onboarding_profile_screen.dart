@@ -45,6 +45,21 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
   File? _localCover;
 
   static const _genders = ['Female', 'Male', 'Non-binary', 'Prefer not to say'];
+  static const List<String> _countryOptions = [
+    'Sri Lanka',
+    'India',
+    'United States',
+    'United Kingdom',
+    'Canada',
+    'Australia',
+    'Singapore',
+    'Malaysia',
+    'United Arab Emirates',
+    'Germany',
+    'France',
+    'Japan',
+    'Other',
+  ];
 
   @override
   void initState() {
@@ -372,13 +387,20 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
 
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _country,
+              value: (_country != null &&
+                      (_countryOptions.contains(_country) ||
+                          _country == _detectedCountry))
+                  ? _country
+                  : null,
               decoration: const InputDecoration(
                 labelText: 'Country (required)',
                 border: OutlineInputBorder(),
               ),
               items: [
-                for (final c in _countryOptions)
+                for (final c in {
+                  ..._countryOptions,
+                  if ((_detectedCountry ?? '').isNotEmpty) _detectedCountry!,
+                })
                   DropdownMenuItem(value: c, child: Text(c)),
               ],
               onChanged: (v) => setState(() => _country = v),
