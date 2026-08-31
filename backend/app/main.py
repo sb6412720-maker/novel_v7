@@ -3772,12 +3772,28 @@ def _set_story_tags(story_id: int, tag_names: list[str]) -> None:
         return
     # Cap at 3 hashtags per book
     normalized = normalized[:3]
-    placeholders = ",".join(["%s"] * len(normalized))
-    existing = fetch_all(
-        f"SELECT id, name FROM tags WHERE name IN ({placeholders})",
-        tuple(normalized),
-    )
-    tag_ids = [row["id"] for row in existing]
+    existing = []
+    try:
+        all_tags = fetch_all("SELECT id, name FROM tags LIMIT 500") or []
+        by_lower = {
+            str(_row_get(t, "name") or "").strip().lower(): t for t in all_tags
+        }
+        for n in normalized:
+            hit = by_lower.get(n.lower())
+            if hit is not None:
+                existing.append(hit)
+    except Exception as exc:
+        LOGGER.warning("tag match failed: %s", exc)
+        placeholders = ",".join(["%s"] * len(normalized))
+        existing = fetch_all(
+            f"SELECT id, name FROM tags WHERE name IN ({placeholders})",
+            tuple(normalized),
+        ) or []
+    tag_ids = []
+    for row in existing:
+        tid = _row_get(row, "id")
+        if tid is not None:
+            tag_ids.append(tid)
     execute_write("DELETE FROM book_tags WHERE book_id=%s", (story_id,))
     for tag_id in tag_ids:
         try:

@@ -209,10 +209,14 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
       );
       return;
     }
-    // Require some real text (not only whitespace/newlines)
-    if (content.replaceAll(RegExp(r'\s+'), '').isEmpty) {
+    final words = content.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length;
+    if (words < 60) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("You can't publish an empty chapter")),
+        SnackBar(
+          content: Text(
+            'Minimum 60 words required to publish this chapter. You have $words word${words == 1 ? '' : 's'}.',
+          ),
+        ),
       );
       return;
     }
@@ -573,24 +577,23 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
   }
 
   Future<bool?> _onWillPop() async {
-    if (_textController.text.trim().isEmpty) return true;
-    return showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Discard changes?'),
-        content: const Text('Your unsaved changes will be lost.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Discard'),
-          ),
-        ],
-      ),
-    );
+    // Auto-save as draft when leaving (back / system back)
+    if (_isSaving) return false;
+    final title = _titleController.text.trim();
+    final content = _textController.text.trim();
+    if (title.isEmpty && content.isEmpty) return true;
+    // Ensure a title so chapter can be stored
+    if (title.isEmpty) {
+      _titleController.text = 'Chapter $_chapterNumber';
+    }
+    try {
+      await _saveChapter(
+        submissionStatus: 'draft',
+        scheduledFor: null,
+        successMessage: 'Draft saved',
+      );
+    } catch (_) {}
+    return true;
   }
 
   void _showOptionsMenu() {

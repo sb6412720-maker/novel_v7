@@ -75,6 +75,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   String _status = 'Draft';
   String _language = 'Sinhala';
   String? _audience;
+  int? _savedStoryId;
   final Set<String> _selectedWarnings = {};
 
   bool get _isEditing => widget.story != null;
@@ -103,6 +104,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     if (_isEditing) {
       _titleController.text = widget.story!['title']?.toString() ?? '';
       _summaryController.text = widget.story!['description']?.toString() ?? '';
+      _savedStoryId = (widget.story!['id'] as num?)?.toInt();
       final warningsRaw = (widget.story!['content_warnings'] ?? widget.story!['contentWarnings'] ?? '').toString();
       if (warningsRaw.isNotEmpty) {
         for (final part in warningsRaw.split(RegExp(r'[,;]'))) {
@@ -359,70 +361,75 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     } catch (_) {}
   }
 
-Future<void> _save({required bool asDraft}) async {
+Future<void> _save({required bool asDraft, bool popAfter = false}) async {
+    if (_saving) return;
     final title = _titleController.text.trim();
     final summary = _summaryController.text.trim();
     final author = _authorController.text.trim();
     final genre = (_selectedGenre ?? '').trim();
 
-    if (title.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a title')),
-      );
-      return;
-    }
+    // Accidental back / draft: allow empty title → Untitled Story
+    final safeTitle = title.isEmpty ? 'Untitled Story' : title;
 
     setState(() => _saving = true);
     try {
       final warnings = _buildWarningsString();
-      // Create/meta screen always saves as Draft. Publish happens on chapter editor.
-      final String statusText = 'Draft';
       final payload = <String, dynamic>{
-        'title': title.isEmpty ? 'Untitled Story' : title,
+        'title': safeTitle,
         'description': summary,
         'author': author.isEmpty ? 'Author' : author,
         'genre': genre.isEmpty ? 'Romance' : genre,
         'content_warnings': warnings,
         'tags': List<String>.from(_selectedTags.take(3)),
-        'status_text': statusText,
+        'status_text': 'Draft',
         'language': _language,
         'audience': (_audience ?? '').trim(),
         if (_coverPath.isNotEmpty) 'cover_path': _coverPath,
       };
 
-      int storyId;
-      if (_isEditing) {
-        storyId = (widget.story!['id'] as num).toInt();
+      int storyId = _savedStoryId ??
+          (_isEditing ? ((widget.story!['id'] as num?)?.toInt() ?? 0) : 0);
+
+      if (storyId > 0) {
         await widget.apiService.updateWriterStory(storyId, payload);
       } else {
         storyId = await widget.apiService.createWriterStory(payload);
+        if (storyId > 0) _savedStoryId = storyId;
       }
       if (!mounted) return;
-      if (!asDraft && storyId > 0) {
-        // Nudge user to add a chapter (>= 50 words) so readers can see it.
+
+      if (storyId <= 0) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              _status == 'Completed'
-                  ? 'Saved as Complete. Add a chapter with at least 50 words so others can read it.'
-                  : 'Saved. Add at least one chapter (50+ words) to become an author.',
-            ),
-          ),
+          const SnackBar(content: Text('Could not save draft — try again')),
         );
+        return;
       }
-      if (storyId > 0) {
-        await Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => EditChapterScreen(
-              apiService: widget.apiService,
-              storyId: storyId,
-              createNew: true,
-              chapterNumber: 1,
-              chapterTitle: 'Chapter 1',
-            ),
+      _savedStoryId = storyId;
+
+      if (asDraft) {
+        if (!popAfter) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Draft saved (all fields)')),
+          );
+        }
+        if (popAfter && mounted) {
+          Navigator.of(context).pop(true);
+        }
+        return;
+      }
+
+      // Explicit continue → chapter editor
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => EditChapterScreen(
+            apiService: widget.apiService,
+            storyId: storyId,
+            createNew: true,
+            chapterNumber: 1,
+            chapterTitle: 'Chapter 1',
           ),
-        );
-      }
+        ),
+      );
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
@@ -434,19 +441,6 @@ Future<void> _save({required bool asDraft}) async {
     }
   }
 
-  List<String> _tagSuggestions(String query) {
-    final q = query.trim().toLowerCase().replaceFirst('#', '');
-    final base = _availableTags
-        .where((t) => !_selectedTags.any((s) => s.toLowerCase() == t.toLowerCase()))
-        .toList();
-    if (base.isEmpty) return const <String>[];
-    if (q.isEmpty) return base.take(20).toList();
-    final starts = base.where((t) => t.toLowerCase().startsWith(q)).toList();
-    final contains = base
-        .where((t) => !t.toLowerCase().startsWith(q) && t.toLowerCase().contains(q))
-        .toList();
-    return [...starts, ...contains].take(20).toList();
-  }
 
   Future<void> _openPicker({
     required String title,
@@ -553,7 +547,18 @@ Future<void> _save({required bool asDraft}) async {
           titleMedium: TextStyle(color: _textHi),
         ),
       ),
-      child: Scaffold(
+      child: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) async {
+          if (didPop) return;
+          if (_saving) return;
+          try {
+            await _save(asDraft: true, popAfter: true);
+          } catch (_) {
+            if (mounted) Navigator.of(context).maybePop();
+          }
+        },
+        child: Scaffold(
       backgroundColor: _ink,
       body: SafeArea(
         child: Column(
@@ -568,10 +573,12 @@ Future<void> _save({required bool asDraft}) async {
                 children: [
                   IconButton(
                     onPressed: () async {
-                      if (_titleController.text.trim().isNotEmpty && !_saving) {
-                        try { await _save(asDraft: true); } catch (_) {}
+                      if (_saving) return;
+                      try {
+                        await _save(asDraft: true, popAfter: true);
+                      } catch (_) {
+                        if (context.mounted) Navigator.of(context).maybePop();
                       }
-                      if (context.mounted) Navigator.of(context).maybePop();
                     },
                     icon: const Icon(Icons.arrow_back, color: _textHi),
                   ),
@@ -1151,6 +1158,7 @@ Future<void> _save({required bool asDraft}) async {
           ],
         ),
       ),
+    ),
     ),
     );
   }
