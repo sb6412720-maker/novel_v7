@@ -586,7 +586,7 @@ Future<void> _checkSavedAndReviewed() async {
     final bg = isDark ? const Color(0xFF121212) : Colors.white;
     final fg = isDark ? Colors.white : const Color(0xFF1A1A1A);
     final muted = isDark ? Colors.white70 : Colors.black54;
-    const inkittGreen = Color(0xFF00A651);
+    const inkittGreen = Color(0xFF6C3CE1); // brand purple
 
     final coverUrl = _book.coverPath.trim().isEmpty
         ? null
@@ -896,7 +896,7 @@ Future<void> _checkSavedAndReviewed() async {
                                 label: Text(g.trim()),
                                 backgroundColor: isDark
                                     ? const Color(0xFF2A2A2A)
-                                    : const Color(0xFFEEF8F1),
+                                    : const Color(0xFFF3F0FF),
                                 side: BorderSide.none,
                               ),
                         ],
@@ -927,12 +927,12 @@ Future<void> _checkSavedAndReviewed() async {
                               label: Text(
                                 t.startsWith('#') ? t.substring(1) : t,
                                 style: const TextStyle(
-                                  color: Color(0xFF0A7A4B),
+                                  color: Color(0xFF6C3CE1),
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
                               onPressed: () => _openTag(t),
-                              backgroundColor: const Color(0xFFD4F5E9),
+                              backgroundColor: const Color(0xFFEDE9FE),
                               side: BorderSide.none,
                             ),
                         ],
@@ -1229,7 +1229,7 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
                 Text(
                   'By ${widget.book.author}',
                   style: const TextStyle(
-                    color: Color(0xFF00A651),
+                    color: Color(0xFF6C3CE1),
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -1247,7 +1247,7 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
                   Center(
                     child: FilledButton(
                       style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF00C853),
+                        backgroundColor: const Color(0xFF6C3CE1),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 28,
                           vertical: 12,
@@ -1616,7 +1616,7 @@ class _WriteReviewScreenState extends State<_WriteReviewScreen> {
               child: FilledButton(
                 onPressed: _saving ? null : _submit,
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF00A88E),
+                  backgroundColor: const Color(0xFF6C3CE1),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(28),
                   ),

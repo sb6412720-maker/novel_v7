@@ -156,6 +156,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
           labelColor: AppTheme.brand,
           unselectedLabelColor: AppTheme.muted,
           indicatorColor: AppTheme.brand,
+          indicatorWeight: 3,
           tabs: const [
             Tab(text: 'Notifications'),
             Tab(text: 'My Activity'),

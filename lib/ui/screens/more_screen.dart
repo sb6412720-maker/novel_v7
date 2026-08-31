@@ -333,7 +333,7 @@ class _Section extends StatelessWidget {
                 _iconFor(item.icon),
                 size: 20,
                 color: Theme.of(context).brightness == Brightness.dark
-                    ? const Color(0xFFE8E8E8)
+                    ? const Color(0xFFEDE9FE)
                     : AppTheme.ink,
               ),
               title: Text(

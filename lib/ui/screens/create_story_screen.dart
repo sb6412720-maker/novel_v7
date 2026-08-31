@@ -28,18 +28,18 @@ class CreateStoryScreen extends StatefulWidget {
 
 class _CreateStoryScreenState extends State<CreateStoryScreen> {
   // Light theme (default for New Story / story creation page)
-  static const Color _ink = Color(0xFFFAF8F5); // page background
+  static const Color _ink = Color(0xFFF7F5FC); // page background
   static const Color _panel = Color(0xFFFFFFFF); // cards
-  static const Color _panelAlt = Color(0xFFF5F3F0); // secondary surfaces
+  static const Color _panelAlt = Color(0xFFF3F0FF); // secondary surfaces
   static const Color _border = Color(0xFFE8E8E8);
-  static const Color _borderSoft = Color(0xFFEDEAE6);
+  static const Color _borderSoft = Color(0xFFEDE9FE);
   static const Color _textHi = Color(0xFF231F20); // primary text
   static const Color _textLo = Color(0xFF767676); // secondary text
   static const Color _textFaint = Color(0xFF9A9A9A);
-  static const Color _magenta = Color(0xFF581845); // brand
-  static const Color _violet = Color(0xFF8B5CF6);
+  static const Color _magenta = Color(0xFF6C3CE1); // brand
+  static const Color _violet = Color(0xFFB794F6);
   static const Color _amber = Color(0xFFF0B357);
-  static const Color _green = Color(0xFF4FD1A5);
+  static const Color _green = Color(0xFF6C3CE1);
 
   static const List<String> _defaultGenres = [
     'Romance', 'Fantasy', 'Drama', 'Horror', 'Mystery', 'Adventure',
@@ -602,7 +602,7 @@ Future<void> _save({required bool asDraft, bool popAfter = false}) async {
             Container(
               padding: const EdgeInsets.fromLTRB(8, 10, 16, 10),
               decoration: const BoxDecoration(
-                color: Color(0xFFFAF8F5),
+                color: Color(0xFFF7F5FC),
                 border: Border(bottom: BorderSide(color: _borderSoft)),
               ),
               child: Row(
@@ -1014,21 +1014,21 @@ Future<void> _save({required bool asDraft, bool popAfter = false}) async {
                                 return Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                   decoration: BoxDecoration(
-                                    color: const Color(0x1A8B5CF6),
+                                    color: const Color(0x1A6C3CE1),
                                     borderRadius: BorderRadius.circular(999),
-                                    border: Border.all(color: const Color(0x668B5CF6)),
+                                    border: Border.all(color: const Color(0x666C3CE1)),
                                   ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text(
                                         '#$t',
-                                        style: const TextStyle(color: Color(0xFF5B3FA6), fontSize: 12.5),
+                                        style: const TextStyle(color: Color(0xFF6C3CE1), fontSize: 12.5),
                                       ),
                                       const SizedBox(width: 6),
                                       GestureDetector(
                                         onTap: () => _removeTag(t),
-                                        child: const Icon(Icons.close, size: 12, color: Color(0xFF5B3FA6)),
+                                        child: const Icon(Icons.close, size: 12, color: Color(0xFF6C3CE1)),
                                       ),
                                     ],
                                   ),
@@ -1154,7 +1154,7 @@ Future<void> _save({required bool asDraft, bool popAfter = false}) async {
             Container(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
               decoration: const BoxDecoration(
-                color: Color(0xFFFAF8F5),
+                color: Color(0xFFF7F5FC),
                 border: Border(top: BorderSide(color: _borderSoft)),
               ),
               child: Row(

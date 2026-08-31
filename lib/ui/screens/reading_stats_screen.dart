@@ -91,7 +91,7 @@ class _ReadingStatsScreenState extends State<ReadingStatsScreen> {
                     Expanded(
                       child: _statCard(
                         icon: Icons.local_fire_department_outlined,
-                        color: const Color(0xFFE85D4C),
+                        color: const Color(0xFF6C3CE1),
                         label: 'DAY STREAK',
                         value: '${profile.dayStreak}',
                       ),

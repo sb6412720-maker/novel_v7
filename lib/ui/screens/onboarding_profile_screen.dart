@@ -283,7 +283,7 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
               child: Container(
                 height: 120,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE8EEF0),
+                  color: const Color(0xFFF3F0FF),
                   borderRadius: BorderRadius.circular(12),
                   image: _coverProvider != null
                       ? DecorationImage(image: _coverProvider!, fit: BoxFit.cover)
@@ -311,7 +311,7 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
                   children: [
                     CircleAvatar(
                       radius: 44,
-                      backgroundColor: const Color(0xFFDDE5E7),
+                      backgroundColor: const Color(0xFFEDE9FE),
                       backgroundImage: _avatarProvider,
                       child: _avatarProvider == null
                           ? const Icon(Icons.person, size: 40, color: Colors.black45)
@@ -323,7 +323,7 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: const BoxDecoration(
-                          color: Color(0xFF0D9488),
+                          color: Color(0xFF6C3CE1),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(Icons.camera_alt, size: 14, color: Colors.white),
