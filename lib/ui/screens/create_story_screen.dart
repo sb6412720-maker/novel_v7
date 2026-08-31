@@ -62,6 +62,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   final ImagePicker _imagePicker = ImagePicker();
 
   bool _saving = false;
+  Timer? _draftDebounce;
+  bool _dirty = false;
   String _coverPath = '';
   final List<String> _selectedTags = [];
   List<String> _availableTags = const [];
@@ -397,7 +399,18 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     } catch (_) {}
   }
 
-Future<void> _save({required bool asDraft, bool popAfter = false}) async {
+
+  void _scheduleDraftSave() {
+    _dirty = true;
+    _draftDebounce?.cancel();
+    _draftDebounce = Timer(const Duration(milliseconds: 900), () {
+      if (!mounted || _saving) return;
+      if (!_dirty) return;
+      unawaited(_save(asDraft: true, popAfter: false));
+    });
+  }
+
+  Future<void> _save({required bool asDraft, bool popAfter = false}) async {
     if (_saving) return;
     final title = _titleController.text.trim();
     final summary = _summaryController.text.trim();
@@ -419,7 +432,7 @@ Future<void> _save({required bool asDraft, bool popAfter = false}) async {
         'tags': List<String>.from(_selectedTags.take(3)),
         'status_text': 'Draft',
         'language': _language,
-        'audience': (_audience ?? '').trim(),
+        'audience': ((_audience ?? '').trim().isEmpty ? 'All Ages' : _audience!.trim()),
         if (_coverPath.isNotEmpty) 'cover_path': _coverPath,
       };
 
@@ -443,6 +456,7 @@ Future<void> _save({required bool asDraft, bool popAfter = false}) async {
       _savedStoryId = storyId;
 
       if (asDraft) {
+        _dirty = false;
         if (!popAfter) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Draft saved (all fields)')),
@@ -552,6 +566,7 @@ Future<void> _save({required bool asDraft, bool popAfter = false}) async {
 
   @override
   void dispose() {
+    _draftDebounce?.cancel();
     _titleController.dispose();
     _summaryController.dispose();
     _authorController.dispose();
@@ -880,7 +895,7 @@ Future<void> _save({required bool asDraft, bool popAfter = false}) async {
                                 title: 'Select language',
                                 options: _languages,
                                 current: _language,
-                                onSelect: (v) => setState(() => _language = v),
+                                onSelect: (v) { setState(() => _language = v); _scheduleDraftSave(); },
                               ),
                               child: _dropdownTrigger(_language),
                             ),
@@ -899,7 +914,7 @@ Future<void> _save({required bool asDraft, bool popAfter = false}) async {
                                 title: 'Select audience',
                                 options: _audiences,
                                 current: _audience,
-                                onSelect: (v) => setState(() => _audience = v),
+                                onSelect: (v) { setState(() => _audience = v); _scheduleDraftSave(); },
                               ),
                               child: _dropdownTrigger(
                                 _audience ?? 'Select audience',

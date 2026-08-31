@@ -1332,7 +1332,7 @@ class _SearchScreenState extends State<SearchScreen> {
                         spacing: 8,
                         runSpacing: 8,
                         children: [
-                          for (final term in recent.take(8))
+                          for (final term in recent.take(5))
                             ActionChip(
                               avatar: Icon(Icons.history, size: 16, color: muted),
                               label: Text(term),

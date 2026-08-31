@@ -124,96 +124,59 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToParagraph(_lastParagraphIndex);
     });
+    // Extra retries after content/layout settles
+    Future<void>.delayed(const Duration(milliseconds: 350), () {
+      if (mounted) _scrollToParagraph(_lastParagraphIndex);
+    });
+    Future<void>.delayed(const Duration(milliseconds: 800), () {
+      if (mounted) _scrollToParagraph(_lastParagraphIndex);
+    });
     _scrollController.addListener(_updateVisibleParagraphFromScroll);
   }
 
   void _scrollToParagraph(int index) {
-    if (index <= 0) return;
+    if (index < 0) return;
+    if (index == 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollController.hasClients) {
+          _scrollController.jumpTo(0);
+        }
+      });
+      return;
+    }
+    var attempts = 0;
     void tryScroll() {
       if (!mounted) return;
+      attempts++;
       final key = _paragraphKeys[index];
       final ctx = key?.currentContext;
       if (ctx != null) {
         Scrollable.ensureVisible(
           ctx,
-          duration: const Duration(milliseconds: 450),
-          alignment: 0.05,
+          duration: attempts <= 2
+              ? Duration.zero
+              : const Duration(milliseconds: 400),
+          alignment: 0.08,
           curve: Curves.easeOutCubic,
         );
         return;
       }
       if (_scrollController.hasClients) {
         final max = _scrollController.position.maxScrollExtent;
-        // Estimate ~1.2 lines of body text per 20px; paragraphs vary — use 140px avg
-        final target = (index * 140.0).clamp(0.0, max);
-        _scrollController.jumpTo(target);
+        // Estimate paragraph offset until keys exist
+        final estimated = (index * 140.0).clamp(0.0, max);
+        _scrollController.jumpTo(estimated);
+      }
+      if (attempts < 12) {
+        Future<void>.delayed(Duration(milliseconds: 80 + attempts * 40), tryScroll);
       }
     }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      tryScroll();
-      for (final ms in [80, 200, 400, 700, 1100, 1600]) {
-        Future<void>.delayed(Duration(milliseconds: ms), tryScroll);
-      }
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => tryScroll());
+    Future<void>.delayed(const Duration(milliseconds: 200), tryScroll);
+    Future<void>.delayed(const Duration(milliseconds: 500), tryScroll);
+    Future<void>.delayed(const Duration(milliseconds: 900), tryScroll);
   }
 
-  Future<void> _markLibraryProgress({bool completed = false}) async {
-    final bookId = widget.bookId;
-    if (bookId == null || bookId <= 0) return;
-    final total = _chapters.isNotEmpty ? _chapters.length : 1;
-    // chapters_read = how many chapters started (at least current)
-    final chaptersRead = completed
-        ? total
-        : (_chapterIndex + 1).clamp(1, total);
-    final payload = <String, dynamic>{
-      'book_id': bookId,
-      'title': widget.title,
-      'author': widget.author,
-      'cover_path': widget.coverPath,
-      'reading_status': completed ? 'Completed' : 'Reading',
-      'updated_text': completed
-          ? 'Finished'
-          : 'Ch. $_chapterNumber · para ${_lastParagraphIndex + 1}',
-      'chapters': total,
-      'primary_genre': '',
-      'secondary_genre': '',
-      'last_chapter_number': _chapterNumber,
-      'last_paragraph_index': _lastParagraphIndex,
-      'chapters_read': chaptersRead,
-      'author_user_id': widget.authorUserId,
-    };
-    // Local cache so Continue reading works even if API fails / offline
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString('continue_reading_v1') ?? '{}';
-      final map = Map<String, dynamic>.from(
-        (jsonDecode(raw) as Map?) ?? const {},
-      );
-      if (completed) {
-        map.remove('$bookId');
-      } else {
-        map['$bookId'] = {
-          ...payload,
-          'book': {
-            'id': bookId,
-            'title': widget.title,
-            'author': widget.author,
-            'cover_path': widget.coverPath,
-            'author_user_id': widget.authorUserId,
-          },
-          'updated_at': DateTime.now().toIso8601String(),
-        };
-      }
-      await prefs.setString('continue_reading_v1', jsonEncode(map));
-    } catch (e) {
-      debugPrint('Local continue cache failed: $e');
-    }
-    try {
-      await widget.apiService.addLibraryEntry(payload);
-    } catch (e) {
-      debugPrint('Library progress save failed: $e');
-    }
-  }
 
   void _updateVisibleParagraphFromScroll() {
     if (!_scrollController.hasClients) return;

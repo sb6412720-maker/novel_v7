@@ -1,5 +1,6 @@
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../data/services/api_service.dart';
@@ -241,12 +242,17 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
       } catch (_) {}
     }
     if (!mounted) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('write_open_submitted', true);
+    } catch (_) {}
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Published — under Submitted as Ongoing'),
       ),
     );
-    // Pop back to Manage Stories (root Write tab), not one screen at a time
+    // Pop back to Manage Stories root; Write tab reads flag → Submitted
     Navigator.of(context).popUntil((r) => r.isFirst);
   }
 

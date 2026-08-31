@@ -4237,13 +4237,12 @@ def create_writer_story(
             pass
     try:
         _ensure_book_meta_columns()
-        aud = (payload.audience or "").strip()
+        aud = (payload.audience or "").strip() or "All Ages"
         lang = (payload.language or "").strip()
-        if aud or lang:
-            execute_write(
-                "UPDATE books SET audience=%s, language=%s WHERE id=%s",
-                (aud, lang, story_id),
-            )
+        execute_write(
+            "UPDATE books SET audience=%s, language=%s WHERE id=%s",
+            (aud, lang, story_id),
+        )
     except Exception as _meta_exc:
         LOGGER.warning("create story meta save: %s", _meta_exc)
     # Author flag is set when first chapter with >= 50 words is saved (see chapter endpoints).

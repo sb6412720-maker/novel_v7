@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../data/models/app_bootstrap.dart';
@@ -42,6 +43,21 @@ class _WriteScreenState extends State<WriteScreen>
       vsync: this,
       initialIndex: 1, // Drafts — where Ongoing/Draft stories land
     );
+
+    // After publish from chapter editor → open Submitted tab
+    Future<void>.microtask(() async {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        if (prefs.getBool('write_open_submitted') == true) {
+          await prefs.setBool('write_open_submitted', false);
+          if (!mounted) return;
+          _mainTabs.animateTo(0);
+          _storySubTabs.animateTo(0); // Submitted
+          setState(() {});
+        }
+      } catch (_) {}
+    });
+
     _analyticsSubTabs = TabController(length: 2, vsync: this);
     _storiesFuture = widget.apiService.fetchWriterStories();
     _mainTabs.addListener(() => setState(() {}));

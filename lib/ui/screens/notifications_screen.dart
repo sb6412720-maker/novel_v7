@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../data/services/api_service.dart';
+import '../../data/models/app_bootstrap.dart';
+import 'story_detail_screen.dart';
 
 /// Bell tab:
 /// - Notifications: what *others* did on your stories/profile
@@ -125,17 +127,100 @@ class _NotificationsScreenState extends State<NotificationsScreen>
               final title = (n['title'] ?? n['message'] ?? n['body'] ?? 'Update').toString();
               final message = (n['message'] ?? n['body'] ?? '').toString();
               final when = (n['created_at'] ?? n['time'] ?? '').toString();
-              return ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: AppTheme.brand.withValues(alpha: 0.12),
-                  child: Icon(_iconFor(type), color: AppTheme.brand, size: 20),
-                ),
-                title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: Text(
-                  [
-                    if (message.isNotEmpty && message != title) message,
-                    when,
-                  ].where((s) => s.toString().isNotEmpty).join(' · '),
+              final cover = (n['cover_path'] ?? n['cover'] ?? '').toString();
+              final coverUrl = cover.isEmpty ? '' : widget.apiService.resolveAssetUrl(cover);
+              final bookId = (n['book_id'] as num?)?.toInt() ?? (n['story_id'] as num?)?.toInt() ?? 0;
+              final bookTitle = (n['book_title'] ?? n['story_title'] ?? '').toString();
+              return Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: bookId > 0
+                      ? () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => StoryDetailScreen(
+                                apiService: widget.apiService,
+                                book: BookDetailModel(
+                                  id: bookId,
+                                  title: bookTitle.isNotEmpty ? bookTitle : 'Story',
+                                  author: (n['actor_name'] ?? '').toString(),
+                                  description: '',
+                                  statusText: '',
+                                  rating: 0,
+                                  genre: '',
+                                  cta: 'Read now',
+                                  coverPath: cover,
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+                      : null,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Stack(
+                          children: [
+                            CircleAvatar(
+                              radius: 22,
+                              backgroundColor: AppTheme.brand.withValues(alpha: 0.12),
+                              child: Icon(_iconFor(type), color: AppTheme.brand, size: 20),
+                            ),
+                            if (coverUrl.isNotEmpty)
+                              Positioned(
+                                right: -2,
+                                bottom: -2,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: Image.network(
+                                    coverUrl,
+                                    width: 22,
+                                    height: 28,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                              if (message.isNotEmpty && message != title) ...[
+                                const SizedBox(height: 4),
+                                Text(message, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: AppTheme.muted, fontSize: 13)),
+                              ],
+                              if (when.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Text(when, style: TextStyle(color: AppTheme.muted, fontSize: 11)),
+                              ],
+                            ],
+                          ),
+                        ),
+                        if (coverUrl.isNotEmpty)
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              coverUrl,
+                              width: 48,
+                              height: 64,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                width: 48,
+                                height: 64,
+                                color: const Color(0xFFEDE9FE),
+                                child: const Icon(Icons.menu_book, size: 18),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
               );
             },
