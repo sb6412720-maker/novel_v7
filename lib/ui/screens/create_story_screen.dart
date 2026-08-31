@@ -265,6 +265,17 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     });
   }
 
+
+  List<String> _tagSuggestions(String query) {
+    final q = query.trim().toLowerCase().replaceFirst('#', '');
+    final selected = _selectedTags.map((t) => t.toLowerCase()).toSet();
+    Iterable<String> pool = _availableTags.where((t) => !selected.contains(t.toLowerCase()));
+    if (q.isNotEmpty) {
+      pool = pool.where((t) => t.toLowerCase().contains(q));
+    }
+    return pool.take(12).toList();
+  }
+
   void _addTag(String raw) {
     var name = raw.trim();
     if (name.startsWith('#')) name = name.substring(1);

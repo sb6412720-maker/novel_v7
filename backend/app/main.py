@@ -189,6 +189,7 @@ class ProfileUpdateRequest(BaseModel):
     bio: str | None = None
     gender: str | None = None
     birth_date: str | None = None
+    country: str | None = None
     profile_complete: bool | None = None
 
 
@@ -839,6 +840,7 @@ def _ensure_profile_extra_columns() -> None:
     cols = [
         ("gender", "ALTER TABLE app_users ADD COLUMN gender VARCHAR(40) NULL"),
         ("birth_date", "ALTER TABLE app_users ADD COLUMN birth_date VARCHAR(20) NULL"),
+        ("country", "ALTER TABLE app_users ADD COLUMN country VARCHAR(64) NULL"),
         ("profile_complete", "ALTER TABLE app_users ADD COLUMN profile_complete TINYINT(1) NOT NULL DEFAULT 0"),
     ]
     for col, sql in cols:
@@ -1905,6 +1907,7 @@ def get_me(user: dict[str, Any] = Depends(require_user)):
         "reading_list_count": reading_list_count,
         "gender": _row_get(u, "gender") or "",
         "birth_date": _row_get(u, "birth_date") or "",
+        "country": _row_get(u, "country") or "",
         "profile_complete": bool(int(_row_get(u, "profile_complete") or 0)),
         "is_author": bool(int(_row_get(u, "is_author") or 0)),
     }
@@ -2046,6 +2049,9 @@ def update_me(
     if payload.birth_date is not None:
         sets.append("birth_date=%s")
         args.append(payload.birth_date)
+    if payload.country is not None:
+        sets.append("country=%s")
+        args.append(payload.country)
     if payload.profile_complete is not None:
         sets.append("profile_complete=%s")
         args.append(1 if payload.profile_complete else 0)
@@ -2240,13 +2246,52 @@ _BOOTSTRAP_CACHE_AT: float = 0.0
 _BOOTSTRAP_CACHE_TTL = 600.0  # seconds — warm instances stay fast longer
 
 
+
+def _user_age_years(birth_date: str | None) -> int | None:
+    """Return age in full years from YYYY-MM-DD, or None if unknown."""
+    if not birth_date:
+        return None
+    try:
+        raw = str(birth_date).strip()[:10]
+        y, m, d = [int(x) for x in raw.split("-")]
+        from datetime import date
+        today = date.today()
+        age = today.year - y - ((today.month, today.day) < (m, d))
+        return max(0, age)
+    except Exception:
+        return None
+
+
+def _audience_allows(audience: str | None, age: int | None) -> bool:
+    """Filter books by content rating vs reader age.
+    All Ages → everyone
+    Teen (13+) → ages 13–18 inclusive
+    Mature (18+) → ages 18+
+    Unknown age → only All Ages (safe default)
+    """
+    a = (audience or "").strip().lower()
+    if not a or "all" in a:
+        return True
+    if age is None:
+        return False
+    if "13" in a or "teen" in a:
+        return 13 <= age <= 18
+    if "18" in a or "mature" in a or "adult" in a:
+        return age >= 18
+    return True
+
+
 @app.get("/api/bootstrap")
 def bootstrap(user: dict[str, Any] | None = Depends(optional_user)):
     global _BOOTSTRAP_CACHE, _BOOTSTRAP_CACHE_AT
     import time as _time
-    # Public catalog is same for all users; personal bits loaded via /api/library & /api/me
+    # Anonymous catalog can be cached; logged-in users get age/audience filtered view
     now = _time.time()
-    if _BOOTSTRAP_CACHE is not None and (now - _BOOTSTRAP_CACHE_AT) < _BOOTSTRAP_CACHE_TTL:
+    if (
+        user is None
+        and _BOOTSTRAP_CACHE is not None
+        and (now - _BOOTSTRAP_CACHE_AT) < _BOOTSTRAP_CACHE_TTL
+    ):
         return _BOOTSTRAP_CACHE
 
     discover_tabs = [
@@ -2268,7 +2313,10 @@ def bootstrap(user: dict[str, Any] | None = Depends(optional_user)):
                COALESCE(b.secondary_genre, '') AS secondary_genre,
                COALESCE(b.is_completed, 0) AS is_completed,
                COALESCE(b.view_count, 0) AS view_count,
-               u.photo_url AS author_photo_url
+               COALESCE(b.audience, 'All Ages') AS audience,
+               COALESCE(b.language, '') AS language,
+               u.photo_url AS author_photo_url,
+               COALESCE(u.country, '') AS author_country
         FROM books b
         LEFT JOIN app_users u ON u.id = b.user_id
         WHERE LOWER(COALESCE(b.status_text, 'draft')) NOT IN ('draft', 'unpublished', 'private')
@@ -2290,6 +2338,41 @@ def bootstrap(user: dict[str, Any] | None = Depends(optional_user)):
                 likes_map[int(bid)] = int(lr.get("c") or 0)
     except Exception as exc:
         LOGGER.warning("batch likes_map failed: %s", exc)
+
+    reader_age: int | None = None
+    reader_country = ""
+    if user and user.get("user_id"):
+        try:
+            urows = fetch_all(
+                "SELECT birth_date, country FROM app_users WHERE id=%s LIMIT 1",
+                (int(user["user_id"]),),
+            )
+            if urows:
+                reader_age = _user_age_years(_row_get(urows[0], "birth_date"))
+                reader_country = str(_row_get(urows[0], "country") or "").strip()
+        except Exception as exc:
+            LOGGER.warning("reader age/country: %s", exc)
+
+    # Age-gate by story audience
+    if user is not None:
+        books = [
+            b
+            for b in (books or [])
+            if _audience_allows(
+                str(_row_get(b, "audience") or b.get("audience") if isinstance(b, dict) else ""),
+                reader_age,
+            )
+        ]
+
+    # Prefer same-country authors near top when known
+    if reader_country:
+        try:
+            def _country_key(b: Any) -> int:
+                ac = str(_row_get(b, "author_country") or "").strip().lower()
+                return 0 if ac and ac == reader_country.lower() else 1
+            books = sorted(books or [], key=_country_key)
+        except Exception:
+            pass
 
     def _card(book: Any) -> dict[str, Any]:
         """Full card payload for home rails (author id + live likes)."""
@@ -2317,6 +2400,9 @@ def bootstrap(user: dict[str, Any] | None = Depends(optional_user)):
             "likes": live,
             "view_count": int(book.get("view_count") or 0),
             "views": int(book.get("view_count") or 0),
+            "audience": book.get("audience") or "All Ages",
+            "language": book.get("language") or "",
+            "author_country": book.get("author_country") or "",
         }
 
     recently_updated = [
@@ -2536,8 +2622,9 @@ def bootstrap(user: dict[str, Any] | None = Depends(optional_user)):
         "profile": profile_payload,
         "achievements": achievements,
     }
-    _BOOTSTRAP_CACHE = payload
-    _BOOTSTRAP_CACHE_AT = _time.time()
+    if user is None:
+        _BOOTSTRAP_CACHE = payload
+        _BOOTSTRAP_CACHE_AT = _time.time()
     return payload
 
 

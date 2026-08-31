@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -33,6 +35,8 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
   late final TextEditingController _passCtrl;
   String? _gender;
   DateTime? _birthDate;
+  String? _country;
+  String? _detectedCountry;
   bool _saving = false;
 
   String _photoUrl = '';
@@ -50,6 +54,36 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
     _emailCtrl = TextEditingController();
     _passCtrl = TextEditingController();
     _photoUrl = widget.initialPhotoUrl; // Google avatar if present
+    unawaited(_detectCountryFromIp());
+  }
+
+  Future<void> _detectCountryFromIp() async {
+    try {
+      // Lightweight IP geo (no API key). Falls back silently.
+      final uri = Uri.parse('https://ipapi.co/json/');
+      final client = HttpClient();
+      final req = await client.getUrl(uri).timeout(const Duration(seconds: 6));
+      final res = await req.close().timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final body = await res.transform(utf8.decoder).join();
+        // avoid full json dep if needed - use simple parse
+        final m = RegExp(r'"country_name"\s*:\s*"([^"]+)"').firstMatch(body);
+        final code = RegExp(r'"country_code"\s*:\s*"([^"]+)"').firstMatch(body);
+        final name = m?.group(1);
+        if (name != null && name.isNotEmpty && mounted) {
+          setState(() {
+            _detectedCountry = name;
+            _country ??= name;
+          });
+        } else if (code != null && mounted) {
+          setState(() {
+            _detectedCountry = code.group(1);
+            _country ??= code.group(1);
+          });
+        }
+      }
+      client.close(force: true);
+    } catch (_) {}
   }
 
   @override
@@ -114,6 +148,26 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
       );
       return;
     }
+    if (_birthDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Birthday is required')),
+      );
+      return;
+    }
+    if ((_country ?? '').trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Country is required')),
+      );
+      return;
+    }
+    // Must be at least 13 to use the app
+    final age = DateTime.now().difference(_birthDate!).inDays ~/ 365;
+    if (age < 13) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You must be at least 13 years old')),
+      );
+      return;
+    }
     setState(() => _saving = true);
     try {
       final uploadedPhoto = await _uploadIfNeeded(_localPhoto);
@@ -131,7 +185,8 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
         'bio': _bioCtrl.text.trim(),
         if (_gender != null) 'gender': _gender,
         if (_birthDate != null)
-          'birth_date':
+          'country': (_country ?? '').trim(),
+        'birth_date':
               '${_birthDate!.year.toString().padLeft(4, '0')}-${_birthDate!.month.toString().padLeft(2, '0')}-${_birthDate!.day.toString().padLeft(2, '0')}',
         'profile_complete': true,
         if (_photoUrl.isNotEmpty) 'photo_url': _photoUrl,
@@ -308,12 +363,34 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
               contentPadding: EdgeInsets.zero,
               title: Text(
                 _birthDate == null
-                    ? 'Birth date (optional)'
-                    : 'Birth date: ${_birthDate!.year}-${_birthDate!.month.toString().padLeft(2, '0')}-${_birthDate!.day.toString().padLeft(2, '0')}',
+                    ? 'Birthday (required)'
+                    : 'Birthday: ${_birthDate!.year}-${_birthDate!.month.toString().padLeft(2, '0')}-${_birthDate!.day.toString().padLeft(2, '0')}',
               ),
               trailing: const Icon(Icons.calendar_today_outlined),
               onTap: _pickBirthDate,
             ),
+
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              value: _country,
+              decoration: const InputDecoration(
+                labelText: 'Country (required)',
+                border: OutlineInputBorder(),
+              ),
+              items: [
+                for (final c in _countryOptions)
+                  DropdownMenuItem(value: c, child: Text(c)),
+              ],
+              onChanged: (v) => setState(() => _country = v),
+            ),
+            if ((_detectedCountry ?? '').isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  'Detected from network: $_detectedCountry',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.black54),
+                ),
+              ),
 
             const SizedBox(height: 8),
             Text(
