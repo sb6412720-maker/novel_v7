@@ -2503,3 +2503,750 @@ class _AuthorsSeeAllScreen extends StatelessWidget {
     );
   }
 }
+
+
+// ─── Home (Inkitt-style) UI-only sections ───────────────────────────────────
+
+class _HomeSectionHeader extends StatelessWidget {
+  const _HomeSectionHeader({required this.title, this.onSeeAll});
+
+  final String title;
+  final VoidCallback? onSeeAll;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.3,
+              color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+            ),
+          ),
+        ),
+        if (onSeeAll != null)
+          TextButton(
+            onPressed: onSeeAll,
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFF6C3CE1),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: const Text(
+              'See All',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _HomeFeaturedBanner extends StatelessWidget {
+  const _HomeFeaturedBanner({
+    required this.book,
+    required this.fallbackBooks,
+    required this.apiService,
+  });
+
+  final BookDetailModel book;
+  final List<BookCardModel> fallbackBooks;
+  final ApiService apiService;
+
+  void _open(BuildContext context) {
+    final id = book.id > 0
+        ? book.id
+        : (fallbackBooks.isNotEmpty ? fallbackBooks.first.id : 0);
+    if (id <= 0) return;
+    final title = book.id > 0 ? book.title : fallbackBooks.first.title;
+    final author = book.id > 0 ? book.author : fallbackBooks.first.author;
+    final desc = book.id > 0 ? book.description : fallbackBooks.first.description;
+    final cover = book.id > 0 ? book.coverPath : fallbackBooks.first.coverPath;
+    final genre = book.id > 0 ? book.genre : fallbackBooks.first.primaryGenre;
+    final rating = book.id > 0 ? book.rating : fallbackBooks.first.rating;
+    final status = book.id > 0 ? book.statusText : fallbackBooks.first.statusText;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => StoryDetailScreen(
+          apiService: apiService,
+          book: BookDetailModel(
+            id: id,
+            title: title,
+            author: author,
+            description: desc,
+            statusText: status,
+            rating: rating,
+            genre: genre,
+            cta: 'Read Now',
+            coverPath: cover,
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final hasBook = book.id > 0 || fallbackBooks.isNotEmpty;
+    if (!hasBook) return const SizedBox.shrink();
+
+    final title = book.id > 0 ? book.title : fallbackBooks.first.title;
+    final desc = book.id > 0
+        ? book.description
+        : fallbackBooks.first.description;
+    final cover = book.id > 0 ? book.coverPath : fallbackBooks.first.coverPath;
+    final genre = book.id > 0 ? book.genre : fallbackBooks.first.primaryGenre;
+    final coverUrl = cover.isEmpty ? null : apiService.resolveAssetUrl(cover);
+
+    return Container(
+      height: 200,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? const [Color(0xFF2A2140), Color(0xFF1A1228)]
+              : const [Color(0xFFF3EEFF), Color(0xFFE8E0FF)],
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          if (coverUrl != null)
+            Positioned(
+              right: -20,
+              top: -10,
+              bottom: -10,
+              width: 180,
+              child: Opacity(
+                opacity: 0.9,
+                child: Image.network(
+                  coverUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                ),
+              ),
+            ),
+          // Soft fade over image
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [
+                    (isDark ? const Color(0xFF1A1228) : const Color(0xFFF3EEFF))
+                        .withValues(alpha: 0.95),
+                    (isDark ? const Color(0xFF1A1228) : const Color(0xFFF3EEFF))
+                        .withValues(alpha: 0.55),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'FEATURED',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.2,
+                    color: const Color(0xFF6C3CE1).withValues(alpha: 0.9),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    height: 1.15,
+                    color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                if (desc.trim().isNotEmpty)
+                  Text(
+                    desc,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.3,
+                      color: isDark ? Colors.white70 : Colors.black54,
+                    ),
+                  ),
+                const Spacer(),
+                if (genre.trim().isNotEmpty) ...[
+                  Wrap(
+                    spacing: 6,
+                    children: [
+                      for (final g in genre.split(RegExp(r'[,/|]')))
+                        if (g.trim().isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? Colors.white12
+                                  : Colors.white.withValues(alpha: 0.7),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              g.trim(),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: isDark
+                                    ? Colors.white70
+                                    : const Color(0xFF5B4B8A),
+                              ),
+                            ),
+                          ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                FilledButton(
+                  onPressed: () => _open(context),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF6C3CE1),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 10,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Read Now',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      SizedBox(width: 4),
+                      Icon(Icons.arrow_forward_rounded, size: 16),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HomeRecommendedRail extends StatelessWidget {
+  const _HomeRecommendedRail({
+    required this.books,
+    required this.apiService,
+  });
+
+  final List<BookCardModel> books;
+  final ApiService apiService;
+
+  @override
+  Widget build(BuildContext context) {
+    final valid = books.where((b) => b.id > 0 && b.title.trim().isNotEmpty).toList();
+    if (valid.isEmpty) {
+      return const SizedBox(
+        height: 40,
+        child: Center(child: Text('No recommendations yet')),
+      );
+    }
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return SizedBox(
+      height: 240,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: valid.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (context, index) {
+          final b = valid[index];
+          final coverUrl =
+              b.coverPath.isEmpty ? null : apiService.resolveAssetUrl(b.coverPath);
+          return GestureDetector(
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => StoryDetailScreen(
+                    apiService: apiService,
+                    book: BookDetailModel(
+                      id: b.id,
+                      title: b.title,
+                      author: b.author,
+                      description: b.description,
+                      statusText: b.statusText,
+                      rating: b.rating,
+                      genre: b.primaryGenre,
+                      cta: b.cta,
+                      coverPath: b.coverPath,
+                      authorUserId: b.authorUserId,
+                    ),
+                  ),
+                ),
+              );
+            },
+            child: SizedBox(
+              width: 130,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: coverUrl != null
+                              ? Image.network(
+                                  coverUrl,
+                                  width: 130,
+                                  height: double.infinity,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Container(
+                                    color: const Color(0xFFEDE9FE),
+                                    child: const Icon(Icons.menu_book),
+                                  ),
+                                )
+                              : Container(
+                                  color: const Color(0xFFEDE9FE),
+                                  child: const Icon(Icons.menu_book),
+                                ),
+                        ),
+                        if (index < 4)
+                          Positioned(
+                            left: 8,
+                            top: 8,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF6C3CE1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text(
+                                'New',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    b.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      height: 1.2,
+                      color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      if (b.primaryGenre.isNotEmpty) ...[
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF6C3CE1),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            b.primaryGenre,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: isDark ? Colors.white60 : Colors.grey.shade600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Icon(Icons.visibility_outlined,
+                          size: 12,
+                          color: isDark ? Colors.white54 : Colors.grey.shade500),
+                      const SizedBox(width: 3),
+                      Text(
+                        b.viewCount > 0
+                            ? (b.viewCount >= 1000
+                                ? '${(b.viewCount / 1000).toStringAsFixed(1)}K'
+                                : '${b.viewCount}')
+                            : '—',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: isDark ? Colors.white54 : Colors.grey.shade500,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Icon(Icons.star_rounded,
+                          size: 13, color: Colors.amber.shade600),
+                      const SizedBox(width: 2),
+                      Text(
+                        b.rating > 0 ? b.rating.toStringAsFixed(1) : '—',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? Colors.white70 : Colors.black87,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _HomeTopGenresRow extends StatelessWidget {
+  const _HomeTopGenresRow({
+    required this.topics,
+    required this.books,
+    required this.apiService,
+  });
+
+  final List<ExploreTopicModel> topics;
+  final List<BookCardModel> books;
+  final ApiService apiService;
+
+  static const _icons = <String, IconData>{
+    'romance': Icons.favorite_border_rounded,
+    'fantasy': Icons.castle_outlined,
+    'werewolf': Icons.pets_outlined,
+    'billionaire': Icons.diamond_outlined,
+    'mystery': Icons.search_rounded,
+    'young adult': Icons.auto_stories_outlined,
+    'sci-fi': Icons.rocket_launch_outlined,
+    'horror': Icons.nightlight_round,
+    'thriller': Icons.bolt_outlined,
+    'action': Icons.sports_martial_arts_outlined,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Prefer explore topics; else derive from books
+    final names = <String>[];
+    if (topics.isNotEmpty) {
+      for (final t in topics) {
+        if (t.name.trim().isNotEmpty) names.add(t.name.trim());
+      }
+    }
+    if (names.isEmpty) {
+      final seen = <String>{};
+      for (final b in books) {
+        final g = b.primaryGenre.trim();
+        if (g.isNotEmpty && seen.add(g.toLowerCase())) names.add(g);
+        if (names.length >= 8) break;
+      }
+    }
+    if (names.isEmpty) {
+      names.addAll(['Romance', 'Fantasy', 'Mystery', 'Sci-Fi', 'Horror', 'Action']);
+    }
+
+    return SizedBox(
+      height: 92,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: names.length.clamp(0, 10),
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (context, index) {
+          final name = names[index];
+          final key = name.toLowerCase();
+          IconData icon = Icons.menu_book_outlined;
+          for (final e in _icons.entries) {
+            if (key.contains(e.key)) {
+              icon = e.value;
+              break;
+            }
+          }
+          return GestureDetector(
+            onTap: () {
+              final filtered = books
+                  .where((b) =>
+                      b.primaryGenre.toLowerCase().contains(name.toLowerCase()) ||
+                      b.secondaryGenre.toLowerCase().contains(name.toLowerCase()))
+                  .map((b) => {
+                        'id': b.id,
+                        'title': b.title,
+                        'author': b.author,
+                        'description': b.description,
+                        'cover_path': b.coverPath,
+                        'status_text': b.statusText,
+                        'rating': b.rating,
+                        'genre': b.primaryGenre,
+                        'primary_genre': b.primaryGenre,
+                        'author_user_id': b.authorUserId,
+                        'cta_label': b.cta,
+                      })
+                  .toList();
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => _GenreBooksScreen(
+                    genre: name,
+                    books: filtered,
+                    apiService: apiService,
+                  ),
+                ),
+              );
+            },
+            child: Container(
+              width: 78,
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E1E1E) : const Color(0xFFF7F5FC),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFEDE9FE),
+                ),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, color: const Color(0xFF6C3CE1), size: 26),
+                  const SizedBox(height: 8),
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white70 : const Color(0xFF3A3A3A),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _HomeTrendingList extends StatelessWidget {
+  const _HomeTrendingList({
+    required this.books,
+    required this.apiService,
+  });
+
+  final List<BookCardModel> books;
+  final ApiService apiService;
+
+  @override
+  Widget build(BuildContext context) {
+    final valid = books.where((b) => b.id > 0 && b.title.trim().isNotEmpty).toList();
+    if (valid.isEmpty) return const SizedBox.shrink();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Column(
+      children: [
+        for (var i = 0; i < valid.length && i < 5; i++) ...[
+          if (i > 0) const SizedBox(height: 10),
+          GestureDetector(
+            onTap: () {
+              final b = valid[i];
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => StoryDetailScreen(
+                    apiService: apiService,
+                    book: BookDetailModel(
+                      id: b.id,
+                      title: b.title,
+                      author: b.author,
+                      description: b.description,
+                      statusText: b.statusText,
+                      rating: b.rating,
+                      genre: b.primaryGenre,
+                      cta: b.cta,
+                      coverPath: b.coverPath,
+                      authorUserId: b.authorUserId,
+                    ),
+                  ),
+                ),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFEDE9FE),
+                ),
+              ),
+              child: Row(
+                children: [
+                  // Rank badge
+                  Container(
+                    width: 28,
+                    height: 28,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF6C3CE1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${i + 1}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: SizedBox(
+                      width: 48,
+                      height: 64,
+                      child: valid[i].coverPath.isNotEmpty
+                          ? Image.network(
+                              apiService.resolveAssetUrl(valid[i].coverPath),
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                color: const Color(0xFFEDE9FE),
+                                child: const Icon(Icons.menu_book, size: 20),
+                              ),
+                            )
+                          : Container(
+                              color: const Color(0xFFEDE9FE),
+                              child: const Icon(Icons.menu_book, size: 20),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          valid[i].title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                            color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        if (valid[i].primaryGenre.isNotEmpty)
+                          Text(
+                            valid[i].primaryGenre,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark ? Colors.white60 : Colors.grey.shade600,
+                            ),
+                          ),
+                        const SizedBox(height: 4),
+                        if (valid[i].description.trim().isNotEmpty)
+                          Text(
+                            valid[i].description,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark ? Colors.white54 : Colors.grey.shade500,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.visibility_outlined,
+                              size: 12,
+                              color: isDark ? Colors.white54 : Colors.grey.shade500),
+                          const SizedBox(width: 3),
+                          Text(
+                            valid[i].viewCount > 0
+                                ? (valid[i].viewCount >= 1000
+                                    ? '${(valid[i].viewCount / 1000).toStringAsFixed(1)}K'
+                                    : '${valid[i].viewCount}')
+                                : '—',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: isDark ? Colors.white54 : Colors.grey.shade500,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(Icons.star_rounded, size: 13, color: Colors.amber.shade600),
+                          const SizedBox(width: 2),
+                          Text(
+                            valid[i].rating > 0
+                                ? valid[i].rating.toStringAsFixed(1)
+                                : '—',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}

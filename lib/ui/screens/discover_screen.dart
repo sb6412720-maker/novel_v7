@@ -14,6 +14,7 @@ import 'explore_screen.dart';
 import 'profile_screen.dart';
 import 'story_detail_screen.dart';
 import 'chapter_reader_screen.dart';
+import 'notifications_screen.dart';
 
 part 'discover_widgets.dart';
 
@@ -120,21 +121,50 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                         ),
                       ),
                       const Spacer(),
+                      // Premium chip (UI only — matches mockup)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF2A2140) : const Color(0xFFF3EEFF),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF4C3A7A) : const Color(0xFFD6C7FF),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            Icon(Icons.diamond_outlined, size: 14, color: Color(0xFF6C3CE1)),
+                            SizedBox(width: 4),
+                            Text(
+                              'Premium',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF6C3CE1),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 4),
                       IconButton(
-                        tooltip: 'Search',
-                        icon: Icon(Icons.search, size: 26, color: fg),
+                        tooltip: 'Notifications',
+                        icon: Icon(Icons.notifications_none_rounded, size: 26, color: fg),
                         onPressed: () {
                           Navigator.of(context).push(
                             MaterialPageRoute<void>(
-                              builder: (_) =>
-                                  SearchScreen(apiService: widget.apiService),
+                              builder: (_) => NotificationsScreen(
+                                apiService: widget.apiService,
+                                onOpenDiscover: () => Navigator.of(context).pop(),
+                              ),
                             ),
                           );
                         },
                       ),
                       IconButton(
                         tooltip: 'More',
-                        icon: Icon(Icons.more_vert, size: 24, color: fg),
+                        icon: Icon(Icons.more_vert, size: 22, color: fg),
                         onPressed: () {
                           showModalBottomSheet<void>(
                             context: context,
@@ -377,14 +407,139 @@ class _DiscoverScreenState extends State<DiscoverScreen>
 
   Widget _buildTabContent(int tabIndex) {
     final tabLabel = _tabs[tabIndex].toLowerCase();
-    // Use shuffled list when available so refresh changes rail order
     final allBooks = _shuffledBooks.isNotEmpty
         ? _shuffledBooks
         : _booksForDiscover();
     final sections = _discoverSectionsForTab(tabLabel, allBooks);
-    final showExploreLead = tabLabel == 'new' && sections.isNotEmpty;
-
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Home-style layout for first / For You / Discover tabs
+    final isHomeTab = tabIndex == 0 ||
+        tabLabel.contains('for you') ||
+        tabLabel.contains('discover') ||
+        tabLabel.contains('home') ||
+        tabLabel == 'new' ||
+        tabLabel.isEmpty;
+
+    if (isHomeTab) {
+      final recommended = allBooks.take(12).toList();
+      final trending = allBooks.length > 4
+          ? allBooks.skip(4).take(8).toList()
+          : allBooks.take(8).toList();
+      return Container(
+        color: isDark ? const Color(0xFF121212) : Colors.white,
+        child: ListView(
+          physics: const NeverScrollableScrollPhysics(),
+          shrinkWrap: true,
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 30),
+          children: [
+            // Featured hero (Inkitt-style)
+            _HomeFeaturedBanner(
+              book: widget.data.featuredBook,
+              fallbackBooks: allBooks,
+              apiService: widget.apiService,
+            ),
+            const SizedBox(height: 22),
+            // Continue Reading
+            _ContinueReadingSection(
+              entries: widget.data.libraryEntries,
+              apiService: widget.apiService,
+              onBrowse: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ExploreScreen(
+                      topics: widget.data.exploreTopics,
+                      apiService: widget.apiService,
+                    ),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 22),
+            // Recommended For You
+            _HomeSectionHeader(
+              title: 'Recommended For You',
+              onSeeAll: recommended.isEmpty
+                  ? null
+                  : () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => _SectionBooksScreen(
+                            title: 'Recommended For You',
+                            books: recommended,
+                            apiService: widget.apiService,
+                          ),
+                        ),
+                      );
+                    },
+            ),
+            const SizedBox(height: 12),
+            _HomeRecommendedRail(
+              books: recommended,
+              apiService: widget.apiService,
+            ),
+            const SizedBox(height: 22),
+            // Top Genres
+            _HomeSectionHeader(
+              title: 'Top Genres',
+              onSeeAll: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ExploreScreen(
+                      topics: widget.data.exploreTopics,
+                      apiService: widget.apiService,
+                    ),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 12),
+            _HomeTopGenresRow(
+              topics: widget.data.exploreTopics,
+              books: allBooks,
+              apiService: widget.apiService,
+            ),
+            const SizedBox(height: 22),
+            // Trending Now
+            _HomeSectionHeader(
+              title: 'Trending Now',
+              onSeeAll: trending.isEmpty
+                  ? null
+                  : () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => _SectionBooksScreen(
+                            title: 'Trending Now',
+                            books: trending,
+                            apiService: widget.apiService,
+                          ),
+                        ),
+                      );
+                    },
+            ),
+            const SizedBox(height: 12),
+            _HomeTrendingList(
+              books: trending,
+              apiService: widget.apiService,
+            ),
+            // Keep existing rails below so no content is lost
+            if (sections.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              for (final section in sections) ...[
+                _DynamicStoryRail(
+                  section: section,
+                  apiService: widget.apiService,
+                ),
+                const SizedBox(height: 20),
+              ],
+            ],
+          ],
+        ),
+      );
+    }
+
+    // Other category tabs — keep existing rail behavior
+    final showExploreLead = tabLabel == 'new' && sections.isNotEmpty;
     return Container(
       color: isDark ? const Color(0xFF121212) : Colors.white,
       child: ListView(
@@ -418,83 +573,32 @@ class _DiscoverScreenState extends State<DiscoverScreen>
               ),
               const SizedBox(height: 24),
             ],
-            // Center of Discover page: Continue reading
-            if (i == 0) ...[
-              _ContinueReadingSection(
-                entries: widget.data.libraryEntries,
-                apiService: widget.apiService,
-                onBrowse: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => ExploreScreen(
-                        topics: widget.data.exploreTopics,
-                        apiService: widget.apiService,
-                      ),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 24),
-            ],
-            if (!(showExploreLead && i == 0)) ...[
-              if (i == 1) ...[
-                _AuthorsStrip(books: allBooks, apiService: widget.apiService),
-                const SizedBox(height: 24),
-                _BrowseGenresSection(
-                  books: allBooks,
-                  topics: widget.data.exploreTopics,
-                  apiService: widget.apiService,
-                  onOpenExplore: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => ExploreScreen(
-                          topics: widget.data.exploreTopics,
-                          apiService: widget.apiService,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 24),
-              ],
-            ],
           ],
-          // If no rails, still show Continue reading centered
-          if (sections.isEmpty) ...[
-            _ContinueReadingSection(
-              entries: widget.data.libraryEntries,
-              apiService: widget.apiService,
-              onBrowse: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => ExploreScreen(
-                      topics: widget.data.exploreTopics,
-                      apiService: widget.apiService,
-                    ),
+          _ContinueReadingSection(
+            entries: widget.data.libraryEntries,
+            apiService: widget.apiService,
+            onBrowse: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => ExploreScreen(
+                    topics: widget.data.exploreTopics,
+                    apiService: widget.apiService,
                   ),
-                );
-              },
+                ),
+              );
+            },
+          ),
+          if (widget.data.exploreTopics.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            _BrowseGenresSection(
+              topics: widget.data.exploreTopics,
+              books: allBooks,
+              apiService: widget.apiService,
             ),
           ],
         ],
       ),
     );
-  }
-
-  List<BookCardModel> _booksForDiscover() {
-    final seen = <int>{};
-    final merged = <BookCardModel>[];
-    final source = widget.data.discoverBooks.isNotEmpty
-        ? widget.data.discoverBooks
-        : [...widget.data.recentlyUpdated, ...widget.data.recentlyCompleted];
-    for (final book in source) {
-      // Drop blanks that caused empty slots in the story slider
-      if (!_isValidBook(book)) continue;
-      if (seen.contains(book.id)) continue;
-      seen.add(book.id);
-      merged.add(book);
-    }
-    return merged;
   }
 
   List<_DiscoverRailSection> _discoverSectionsForTab(
