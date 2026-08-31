@@ -270,16 +270,17 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
       _openReviewsPage();
       return;
     }
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
+    Navigator.of(context)
+        .push<bool>(
+      MaterialPageRoute<bool>(
         builder: (_) => _WriteReviewScreen(
           apiService: widget.apiService,
           bookId: _book.id,
-          bookTitle: _book.title,
         ),
       ),
-    ).then((ok) async {
-      if (ok == true) {
+    )
+        .then((ok) async {
+      if (ok == true && mounted) {
         setState(() => _hasMyReview = true);
         final reviews = await widget.apiService.fetchBookReviews(_book.id);
         if (mounted) setState(() => _reviews = reviews);

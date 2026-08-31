@@ -9,10 +9,13 @@ class NotificationsScreen extends StatefulWidget {
     super.key,
     required this.apiService,
     this.onOpenDiscover,
+    this.data,
   });
 
   final ApiService apiService;
   final VoidCallback? onOpenDiscover;
+  /// Optional bootstrap — accepted for RootShell compatibility (unused).
+  final dynamic data;
 
   @override
   State<NotificationsScreen> createState() => _NotificationsScreenState();
