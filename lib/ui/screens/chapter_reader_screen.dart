@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../data/services/api_service.dart';
+import '../../data/models/app_bootstrap.dart';
+import 'story_detail_screen.dart';
 
 /// Inkitt-style chapter reader: cover at start, mid-chapter ads,
 /// Next Chapter ads, themes, reactions, native share, scroll-to-top.
@@ -358,15 +360,52 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     } catch (_) {}
   }
 
+
+  BookDetailModel _storyDetailBook() {
+    return BookDetailModel(
+      id: widget.bookId ?? 0,
+      title: widget.title,
+      author: widget.author,
+      description: '',
+      statusText: '',
+      rating: 0,
+      genre: '',
+      cta: 'Read now',
+      coverPath: widget.coverPath,
+      tags: widget.tags,
+      authorUserId: widget.authorUserId,
+    );
+  }
+
+  /// Back always returns to the story detail page (not a previous chapter).
+  Future<void> _goBackToStoryDetail({bool completed = false}) async {
+    await _persistReadTime();
+    await _markLibraryProgress(completed: completed);
+    if (!mounted) return;
+    final id = widget.bookId;
+    if (id != null && id > 0) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => StoryDetailScreen(
+            apiService: widget.apiService,
+            book: _storyDetailBook(),
+          ),
+        ),
+      );
+    } else {
+      Navigator.of(context).pop();
+    }
+  }
+
   Future<void> _goNext() async {
     if (_chapterIndex >= _chapters.length - 1) {
-      // Finished last chapter → remove from continue reading
-      await _markLibraryProgress(completed: true);
+      // Finished last chapter → mark completed (drops from Ongoing) + story detail
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Story completed')),
         );
       }
+      await _goBackToStoryDetail(completed: true);
       return;
     }
     setState(() {
@@ -1098,7 +1137,13 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
         ? null
         : widget.apiService.resolveAssetUrl(widget.coverPath);
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        unawaited(_goBackToStoryDetail(completed: false));
+      },
+      child: Scaffold(
       backgroundColor: _bg,
       appBar: AppBar(
           // reading timer
@@ -1110,12 +1155,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
         title: Text(pageLabel, style: TextStyle(color: _muted, fontSize: 14)),
         leading: IconButton(
           icon: Icon(Icons.arrow_back, color: _fg),
-          onPressed: () async {
-            await _persistReadTime();
-            await _markLibraryProgress(completed: false);
-            if (!mounted) return;
-            Navigator.of(context).pop();
-          },
+          onPressed: () => unawaited(_goBackToStoryDetail(completed: false)),
         ),
         actions: [
           IconButton(
@@ -1403,7 +1443,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
           _buildBottomBar(),
         ],
       ),
-    );
+    ));
   }
 
   Widget _buildThemePanel() {
