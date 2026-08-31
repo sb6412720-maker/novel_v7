@@ -1151,7 +1151,7 @@ Future<void> _save({required bool asDraft, bool popAfter = false}) async {
                   Expanded(
                     flex: 2,
                     child: ElevatedButton(
-                      onPressed: _saving ? null : () => _save(asDraft: true), // meta → draft, then chapter editor
+                      onPressed: _saving ? null : () => _save(asDraft: false), // save meta then open chapter editor
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _magenta,
                         disabledBackgroundColor: _magenta.withValues(alpha: 0.4),
