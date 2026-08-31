@@ -560,22 +560,22 @@ Future<void> _checkSavedAndReviewed() async {
   }
 
   Widget _statCell(String label, String value) {
-    return Expanded(
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-          ),
-        ],
-      ),
+    // IMPORTANT: do not return Expanded here — callers may wrap in GestureDetector.
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          value,
+          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+        ),
+      ],
     );
   }
 
@@ -726,41 +726,53 @@ Future<void> _checkSavedAndReviewed() async {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    _statCell('Chapters', _loadingChapters ? '…' : '${_chapters.length}'),
-                    _statCell(
-                      'Status',
-                      _book.statusText.isNotEmpty ? _book.statusText : 'Ongoing',
-                    ),
-                    Column(
-                      children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.visibility_outlined, size: 16, color: muted),
-                            const SizedBox(width: 4),
-                            Text(
-                              '$_viewCount',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 16,
-                                color: fg,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 2),
-                        Text('Views', style: TextStyle(fontSize: 12, color: muted)),
-                      ],
-                    ),
-                    GestureDetector(
-                      onTap: _openReviewsPage,
+                    Expanded(
                       child: _statCell(
-                        'Reviews',
-                        _book.rating > 0
-                            ? '★ ${_book.rating.toStringAsFixed(1)}'
-                            : '${_reviews.length}',
+                        'Chapters',
+                        _loadingChapters ? '…' : '${_chapters.length}',
+                      ),
+                    ),
+                    Expanded(
+                      child: _statCell(
+                        'Status',
+                        _book.statusText.isNotEmpty ? _book.statusText : 'Ongoing',
+                      ),
+                    ),
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.visibility_outlined, size: 16, color: muted),
+                              const SizedBox(width: 4),
+                              Text(
+                                '$_viewCount',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 16,
+                                  color: fg,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text('Views', style: TextStyle(fontSize: 12, color: muted)),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: _openReviewsPage,
+                        behavior: HitTestBehavior.opaque,
+                        child: _statCell(
+                          'Reviews',
+                          _book.rating > 0
+                              ? '★ ${_book.rating.toStringAsFixed(1)}'
+                              : '${_reviews.length}',
+                        ),
                       ),
                     ),
                   ],
