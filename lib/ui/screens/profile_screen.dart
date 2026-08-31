@@ -51,7 +51,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     _loadAll();
   }
 
@@ -790,6 +790,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                           Tab(text: 'Wall'),
 
                           Tab(text: 'Reviews'),
+                          Tab(text: 'My Activity'),
                         ],
                       ),
                     ),
@@ -802,8 +803,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                   _buildAboutTab(),
                   _buildStoriesTab(),
                   _buildWallTab(),
-
                   _buildReviewsTab(),
+                  _buildMyActivityTab(),
                 ],
               ),
             ),
@@ -2327,6 +2328,60 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   // ─── Reviews ─────────────────────────────────────────────
+
+  Widget _buildMyActivityTab() {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: widget.apiService.fetchMyActivity(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final rows = snapshot.data ?? [];
+        if (rows.isEmpty) {
+          return ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(24),
+            children: const [
+              SizedBox(height: 40),
+              Center(child: Text('No activity yet', style: TextStyle(fontWeight: FontWeight.w600))),
+              SizedBox(height: 8),
+              Center(
+                child: Text(
+                  'Likes, reviews, follows and saves you make will appear here.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Color(0xFF888888)),
+                ),
+              ),
+            ],
+          );
+        }
+        return ListView.separated(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          itemCount: rows.length,
+          separatorBuilder: (_, __) => const Divider(height: 1),
+          itemBuilder: (context, i) {
+            final n = rows[i];
+            final type = (n['type'] ?? '').toString();
+            final title = (n['title'] ?? 'Activity').toString();
+            final message = (n['message'] ?? '').toString();
+            IconData icon = Icons.notifications;
+            if (type == 'like') icon = Icons.favorite;
+            if (type == 'review') icon = Icons.star;
+            if (type == 'follow') icon = Icons.person_add_alt_1;
+            if (type == 'save') icon = Icons.bookmark;
+            if (type == 'comment') icon = Icons.chat_bubble_outline;
+            return ListTile(
+              leading: Icon(icon, color: const Color(0xFF00A651)),
+              title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text(message),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildReviewsTab() {
     if (_reviews.isEmpty) {
       return const Center(

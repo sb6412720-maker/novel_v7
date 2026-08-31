@@ -192,6 +192,41 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
     }
   }
 
+
+  Future<void> _toggleLike() async {
+    if (_isOwner || _likeBusy) return;
+    setState(() => _likeBusy = true);
+    try {
+      final res = _liked
+          ? await widget.apiService.unlikeBook(_book.id)
+          : await widget.apiService.likeBook(_book.id);
+      if (!mounted) return;
+      setState(() {
+        final wasLiked = _liked;
+        if (res.containsKey('liked')) {
+          _liked = res['liked'] == true;
+        } else {
+          _liked = !wasLiked;
+        }
+        final c = (res['likes_count'] as num?)?.toInt() ??
+            (res['likes'] as num?)?.toInt();
+        if (c != null) {
+          _likesCount = c;
+        } else if (_liked != wasLiked) {
+          _likesCount = (_likesCount + (_liked ? 1 : -1)).clamp(0, 1 << 30);
+        }
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not update like: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _likeBusy = false);
+    }
+  }
+
   Future<void> _toggleFollow() async {
     final aid = _book.authorUserId;
     if (aid == null || _loadingFollow) return;
@@ -547,230 +582,176 @@ Future<void> _checkSavedAndReviewed() async {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final coverUrl = _book.coverPath.isEmpty
+    final isDark = theme.brightness == Brightness.dark;
+    final bg = isDark ? const Color(0xFF121212) : Colors.white;
+    final fg = isDark ? Colors.white : const Color(0xFF1A1A1A);
+    final muted = isDark ? Colors.white70 : Colors.black54;
+    const inkittGreen = Color(0xFF00A651);
+
+    final coverUrl = _book.coverPath.trim().isEmpty
         ? null
         : widget.apiService.resolveAssetUrl(_book.coverPath);
-    final summary = _book.description.isEmpty
+    final summary = _book.description.trim().isEmpty
         ? 'No summary available.'
-        : _book.description;
-    final needsExpand = summary.length > 160;
+        : _book.description.trim();
+    final needsExpand = summary.length > 180;
+    final authorName = _book.author.trim().isEmpty ? 'Author' : _book.author.trim();
 
-    if (_loadingChapters) {
-      return const Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Loading story...'),
-            ],
-          ),
-        ),
-      );
-    }
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            pinned: true,
-            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-            foregroundColor: Colors.black87,
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.ios_share_outlined),
-                onPressed: () {
-                  // System share is handled on reader; here just open reading list as secondary
-                  _openReadingListPicker();
-                },
+      backgroundColor: bg,
+      body: RefreshIndicator(
+        color: inkittGreen,
+        onRefresh: () async {
+          await _bootstrap();
+        },
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            // App bar
+            SliverAppBar(
+              pinned: true,
+              backgroundColor: bg,
+              foregroundColor: fg,
+              elevation: 0,
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => Navigator.of(context).maybePop(),
               ),
-              IconButton(
-                icon: const Icon(Icons.more_vert),
-                onPressed: () async {
-                  final action = await showMenu<String>(
-                    context: context,
-                    position: const RelativeRect.fromLTRB(1000, 80, 16, 0),
-                    items: const [
-                      PopupMenuItem(
-                        value: 'list',
-                        child: Text('Save to reading list'),
-                      ),
-                      PopupMenuItem(
-                        value: 'review',
-                        child: Text('Write a review'),
-                      ),
-                      PopupMenuItem(
-                        value: 'report',
-                        child: Text('Report story'),
-                      ),
-                    ],
-                  );
-                  if (action == 'list') {
-                    await _openReadingListPicker();
-                  } else if (action == 'review') {
-                    if (_isOwner) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            "Author can't make reviews on their own book",
-                          ),
-                        ),
-                      );
-                      return;
-                    }
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.ios_share_outlined),
+                  onPressed: _openReadingListPicker,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.more_vert),
+                  onPressed: () async {
+                    final action = await showMenu<String>(
+                      context: context,
+                      position: const RelativeRect.fromLTRB(1000, 80, 16, 0),
+                      items: const [
+                        PopupMenuItem(value: 'list', child: Text('Save to reading list')),
+                        PopupMenuItem(value: 'review', child: Text('Write a review')),
+                        PopupMenuItem(value: 'report', child: Text('Report story')),
+                      ],
+                    );
                     if (!mounted) return;
-                    await Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => _WriteReviewScreen(
-                          bookId: _book.id,
-                          apiService: widget.apiService,
-                        ),
-                      ),
-                    );
-                    final reviews = await widget.apiService.fetchBookReviews(
-                      _book.id,
-                    );
-                    if (mounted) setState(() => _reviews = reviews);
-                  } else if (action == 'report') {
-                    try {
-                      final res = await widget.apiService.reportBook(_book.id);
-                      if (!mounted) return;
-                      final flagged = res['flagged_for_admin'] == true;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            flagged
-                                ? 'Report recorded. Story flagged for admin (3+ reports).'
-                                : 'Report submitted. Thank you.',
-                          ),
-                        ),
-                      );
-                    } catch (e) {
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Could not report: $e')),
-                      );
+                    if (action == 'list') {
+                      await _openReadingListPicker();
+                    } else if (action == 'review') {
+                      _onWriteReviewPressed();
+                    } else if (action == 'report') {
+                      try {
+                        await widget.apiService.reportBook(_book.id);
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Report submitted. Thank you.')),
+                        );
+                      } catch (e) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Report failed: $e')),
+                        );
+                      }
                     }
-                  }
-                },
-              ),
-            ],
-          ),
-          if (_error != null)
+                  },
+                ),
+              ],
+            ),
+
+            // Cover — fixed size so it never becomes a full-screen gray block
+            // title
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(_error!, style: const TextStyle(color: Colors.red)),
-              ),
-            ),
-
-          // Centered cover (matches video)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 4, 24, 0),
-              child: Center(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: coverUrl == null
-                      ? Container(
-                          width: 160,
-                          height: 230,
-                          color: Colors.grey.shade300,
-                          child: const Icon(Icons.menu_book, size: 48),
-                        )
-                      : Image.network(
-                          coverUrl,
-                          width: 160,
-                          height: 230,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => Container(
-                            width: 160,
-                            height: 230,
-                            color: Colors.grey.shade300,
-                            child: const Icon(Icons.broken_image),
-                          ),
-                        ),
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+                child: Column(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: SizedBox(
+                        width: 160,
+                        height: 230,
+                        child: coverUrl == null
+                            ? ColoredBox(
+                                color: Colors.grey.shade300,
+                                child: const Icon(Icons.menu_book, size: 48),
+                              )
+                            : Image.network(
+                                coverUrl,
+                                width: 160,
+                                height: 230,
+                                fit: BoxFit.cover,
+                                loadingBuilder: (context, child, progress) {
+                                  if (progress == null) return child;
+                                  return ColoredBox(
+                                    color: Colors.grey.shade200,
+                                    child: const Center(
+                                      child: SizedBox(
+                                        width: 28,
+                                        height: 28,
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      ),
+                                    ),
+                                  );
+                                },
+                                errorBuilder: (_, __, ___) => ColoredBox(
+                                  color: Colors.grey.shade300,
+                                  child: const Icon(Icons.broken_image, size: 40),
+                                ),
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      _book.title,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        height: 1.25,
+                        color: fg,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'by $authorName',
+                      style: theme.textTheme.bodyMedium?.copyWith(color: muted),
+                    ),
+                  ],
                 ),
               ),
             ),
-          ),
 
-          // Title centered
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-              child: Column(
-                children: [
-                  Text(
-                    _book.title,
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      height: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'by ${_book.author.isNotEmpty ? _book.author : 'Author'}',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: Colors.black54,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // Stats row: Chapters | Last Updated | Reviews
-          if (true)
+            // Stats
+            const SliverToBoxAdapter(child: SizedBox(height: 18)),
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    _statCell('Chapters', '${_chapters.length}'),
+                    _statCell('Chapters', _loadingChapters ? '…' : '${_chapters.length}'),
                     _statCell(
-                      _book.lastUpdated.trim().isNotEmpty
-                          ? 'Last Updated'
-                          : 'Story Status',
-                      _book.lastUpdated.trim().isNotEmpty
-                          ? _book.lastUpdated.trim()
-                          : (_book.statusText.isNotEmpty
-                                ? _book.statusText
-                                : 'Ongoing'),
+                      'Status',
+                      _book.statusText.isNotEmpty ? _book.statusText : 'Ongoing',
                     ),
                     Column(
                       children: [
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(
-                              Icons.visibility_outlined,
-                              size: 16,
-                              color: Colors.black54,
-                            ),
+                            Icon(Icons.visibility_outlined, size: 16, color: muted),
                             const SizedBox(width: 4),
                             Text(
                               '$_viewCount',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.w700,
                                 fontSize: 16,
+                                color: fg,
                               ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 2),
-                        const Text(
-                          'Views',
-                          style: TextStyle(fontSize: 12, color: Colors.black54),
-                        ),
+                        Text('Views', style: TextStyle(fontSize: 12, color: muted)),
                       ],
                     ),
                     GestureDetector(
@@ -787,254 +768,94 @@ Future<void> _checkSavedAndReviewed() async {
               ),
             ),
 
-          // Summary + Read More
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Summary',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
+            // Summary
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 22, 20, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Summary',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: fg,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    summary,
-                    maxLines: _summaryExpanded || !needsExpand ? null : 4,
-                    overflow: _summaryExpanded || !needsExpand
-                        ? TextOverflow.visible
-                        : TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      height: 1.45,
-                      color: const Color(0xFF444444),
+                    const SizedBox(height: 8),
+                    Text(
+                      summary,
+                      maxLines: _summaryExpanded || !needsExpand ? null : 5,
+                      overflow: _summaryExpanded || !needsExpand
+                          ? TextOverflow.visible
+                          : TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        height: 1.45,
+                        color: isDark ? Colors.white70 : const Color(0xFF444444),
+                      ),
                     ),
-                  ),
-                  if (needsExpand)
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton(
-                        onPressed: () => setState(
-                          () => _summaryExpanded = !_summaryExpanded,
-                        ),
+                    if (needsExpand)
+                      TextButton(
+                        onPressed: () =>
+                            setState(() => _summaryExpanded = !_summaryExpanded),
                         style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 4,
-                            vertical: 8,
-                          ),
-                          minimumSize: const Size(48, 40),
-                          tapTargetSize: MaterialTapTargetSize.padded,
-                          foregroundColor: const Color(0xFF00C853),
+                          foregroundColor: inkittGreen,
+                          padding: EdgeInsets.zero,
                         ),
                         child: Text(
                           _summaryExpanded ? 'Show less' : 'Read More',
-                          style: const TextStyle(
-                            color: Color(0xFF00C853),
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15,
-                          ),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Like / Save / Reviews
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextButton.icon(
+                        onPressed: (_likeBusy || _isOwner) ? null : _toggleLike,
+                        icon: Icon(
+                          _liked ? Icons.favorite : Icons.favorite_border,
+                          color: _isOwner
+                              ? Colors.grey
+                              : (_liked ? Colors.red : fg),
+                        ),
+                        label: Text(
+                          '$_likesCount',
+                          style: TextStyle(color: fg),
                         ),
                       ),
                     ),
-                ],
-              ),
-            ),
-          ),
-
-          // Likes | Save | Reviews row (video)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  TextButton.icon(
-                    onPressed: (_likeBusy || _isOwner)
-                        ? null
-                        : () async {
-                            setState(() => _likeBusy = true);
-                            try {
-                              final res = _liked
-                                  ? await widget.apiService.unlikeBook(_book.id)
-                                  : await widget.apiService.likeBook(_book.id);
-                              if (!mounted) return;
-                              setState(() {
-                                if (res['self'] == true) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'You cannot like your own story',
-                                      ),
-                                    ),
-                                  );
-                                  return;
-                                }
-                                _liked = (res['liked'] as bool?) ?? !_liked;
-                                _likesCount =
-                                    (res['likes_count'] as num?)?.toInt() ??
-                                    _likesCount;
-                              });
-                            } catch (e) {
-                              if (!mounted) return;
-                              final msg = e.toString();
-                              final lower = msg.toLowerCase();
-                              String text;
-                              if (lower.contains('401') ||
-                                  lower.contains('missing user token') ||
-                                  lower.contains('unauthorized') ||
-                                  lower.contains('sign in')) {
-                                text = 'Sign in to like stories';
-                              } else if (lower.contains('timeout')) {
-                                text =
-                                    'Server busy — try like again in a moment';
-                              } else {
-                                text =
-                                    'Could not update like: ${msg.length > 80 ? msg.substring(0, 80) : msg}';
-                              }
-                              ScaffoldMessenger.of(
-                                context,
-                              ).showSnackBar(SnackBar(content: Text(text)));
-                            } finally {
-                              if (mounted) setState(() => _likeBusy = false);
-                            }
-                          },
-                    icon: Icon(
-                      _liked ? Icons.favorite : Icons.favorite_border,
-                      size: 20,
-                      color: _isOwner
-                          ? Colors.grey
-                          : (_liked
-                              ? Colors.red
-                              : Theme.of(context).iconTheme.color),
-                    ),
-                    label: Text(
-                      _likesCount > 0 ? '$_likesCount Likes' : 'Likes',
-                    ),
-                    style: TextButton.styleFrom(
-                      foregroundColor: _isOwner
-                          ? Colors.grey
-                          : Theme.of(context).colorScheme.onSurface,
-                    ),
-                  ),
-                  TextButton.icon(
-                    onPressed: _isOwner
-                        ? () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'You cannot save your own story',
-                                ),
-                              ),
-                            );
-                          }
-                        : _openReadingListPicker,
-                    icon: Icon(
-                      _saved ? Icons.bookmark : Icons.bookmark_border,
-                      size: 20,
-                      color: _isOwner
-                          ? Colors.black26
-                          : (_saved ? const Color(0xFF1A73E8) : null),
-                    ),
-                    label: Text(_saved ? 'Saved' : 'Save'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: _isOwner
-                          ? Colors.black26
-                          : (_saved
-                              ? const Color(0xFF1A73E8)
-                              : Colors.black87),
-                    ),
-                  ),
-                  TextButton.icon(
-                    onPressed: _isOwner
-                        ? () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'You cannot review your own story',
-                                ),
-                              ),
-                            );
-                          }
-                        : () async {
-                            await Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => _BookReviewsPage(
-                                  book: _book,
-                                  apiService: widget.apiService,
-                                  isOwner: _isOwner,
-                                  hasMyReview: _hasMyReview,
-                                  onReviewPosted: () async {
-                                    setState(() => _hasMyReview = true);
-                                    final reviews = await widget.apiService
-                                        .fetchBookReviews(_book.id);
-                                    if (mounted) {
-                                      setState(() => _reviews = reviews);
-                                    }
-                                  },
-                                ),
-                              ),
-                            );
-                            final reviews =
-                                await widget.apiService.fetchBookReviews(
-                              _book.id,
-                            );
-                            if (mounted) setState(() => _reviews = reviews);
-                          },
-                    icon: Icon(
-                      _hasMyReview ? Icons.star : Icons.star_border,
-                      size: 20,
-                      color: _isOwner
-                          ? Colors.black26
-                          : (_hasMyReview ? const Color(0xFFFFC107) : null),
-                    ),
-                    label: Text(
-                      _reviews.isEmpty
-                          ? 'Reviews'
-                          : '${_reviews.length} Reviews',
-                    ),
-                    style: TextButton.styleFrom(
-                      foregroundColor: _isOwner
-                          ? Colors.black26
-                          : (_hasMyReview
-                              ? const Color(0xFFF9A825)
-                              : Colors.black87),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // Content Warnings (video: show when present on book)
-          if (_book.contentWarnings.trim().isNotEmpty ||
-              _contentWarningsExtra.trim().isNotEmpty)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Content Warnings',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
+                    Expanded(
+                      child: TextButton.icon(
+                        onPressed: _isOwner ? null : _openReadingListPicker,
+                        icon: Icon(
+                          _saved ? Icons.bookmark : Icons.bookmark_border,
+                          color: _isOwner
+                              ? Colors.grey
+                              : (_saved ? inkittGreen : fg),
+                        ),
+                        label: Text('Save', style: TextStyle(color: fg)),
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      () {
-                        final w = _book.contentWarnings.trim().isNotEmpty
-                            ? _book.contentWarnings.trim()
-                            : _contentWarningsExtra.trim();
-                        if (w.toLowerCase().startsWith('this story')) return w;
-                        return 'This story contains themes of: $w';
-                      }(),
-                      style: TextStyle(
-                        fontSize: 14,
-                        height: 1.4,
-                        color: Colors.grey.shade800,
+                    Expanded(
+                      child: TextButton.icon(
+                        onPressed: _openReviewsPage,
+                        icon: Icon(
+                          _hasMyReview ? Icons.star : Icons.star_border,
+                          color: _hasMyReview ? const Color(0xFFF9A825) : fg,
+                        ),
+                        label: Text(
+                          _isOwner ? 'Reviews' : 'Review',
+                          style: TextStyle(color: fg),
+                        ),
                       ),
                     ),
                   ],
@@ -1042,567 +863,194 @@ Future<void> _checkSavedAndReviewed() async {
               ),
             ),
 
-          // Genres — chips keep hierarchical "Parent > Child" when present
-          if (_book.genre.isNotEmpty)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Genres',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      height: 40,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        children: () {
-                          final raw = _book.genre.trim();
-                          final parts = raw
-                              .split(RegExp(r'[,|]'))
-                              .map((g) => g.trim())
-                              .where((g) => g.isNotEmpty)
-                              .toList();
-                          return [
-                            for (final g in parts)
-                              Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                    vertical: 8,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(22),
-                                    border: Border.all(
-                                      color: Colors.grey.shade300,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    g,
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
+            // Genre
+            if (_book.genre.trim().isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Genres',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 16, color: fg)),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          for (final g in _book.genre.split(RegExp(r'[,/|]')))
+                            if (g.trim().isNotEmpty)
+                              Chip(
+                                label: Text(g.trim()),
+                                backgroundColor: isDark
+                                    ? const Color(0xFF2A2A2A)
+                                    : const Color(0xFFEEF8F1),
+                                side: BorderSide.none,
                               ),
-                          ];
-                        }(),
+                        ],
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
 
-          // Tags / hashtags (clickable)
-          if (_tags.isNotEmpty)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Tags',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      height: 40,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
+            // Tags
+            if (_tags.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Tags',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 16, color: fg)),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
                         children: [
                           for (final t in _tags)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: ActionChip(
-                                label: Text(
-                                  t.startsWith('#')
-                                      ? t.replaceFirst('#', '')
-                                      : t,
-                                ),
-                                onPressed: () => _openTag(t),
-                                backgroundColor: const Color(0xFFD4F5E9),
-                                side: BorderSide.none,
-                                labelStyle: const TextStyle(
+                            ActionChip(
+                              label: Text(
+                                t.startsWith('#') ? t.substring(1) : t,
+                                style: const TextStyle(
                                   color: Color(0xFF0A7A4B),
                                   fontWeight: FontWeight.w600,
-                                  fontSize: 13,
                                 ),
                               ),
+                              onPressed: () => _openTag(t),
+                              backgroundColor: const Color(0xFFD4F5E9),
+                              side: BorderSide.none,
                             ),
                         ],
                       ),
+                    ],
+                  ),
+                ),
+              ),
+
+            // Author row
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Author',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 16, color: fg)),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 22,
+                          backgroundColor: Colors.grey.shade300,
+                          backgroundImage: (_authorPhotoUrl != null &&
+                                  _authorPhotoUrl!.isNotEmpty)
+                              ? NetworkImage(
+                                  widget.apiService.resolveAssetUrl(_authorPhotoUrl!),
+                                )
+                              : null,
+                          child: (_authorPhotoUrl == null ||
+                                  _authorPhotoUrl!.isEmpty)
+                              ? Text(
+                                  authorName.isNotEmpty
+                                      ? authorName[0].toUpperCase()
+                                      : 'A',
+                                )
+                              : null,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            authorName,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 15,
+                              color: fg,
+                            ),
+                          ),
+                        ),
+                        if (!_isOwner && (_book.authorUserId ?? 0) > 0)
+                          TextButton(
+                            onPressed: _loadingFollow ? null : _toggleFollow,
+                            style: TextButton.styleFrom(
+                              backgroundColor: inkittGreen,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 18, vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                            ),
+                            child: Text(_isFollowing ? 'Following' : 'Follow'),
+                          ),
+                      ],
                     ),
                   ],
                 ),
               ),
             ),
 
-          // Author + Follow (avatar/name tappable → profile; solid green Follow)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Author',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      GestureDetector(
-                        onTap: () {
-                          final aid = _book.authorUserId;
-                          if (aid == null || aid <= 0) return;
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => ProfileScreen(
-                                apiService: widget.apiService,
-                                viewingUserId: aid,
-                                achievements: const [],
-                                profile: ProfileModel(
-                                  id: aid,
-                                  displayName: _book.author.isNotEmpty
-                                      ? _book.author
-                                      : 'Author',
-                                  username: _book.author
-                                      .toLowerCase()
-                                      .replaceAll(' ', ''),
-                                  photoUrl: _authorPhotoUrl ?? '',
-                                  coverUrl: '',
-                                  following: 0,
-                                  followers: 0,
-                                  blocked: 0,
-                                  chaptersRead: 0,
-                                  socialKarma: 0,
-                                  dayStreak: 0,
-                                  readingLists: const [],
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                        child: CircleAvatar(
-                          radius: 22,
-                          backgroundColor: Colors.grey.shade300,
-                          backgroundImage:
-                              (_authorPhotoUrl != null &&
-                                  _authorPhotoUrl!.isNotEmpty)
-                              ? NetworkImage(
-                                  widget.apiService.resolveAssetUrl(
-                                    _authorPhotoUrl!,
-                                  ),
-                                )
-                              : null,
-                          child:
-                              (_authorPhotoUrl == null ||
-                                  _authorPhotoUrl!.isEmpty)
-                              ? Text(
-                                  _book.author.isNotEmpty
-                                      ? _book.author[0].toUpperCase()
-                                      : 'A',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.black87,
-                                  ),
-                                )
-                              : null,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            final aid = _book.authorUserId;
-                            if (aid == null || aid <= 0) return;
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => ProfileScreen(
-                                  apiService: widget.apiService,
-                                  viewingUserId: aid,
-                                  achievements: const [],
-                                  profile: ProfileModel(
-                                    id: aid,
-                                    displayName: _book.author.isNotEmpty
-                                        ? _book.author
-                                        : 'Author',
-                                    username: _book.author
-                                        .toLowerCase()
-                                        .replaceAll(' ', ''),
-                                    photoUrl: _authorPhotoUrl ?? '',
-                                    coverUrl: '',
-                                    following: 0,
-                                    followers: 0,
-                                    blocked: 0,
-                                    chaptersRead: 0,
-                                    socialKarma: 0,
-                                    dayStreak: 0,
-                                    readingLists: const [],
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                          child: Text(
-                            _book.author.isEmpty
-                                ? 'Unknown author'
-                                : _book.author,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 15,
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (_book.authorUserId != null && !_isOwner)
-                        SizedBox(
-                          height: 36,
-                          child: _isFollowing
-                              ? OutlinedButton(
-                                  onPressed: _loadingFollow
-                                      ? null
-                                      : _toggleFollow,
-                                  style: OutlinedButton.styleFrom(
-                                    side: BorderSide(
-                                      color: Colors.grey.shade400,
-                                    ),
-                                    foregroundColor: Colors.black54,
-                                    backgroundColor: Colors.grey.shade100,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                  ),
-                                  child: const Text(
-                                    'Following',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                )
-                              : ElevatedButton(
-                                  onPressed: _loadingFollow
-                                      ? null
-                                      : _toggleFollow,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF00C853),
-                                    foregroundColor: Colors.white,
-                                    elevation: 0,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 18,
-                                    ),
-                                  ),
-                                  child: const Text(
-                                    'Follow',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // Reviews section
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: Row(
-                children: [
-                  Text(
-                    'Reviews',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const Spacer(),
-                  TextButton(
-                    onPressed: () async {
-                      await Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => _WriteReviewScreen(
-                            bookId: _book.id,
-                            apiService: widget.apiService,
-                          ),
-                        ),
-                      );
-                      final reviews = await widget.apiService.fetchBookReviews(
-                        _book.id,
-                      );
-                      if (mounted) setState(() => _reviews = reviews);
-                    },
-                    child: const Text('Write'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          // Reviews only on Reviews page (button above)
-
-          // Chapters
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: Text(
-                'Chapters',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ),
-          if (_loadingChapters)
-            const SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-            )
-          else if (_chapters.isEmpty)
-            const SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.all(20),
-                child: Text('No chapters published yet.'),
-              ),
-            )
-          else
-            SliverList(
-              delegate: SliverChildBuilderDelegate((context, index) {
-                final chapter = _chapters[index];
-                final rawTitle = (chapter['title'] as String? ?? '').trim();
-                final number =
-                    (chapter['chapter_number'] as num?)?.toInt() ?? index + 1;
-                // Inkitt-style: "Chapter N  Title" (muted green)
-                final lower = rawTitle.toLowerCase().trim();
-                String secondary;
-                if (rawTitle.isEmpty ||
-                    RegExp(r'^chapter\s*\d+$').hasMatch(lower)) {
-                  secondary = 'Chapter $number';
-                } else {
-                  secondary = rawTitle;
-                }
-                return InkWell(
-                  onTap: () => _openChapter(chapter, index: index),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
-                    ),
-                    child: Text(
-                      'Chapter $number  $secondary',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF5BB89A),
-                        fontWeight: FontWeight.w500,
-                        fontSize: 15,
-                      ),
-                    ),
-                  ),
-                );
-              }, childCount: _chapters.length),
-            ),
-          // More Stories by Author (matches video)
-          if (_authorStories.isNotEmpty) ...[
+            // Chapters
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
                 child: Text(
-                  'More Stories by ${_book.author.isNotEmpty ? _book.author : 'Author'}',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+                  'Chapters',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 16, color: fg),
                 ),
               ),
             ),
-            SliverToBoxAdapter(
-              child: SizedBox(
-                height: 160,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: _authorStories.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 12),
-                  itemBuilder: (context, index) {
-                    final b = _authorStories[index];
-                    final title = b['title'] as String? ?? '';
-                    final cover =
-                        b['cover_path'] as String? ??
-                        b['cover_url'] as String? ??
-                        '';
-                    final coverResolved = cover.isEmpty
-                        ? null
-                        : widget.apiService.resolveAssetUrl(cover);
-                    return GestureDetector(
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => StoryDetailScreen(
-                              book: BookDetailModel.fromMap(b),
-                              apiService: widget.apiService,
-                            ),
-                          ),
-                        );
-                      },
-                      child: SizedBox(
-                        width: 100,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(6),
-                              child: coverResolved == null
-                                  ? Container(
-                                      width: 100,
-                                      height: 140,
-                                      color: Colors.grey.shade300,
-                                      child: const Icon(Icons.menu_book),
-                                    )
-                                  : Image.network(
-                                      coverResolved,
-                                      width: 100,
-                                      height: 140,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, _, _) => Container(
-                                        width: 100,
-                                        height: 140,
-                                        color: Colors.grey.shade300,
-                                        child: const Icon(Icons.broken_image),
-                                      ),
-                                    ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
+            if (_loadingChapters)
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              )
+            else if (_chapters.isEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Text('No chapters published yet.',
+                      style: TextStyle(color: muted)),
+                ),
+              )
+            else
+              // ignore: prefer_const_constructors - dynamic list
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final chapter = _chapters[index];
+                    final rawTitle =
+                        (chapter['title'] as String? ?? '').trim();
+                    final number =
+                        (chapter['chapter_number'] as num?)?.toInt() ??
+                            index + 1;
+                    final label = rawTitle.isEmpty
+                        ? 'Chapter $number'
+                        : 'Chapter $number  $rawTitle';
+                    return ListTile(
+                      title: Text(
+                        label,
+                        style: TextStyle(
+                          color: inkittGreen,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
+                      onTap: () => _openChapter(chapter, index: index),
                     );
                   },
+                  childCount: _chapters.length,
                 ),
               ),
-            ),
-          ],
 
-          // You May Also Like (matches video)
-          if (_youMayAlsoLike.isNotEmpty) ...[
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-                child: Text(
-                  'You May Also Like',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: SizedBox(
-                height: 160,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: _youMayAlsoLike.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 12),
-                  itemBuilder: (context, index) {
-                    final b = _youMayAlsoLike[index];
-                    final title = b['title'] as String? ?? '';
-                    final cover =
-                        b['cover_path'] as String? ??
-                        b['cover_url'] as String? ??
-                        '';
-                    final coverResolved = cover.isEmpty
-                        ? null
-                        : widget.apiService.resolveAssetUrl(cover);
-                    return GestureDetector(
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => StoryDetailScreen(
-                              book: BookDetailModel.fromMap(b),
-                              apiService: widget.apiService,
-                            ),
-                          ),
-                        );
-                      },
-                      child: SizedBox(
-                        width: 100,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(6),
-                              child: coverResolved == null
-                                  ? Container(
-                                      width: 100,
-                                      height: 140,
-                                      color: Colors.grey.shade300,
-                                      child: const Icon(Icons.menu_book),
-                                    )
-                                  : Image.network(
-                                      coverResolved,
-                                      width: 100,
-                                      height: 140,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, _, _) => Container(
-                                        width: 100,
-                                        height: 140,
-                                        color: Colors.grey.shade300,
-                                        child: const Icon(Icons.broken_image),
-                                      ),
-                                    ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 100)),
           ],
-
-          const SliverToBoxAdapter(child: SizedBox(height: 96)),
-        ],
+        ),
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
@@ -1613,7 +1061,7 @@ Future<void> _checkSavedAndReviewed() async {
             child: ElevatedButton(
               onPressed: _readNow,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00C853),
+                backgroundColor: inkittGreen,
                 foregroundColor: Colors.white,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
@@ -1631,6 +1079,7 @@ Future<void> _checkSavedAndReviewed() async {
     );
   }
 }
+
 
 class _TagBooksScreen extends StatelessWidget {
   const _TagBooksScreen({
