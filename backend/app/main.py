@@ -4454,8 +4454,17 @@ def get_public_book(book_id: int):
         }
     data["view_count"] = new_views
     data["views"] = new_views
-    if not str(data.get("author") or "").strip():
-        data["author"] = str(_row_get(rows[0], "author_display_name") or "").strip()
+    disp = str(_row_get(rows[0], "author_display_name") or "").strip()
+    book_author = str(data.get("author") or "").strip()
+    if disp and (
+        not book_author
+        or book_author.lower() in ("author", "unknown", "untitled")
+    ):
+        data["author"] = disp
+    elif disp and book_author:
+        # Prefer profile display name for readers
+        data["author"] = disp
+    data["author_display_name"] = disp or book_author
     return data
 
 

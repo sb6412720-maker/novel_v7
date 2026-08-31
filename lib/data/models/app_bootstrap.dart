@@ -266,7 +266,16 @@ class BookDetailModel {
     return BookDetailModel(
       id: (map['id'] as num?)?.toInt() ?? 0,
       title: map['title'] as String? ?? 'Untitled',
-      author: map['author'] as String? ?? '',
+      author: () {
+        final a = (map['author'] as String?)?.trim() ?? '';
+        final d = (map['author_display_name'] as String?)?.trim() ?? '';
+        if (d.isNotEmpty &&
+            (a.isEmpty || a.toLowerCase() == 'author' || a.toLowerCase() == 'unknown')) {
+          return d;
+        }
+        if (d.isNotEmpty) return d;
+        return a.isEmpty ? 'Author' : a;
+      }(),
       description: map['description'] as String? ?? '',
       statusText: map['status_text'] as String? ?? '',
       rating: (map['rating'] as num?)?.toDouble() ?? 0.0,

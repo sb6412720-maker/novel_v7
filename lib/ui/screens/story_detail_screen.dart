@@ -715,22 +715,20 @@ Future<void> _checkSavedAndReviewed() async {
                       height: 1.2,
                     ),
                   ),
-                  if (_book.author.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      'by ${_book.author}',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: Colors.black54,
-                      ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'by ${_book.author.isNotEmpty ? _book.author : 'Author'}',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: Colors.black54,
                     ),
-                  ],
+                  ),
                 ],
               ),
             ),
           ),
 
           // Stats row: Chapters | Last Updated | Reviews
-          if (!_loadingChapters)
+          if (true)
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
@@ -1440,7 +1438,7 @@ Future<void> _checkSavedAndReviewed() async {
             ),
             SliverToBoxAdapter(
               child: SizedBox(
-                height: 172,
+                height: 160,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1529,7 +1527,7 @@ Future<void> _checkSavedAndReviewed() async {
             ),
             SliverToBoxAdapter(
               child: SizedBox(
-                height: 172,
+                height: 160,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
