@@ -3,6 +3,7 @@ import '../../core/theme/app_theme.dart';
 import '../../data/models/app_bootstrap.dart';
 import '../../data/services/api_service.dart';
 import 'story_detail_screen.dart';
+import 'chapter_reader_screen.dart';
 
 /// Library: Ongoing Reading (in-progress) + Reading Lists + History (completed).
 class LibraryScreen extends StatefulWidget {
@@ -391,23 +392,81 @@ class _EntriesList extends StatelessWidget {
                     elevation: 0,
                     child: InkWell(
                       borderRadius: BorderRadius.circular(12),
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => StoryDetailScreen(
-                              apiService: api,
-                              book: BookDetailModel(
-                                id: e.book.id,
-                                title: e.book.title,
-                                author: e.book.author,
-                                description: e.book.description,
-                                statusText: e.book.statusText,
-                                rating: e.book.rating,
-                                genre: e.book.primaryGenre,
-                                cta: e.book.cta,
-                                coverPath: e.book.coverPath,
-                                authorUserId: e.book.authorUserId,
+                      onTap: () async {
+                        // Ongoing: resume at last chapter + paragraph
+                        // History: open story detail
+                        if (history) {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => StoryDetailScreen(
+                                apiService: api,
+                                book: BookDetailModel(
+                                  id: e.book.id,
+                                  title: e.book.title,
+                                  author: e.book.author,
+                                  description: e.book.description,
+                                  statusText: e.book.statusText,
+                                  rating: e.book.rating,
+                                  genre: e.book.primaryGenre,
+                                  cta: e.book.cta,
+                                  coverPath: e.book.coverPath,
+                                  authorUserId: e.book.authorUserId,
+                                ),
                               ),
+                            ),
+                          );
+                          return;
+                        }
+                        List<Map<String, dynamic>> chapters = const [];
+                        try {
+                          chapters = await api.fetchStoryChapters(e.book.id);
+                        } catch (_) {}
+                        if (!context.mounted) return;
+                        if (chapters.isEmpty) {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => StoryDetailScreen(
+                                apiService: api,
+                                book: BookDetailModel(
+                                  id: e.book.id,
+                                  title: e.book.title,
+                                  author: e.book.author,
+                                  description: e.book.description,
+                                  statusText: e.book.statusText,
+                                  rating: e.book.rating,
+                                  genre: e.book.primaryGenre,
+                                  cta: e.book.cta,
+                                  coverPath: e.book.coverPath,
+                                  authorUserId: e.book.authorUserId,
+                                ),
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+                        var idx = chapters.indexWhere(
+                          (c) => (c['chapter_number'] as num?)?.toInt() == e.lastChapterNumber,
+                        );
+                        if (idx < 0) idx = 0;
+                        final ch = chapters[idx];
+                        final chapterNo = (ch['chapter_number'] as num?)?.toInt() ?? e.lastChapterNumber;
+                        final chapterTitle = (ch['title'] ?? 'Chapter $chapterNo').toString();
+                        final content = (ch['content'] ?? '').toString();
+                        await Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => ChapterReaderScreen(
+                              apiService: api,
+                              title: e.book.title,
+                              author: e.book.author,
+                              coverPath: e.book.coverPath,
+                              chapterNumber: chapterNo,
+                              chapterTitle: chapterTitle,
+                              chapterContent: content,
+                              bookId: e.book.id,
+                              authorUserId: e.book.authorUserId,
+                              chapters: chapters,
+                              initialChapterIndex: idx,
+                              initialParagraphIndex: e.lastParagraphIndex,
                             ),
                           ),
                         );

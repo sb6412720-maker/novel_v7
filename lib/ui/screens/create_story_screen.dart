@@ -138,7 +138,13 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       final aud = (widget.story!['audience'] ?? '').toString().trim();
       if (aud.isNotEmpty) _audience = aud;
       _coverPath = widget.story!['cover_path']?.toString() ?? '';
-      final existing = (widget.story!['tags'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? <String>[];
+      final rawTags = widget.story!['tags'];
+      List<String> existing = <String>[];
+      if (rawTags is List) {
+        existing = rawTags.map((e) => e.toString().replaceFirst('#', '').trim()).where((t) => t.isNotEmpty).toList();
+      } else if (rawTags != null && rawTags.toString().trim().isNotEmpty) {
+        existing = rawTags.toString().split(RegExp(r'[,;]')).map((e) => e.replaceFirst('#', '').trim()).where((t) => t.isNotEmpty).toList();
+      }
       _selectedTags.addAll(existing.take(3));
     }
     _titleController.addListener(() => setState(() {}));
@@ -358,11 +364,30 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         if (lang.isNotEmpty) _language = lang;
         final cover = (data['cover_path'] ?? '').toString();
         if (cover.isNotEmpty) _coverPath = cover;
-        final tags = (data['tags'] as List?)?.map((e) => e.toString()).toList() ?? [];
+        final rawTags = data['tags'];
+        List<String> tags = <String>[];
+        if (rawTags is List) {
+          tags = rawTags.map((e) => e.toString().replaceFirst('#', '').trim()).where((t) => t.isNotEmpty).toList();
+        } else if (rawTags != null && '$rawTags'.trim().isNotEmpty) {
+          tags = '$rawTags'.split(RegExp(r'[,;]')).map((e) => e.replaceFirst('#', '').trim()).where((t) => t.isNotEmpty).toList();
+        }
         if (tags.isNotEmpty) {
           _selectedTags
             ..clear()
             ..addAll(tags.take(3));
+        }
+        // Normalize audience labels from older values
+        final aud2 = (data['audience'] ?? '').toString().trim();
+        if (aud2.isNotEmpty) {
+          if (aud2.toLowerCase().contains('13') || aud2.toLowerCase().contains('teen')) {
+            _audience = 'Teen (13+)';
+          } else if (aud2.toLowerCase().contains('18') || aud2.toLowerCase().contains('mature')) {
+            _audience = 'Mature (18+)';
+          } else if (aud2.toLowerCase().contains('all')) {
+            _audience = 'All Ages';
+          } else {
+            _audience = aud2;
+          }
         }
         final warnings = (data['content_warnings'] ?? '').toString();
         if (warnings.isNotEmpty) {
@@ -809,12 +834,18 @@ Future<void> _save({required bool asDraft, bool popAfter = false}) async {
                   ),
                   Align(
                     alignment: Alignment.centerRight,
-                    child: Text(
-                      '${_summaryController.text.length} / 500',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: _summaryController.text.length >= 500 ? _amber : _textFaint,
-                      ),
+                    child: ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: _summaryController,
+                      builder: (context, value, _) {
+                        final len = value.text.length;
+                        return Text(
+                          '$len / 500',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: len >= 500 ? _amber : _textFaint,
+                          ),
+                        );
+                      },
                     ),
                   ),
                   const SizedBox(height: 14),
