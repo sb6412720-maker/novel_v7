@@ -431,7 +431,16 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     String? forceStatus,
     bool silent = false,
   }) async {
-    if (_saving) return;
+    // Explicit user save always wins over silent autosave
+    if (_saving && silent) return;
+    if (_saving && !silent) {
+      // Wait briefly for silent save to finish, then proceed
+      for (var i = 0; i < 20 && _saving; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+    }
+    if (_saving && silent) return;
+
     final title = _titleController.text.trim();
     final summary = _summaryController.text.trim();
     final author = _authorController.text.trim();
@@ -440,7 +449,9 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     // Accidental back / draft: allow empty title → Untitled Story
     final safeTitle = title.isEmpty ? 'Untitled Story' : title;
 
-    if (!silent) {
+    _draftDebounce?.cancel();
+
+    if (!silent && mounted) {
       setState(() => _saving = true);
     } else {
       _saving = true; // lock without rebuild/spinner
@@ -472,18 +483,24 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       if (!mounted) return;
 
       if (storyId <= 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not save draft — try again')),
-        );
+        if (!silent) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not save — try again')),
+          );
+        }
         return;
       }
       _savedStoryId = storyId;
+      _dirty = false;
+
+      // Clear spinner BEFORE navigation so UI never looks stuck
+      _saving = false;
+      if (mounted && !silent) setState(() {});
 
       if (asDraft) {
-        _dirty = false;
         if (!popAfter && !silent) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Draft saved (all fields)')),
+            const SnackBar(content: Text('Draft saved')),
           );
         }
         if (popAfter && mounted) {
@@ -492,13 +509,12 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         return;
       }
 
-      // Save details (keep Draft) → open chapter editor to write chapters.
-      // Publish from chapter editor moves story to Submitted / Ongoing.
+      // Main Save → always open chapter editor for chapter 1
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Story details saved — add your first chapter')),
+        const SnackBar(content: Text('Story saved — add your first chapter')),
       );
-      final chapterRoute = await Navigator.of(context).push<Object?>(
+      await Navigator.of(context).push<Object?>(
         MaterialPageRoute<Object?>(
           builder: (_) => EditChapterScreen(
             apiService: widget.apiService,
@@ -509,15 +525,21 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
           ),
         ),
       );
-      // If publish already popUntil(root), this route may be gone — only pop if still mounted & can pop
+      // After chapter editor closes, leave create-story too
       if (mounted && Navigator.of(context).canPop()) {
         Navigator.of(context).pop(true);
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Save failed: $e')),
-      );
+      final msg = e.toString().toLowerCase();
+      final text = (msg.contains('timeout') || msg.contains('timed out'))
+          ? 'Server is slow — try Save again'
+          : (msg.contains('401') || msg.contains('unauthorized'))
+              ? 'Please sign in again to save'
+              : 'Save failed: $e';
+      if (!silent) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+      }
     } finally {
       _saving = false;
       if (mounted && !silent) setState(() {});
@@ -1219,7 +1241,9 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                   Expanded(
                     flex: 2,
                     child: ElevatedButton(
-                      onPressed: _saving ? null : () => _save(asDraft: false, forceStatus: 'Draft'), // Save details → chapter editor
+                      onPressed: _saving
+                          ? null
+                          : () => _save(asDraft: false, forceStatus: 'Draft'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _magenta,
                         disabledBackgroundColor: _magenta.withValues(alpha: 0.4),
@@ -1228,7 +1252,16 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                         elevation: 0,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      child: const Text('Save', style: TextStyle(fontWeight: FontWeight.w600)),
+                      child: _saving
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text('Save', style: TextStyle(fontWeight: FontWeight.w600)),
                     ),
                   ),
                 ],

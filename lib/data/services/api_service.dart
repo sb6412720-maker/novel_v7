@@ -1346,16 +1346,19 @@ Future<List<Map<String, dynamic>>> fetchNotifications({String? tab}) async {
     }
   }
 
-Future<int> createWriterStory(Map<String, dynamic> payload) async {
+  Future<int> createWriterStory(Map<String, dynamic> payload) async {
     final response = await _post(
       '/api/write/stories',
       payload,
-      timeout: const Duration(seconds: 60),
+      timeout: const Duration(seconds: 30),
     );
     _ensureSuccessResponse(response);
     try {
       final body = jsonDecode(response.body) as Map<String, dynamic>;
-      return (body['id'] as num?)?.toInt() ?? 0;
+      final id = (body['id'] as num?)?.toInt() ??
+          (body['story_id'] as num?)?.toInt() ??
+          0;
+      return id;
     } catch (_) {
       return 0;
     }
@@ -1365,7 +1368,7 @@ Future<int> createWriterStory(Map<String, dynamic> payload) async {
     final response = await _put(
       '/api/write/stories/$id',
       payload,
-      timeout: const Duration(seconds: 60),
+      timeout: const Duration(seconds: 30),
     );
     _ensureSuccessResponse(response);
   }

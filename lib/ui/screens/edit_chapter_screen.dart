@@ -71,17 +71,21 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
   Future<void> _loadChapter() async {
     setState(() => _isLoading = true);
     try {
-      // New chapter: pick next chapter number, leave editors blank.
+      // New chapter: open editor immediately (no network wait).
       if (widget.createNew) {
-        final chapters =
-            await widget.apiService.fetchStoryChapters(widget.storyId);
-        int next = 1;
-        for (final c in chapters) {
-          final n = (c['chapter_number'] as num?)?.toInt() ?? 0;
-          if (n >= next) next = n + 1;
+        int next = widget.chapterNumber ?? 1;
+        try {
+          final chapters =
+              await widget.apiService.fetchStoryChapters(widget.storyId);
+          for (final c in chapters) {
+            final n = (c['chapter_number'] as num?)?.toInt() ?? 0;
+            if (n >= next) next = n + 1;
+          }
+        } catch (_) {
+          // Keep default chapter number if listing fails
         }
         _chapterId = null;
-        _chapterNumber = widget.chapterNumber ?? next;
+        _chapterNumber = next;
         _titleController.text = widget.chapterTitle.isNotEmpty
             ? widget.chapterTitle
             : 'Chapter $_chapterNumber';
