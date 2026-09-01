@@ -18,6 +18,14 @@ class ApiService {
   static AppBootstrap? _cachedBootstrap;
   static const _diskBootstrapKey = 'novelhub_bootstrap_json_v1';
 
+  static List<Map<String, dynamic>>? _tagsMemoryCache;
+  static DateTime? _tagsMemoryCacheAt;
+  static const _tagsMemoryTtl = Duration(minutes: 10);
+
+  static String? _versionMemoryCache;
+  static DateTime? _versionMemoryCacheAt;
+  static const _versionMemoryTtl = Duration(seconds: 20);
+
   Future<AppBootstrap?> loadDiskBootstrap() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -248,6 +256,12 @@ class ApiService {
   }
 
   Future<String> fetchContentVersion() async {
+    final now = DateTime.now();
+    if (_versionMemoryCache != null &&
+        _versionMemoryCacheAt != null &&
+        now.difference(_versionMemoryCacheAt!) < _versionMemoryTtl) {
+      return _versionMemoryCache!;
+    }
     try {
       final response = await _get(
         '/api/content/version',
@@ -255,17 +269,20 @@ class ApiService {
       );
       if (response.statusCode == 200) {
         final payload = jsonDecode(response.body) as Map<String, dynamic>;
-        return payload['value']?.toString() ?? '';
+        final v = payload['value']?.toString() ?? '';
+        _versionMemoryCache = v;
+        _versionMemoryCacheAt = now;
+        return v;
       }
     } catch (_) {}
-    return '';
+    return _versionMemoryCache ?? '';
   }
 
   Future<Map<String, dynamic>> fetchMe() async {
     try {
       final response = await _get(
         '/api/me',
-        timeout: const Duration(seconds: 90),
+        timeout: const Duration(seconds: 20),
       );
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>;
@@ -1187,16 +1204,38 @@ Future<List<Map<String, dynamic>>> fetchNotifications({String? tab}) async {
 
   /// List admin-managed hashtags (optional search query).
   Future<List<Map<String, dynamic>>> fetchTags({String? query}) async {
+    final q = query?.trim() ?? '';
+    final now = DateTime.now();
+    // Memory cache for full tag list (create story / search chips)
+    if (q.isEmpty &&
+        _tagsMemoryCache != null &&
+        _tagsMemoryCacheAt != null &&
+        now.difference(_tagsMemoryCacheAt!) < _tagsMemoryTtl) {
+      return List<Map<String, dynamic>>.from(_tagsMemoryCache!);
+    }
     try {
-      final path = (query == null || query.trim().isEmpty)
+      final path = q.isEmpty
           ? '/api/tags'
-          : '/api/tags?q=${Uri.encodeQueryComponent(query.trim())}';
-      final response = await _get(path, timeout: const Duration(seconds: 30));
-      if (response.statusCode != 200) return const <Map<String, dynamic>>[];
+          : '/api/tags?q=${Uri.encodeQueryComponent(q)}';
+      final response = await _get(path, timeout: const Duration(seconds: 12));
+      if (response.statusCode != 200) {
+        return q.isEmpty && _tagsMemoryCache != null
+            ? List<Map<String, dynamic>>.from(_tagsMemoryCache!)
+            : const <Map<String, dynamic>>[];
+      }
       final payload = jsonDecode(response.body) as Map<String, dynamic>;
-      return List<Map<String, dynamic>>.from(payload['items'] as List<dynamic>);
+      final items = List<Map<String, dynamic>>.from(
+        payload['items'] as List<dynamic>,
+      );
+      if (q.isEmpty) {
+        _tagsMemoryCache = items;
+        _tagsMemoryCacheAt = now;
+      }
+      return items;
     } catch (_) {
-      return const <Map<String, dynamic>>[];
+      return q.isEmpty && _tagsMemoryCache != null
+          ? List<Map<String, dynamic>>.from(_tagsMemoryCache!)
+          : const <Map<String, dynamic>>[];
     }
   }
 

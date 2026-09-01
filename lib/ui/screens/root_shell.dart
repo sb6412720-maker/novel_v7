@@ -45,8 +45,9 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _bootstrapApp();
+    // Poll less often - fewer Vercel cold invocations; still refreshes on resume
     _syncTimer = Timer.periodic(
-      const Duration(seconds: 60),
+      const Duration(seconds: 180),
       (_) => _pollContentVersion(),
     );
   }
@@ -102,11 +103,20 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
         });
       }
     }
-    // Keep spinner until network bootstrap finishes (no half-loaded UI).
+    // Disk cache first for instant UI, then network refresh (same features).
     if (mounted) setState(() => _loading = true);
-    // Warm disk cache in background only — do not show UI yet
-    unawaited(_apiService.loadDiskBootstrap());
-    await _loadBootstrap(showLoading: true);
+    try {
+      final disk = await _apiService.loadDiskBootstrap();
+      if (disk != null &&
+          mounted &&
+          (disk.discoverBooks.isNotEmpty || disk.recentlyUpdated.isNotEmpty)) {
+        setState(() {
+          _bootstrap = disk;
+          _loading = false;
+        });
+      }
+    } catch (_) {}
+    await _loadBootstrap(showLoading: _bootstrap == null);
   }
 
   Future<void> _loadBootstrap({bool showLoading = true}) async {

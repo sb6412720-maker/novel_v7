@@ -1350,7 +1350,15 @@ def health():
 
 @app.get("/api/content/version", response_model=VersionResponse)
 def get_content_version():
-    return _content_version_row()
+    global _VERSION_CACHE, _VERSION_CACHE_AT
+    import time as _time
+    now = _time.time()
+    if _VERSION_CACHE is not None and (now - _VERSION_CACHE_AT) < _VERSION_CACHE_TTL:
+        return _VERSION_CACHE
+    row = _content_version_row()
+    _VERSION_CACHE = row if isinstance(row, dict) else {"value": str(row)}
+    _VERSION_CACHE_AT = now
+    return _VERSION_CACHE
 
 
 @app.post("/api/admin/login")
@@ -2251,7 +2259,16 @@ async def upload_support_attachment(file: UploadFile = File(...)):
 
 _BOOTSTRAP_CACHE: dict[str, Any] | None = None
 _BOOTSTRAP_CACHE_AT: float = 0.0
-_BOOTSTRAP_CACHE_TTL = 600.0  # seconds — warm instances stay fast longer
+_BOOTSTRAP_CACHE_TTL = 600.0  # seconds - warm instances stay fast longer
+
+# Ultra-light caches (per warm Vercel instance) - cuts DB hits on hot paths
+_VERSION_CACHE: dict[str, Any] | None = None
+_VERSION_CACHE_AT: float = 0.0
+_VERSION_CACHE_TTL = 15.0
+
+_TAGS_CACHE: dict[str, Any] | None = None
+_TAGS_CACHE_AT: float = 0.0
+_TAGS_CACHE_TTL = 120.0
 
 
 
@@ -4469,6 +4486,13 @@ def get_public_book(book_id: int):
 
 @app.get("/api/tags")
 def list_tags(q: str | None = None):
+    global _TAGS_CACHE, _TAGS_CACHE_AT
+    import time as _time
+    if not q:
+        now = _time.time()
+        if _TAGS_CACHE is not None and (now - _TAGS_CACHE_AT) < _TAGS_CACHE_TTL:
+            return _TAGS_CACHE
+
     # Self-heal: if tags table empty, seed defaults (admin hashtags)
     try:
         cnt_rows = fetch_all("SELECT COUNT(*) AS c FROM tags")
@@ -4511,7 +4535,7 @@ def list_tags(q: str | None = None):
             ORDER BY book_count DESC, t.name LIMIT 100
             """
         )
-    return {
+    payload = {
         "items": [
             {
                 "id": row["id"],
@@ -4521,6 +4545,10 @@ def list_tags(q: str | None = None):
             for row in rows
         ]
     }
+    if not q:
+        _TAGS_CACHE = payload
+        _TAGS_CACHE_AT = _time.time()
+    return payload
 
 
 
