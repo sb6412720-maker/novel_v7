@@ -1430,11 +1430,36 @@ Future<List<Map<String, dynamic>>> fetchNotifications({String? tab}) async {
     }
   }
 
+  /// After a client timeout, recover the id if the server actually created the story.
+  Future<int> findWriterStoryIdByTitle(String title) async {
+    final want = title.trim().toLowerCase();
+    if (want.isEmpty) return 0;
+    try {
+      final list = await fetchWriterStories();
+      for (final s in list) {
+        final t = (s['title'] ?? '').toString().trim().toLowerCase();
+        if (t == want) {
+          return (s['id'] as num?)?.toInt() ?? 0;
+        }
+      }
+      // Fallback: match Untitled Story newest first (list is usually newest-first)
+      if (want == 'untitled story') {
+        for (final s in list) {
+          final t = (s['title'] ?? '').toString().trim().toLowerCase();
+          if (t == want) {
+            return (s['id'] as num?)?.toInt() ?? 0;
+          }
+        }
+      }
+    } catch (_) {}
+    return 0;
+  }
+
   Future<int> createWriterStory(Map<String, dynamic> payload) async {
     final response = await _post(
       '/api/write/stories',
       payload,
-      timeout: const Duration(seconds: 45),
+      timeout: const Duration(seconds: 90),
     );
     _ensureSuccessResponse(response);
     try {
@@ -1452,7 +1477,7 @@ Future<List<Map<String, dynamic>>> fetchNotifications({String? tab}) async {
     final response = await _put(
       '/api/write/stories/$id',
       payload,
-      timeout: const Duration(seconds: 30),
+      timeout: const Duration(seconds: 90),
     );
     _ensureSuccessResponse(response);
   }

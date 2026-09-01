@@ -261,312 +261,55 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Cover upload failed: $e')),
-      );
-    }
-  }
+      final msg = e.toString().toLowerCase();
+      final isSlow = msg.contains('timeout') ||
+          msg.contains('timed out') ||
+          msg.contains('socket');
 
-  Future<void> _addCustomGenre() async {
-    var name = _customGenreController.text.trim();
-    if (name.isEmpty) return;
-    try {
-      name = await widget.apiService.createGenre(name);
-    } catch (_) {}
-    if (!mounted) return;
-    final exists = _genres.any((g) => g.toLowerCase() == name.toLowerCase());
-    setState(() {
-      if (!exists) {
-        _genres = [..._genres, name]..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      // Last chance recovery after exception
+      var existingId = _savedStoryId ?? 0;
+      if (existingId <= 0 && isSlow) {
+        try {
+          existingId = await widget.apiService.findWriterStoryIdByTitle(safeTitle);
+          if (existingId > 0) _savedStoryId = existingId;
+        } catch (_) {}
       }
-      _selectedGenre = _genres.firstWhere(
-        (g) => g.toLowerCase() == name.toLowerCase(),
-        orElse: () => name,
-      );
-      _showCustomGenre = false;
-      _customGenreController.clear();
-    });
-  }
 
-
-  List<String> _tagSuggestions(String query) {
-    final q = query.trim().toLowerCase().replaceFirst('#', '');
-    final selected = _selectedTags.map((t) => t.toLowerCase()).toSet();
-    Iterable<String> pool = _availableTags.where((t) => !selected.contains(t.toLowerCase()));
-    if (q.isNotEmpty) {
-      pool = pool.where((t) => t.toLowerCase().contains(q));
-    }
-    return pool.take(12).toList();
-  }
-
-  void _addTag(String raw) {
-    var name = raw.trim();
-    if (name.startsWith('#')) name = name.substring(1);
-    if (name.isEmpty) return;
-    // Authors cannot invent hashtags — must pick an admin-created tag.
-    String? match;
-    for (final t in _availableTags) {
-      if (t.toLowerCase() == name.toLowerCase()) {
-        match = t;
-        break;
-      }
-    }
-    if (match == null || match.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Only admin hashtags can be used. Type to see suggestions, then pick one.',
+      if (existingId > 0 && !asDraft && !popAfter) {
+        _saving = false;
+        if (mounted) setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Story saved — opening chapter editor')),
+        );
+        await Navigator.of(context).push<Object?>(
+          MaterialPageRoute<Object?>(
+            builder: (_) => EditChapterScreen(
+              apiService: widget.apiService,
+              storyId: existingId,
+              createNew: true,
+              chapterNumber: 1,
+              chapterTitle: 'Chapter 1',
+            ),
           ),
-        ),
-      );
-      return;
-    }
-    final tagName = match; // promote to non-null String for analyzer
-    if (_selectedTags.any((t) => t.toLowerCase() == tagName.toLowerCase())) {
-      return;
-    }
-    if (_selectedTags.length >= 3) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Maximum 3 hashtags per story')),
-      );
-      return;
-    }
-    setState(() {
-      _selectedTags.add(tagName);
-      _tagInputController.clear();
-    });
-  }
-
-  void _removeTag(String name) => setState(() => _selectedTags.remove(name));
-
-  String _buildWarningsString() {
-    final parts = <String>[];
-    for (final w in _selectedWarnings) {
-      if (w == 'Other') {
-        final other = _otherWarningController.text.trim();
-        parts.add(other.isNotEmpty ? other : 'Other');
-      } else {
-        parts.add(w);
-      }
-    }
-    return parts.join(', ');
-  }
-
-  
-  Future<void> _hydrateFromServer() async {
-    final id = (widget.story?['id'] as num?)?.toInt();
-    if (id == null || id <= 0) return;
-    try {
-      // Prefer dedicated writer endpoint when available
-      Map<String, dynamic>? data;
-      try {
-        data = await widget.apiService.fetchWriterStory(id);
-      } catch (_) {
-        data = null;
-      }
-      if (data == null) return;
-      if (!mounted) return;
-      setState(() {
-        if ((data!['title'] ?? '').toString().isNotEmpty) {
-          _titleController.text = data['title'].toString();
-        }
-        if (data['description'] != null) {
-          _summaryController.text = data['description'].toString();
-        }
-        final genre = (data['genre'] ?? data['primary_genre'] ?? '').toString();
-        if (genre.isNotEmpty) _selectedGenre = genre;
-        final aud = (data['audience'] ?? '').toString();
-        if (aud.isNotEmpty) _audience = aud;
-        final lang = (data['language'] ?? '').toString();
-        if (lang.isNotEmpty) _language = lang;
-        final cover = (data['cover_path'] ?? '').toString();
-        if (cover.isNotEmpty) _coverPath = cover;
-        final rawTags = data['tags'];
-        List<String> tags = <String>[];
-        if (rawTags is List) {
-          for (final e in rawTags) {
-            if (e is Map) {
-              final n = (e['name'] ?? e['tag'] ?? e['title'] ?? '').toString().replaceFirst('#', '').trim();
-              if (n.isNotEmpty) tags.add(n);
-            } else {
-              final n = e.toString().replaceFirst('#', '').trim();
-              if (n.isNotEmpty) tags.add(n);
-            }
-          }
-        } else if (rawTags != null && '$rawTags'.trim().isNotEmpty) {
-          tags = '$rawTags'
-              .split(RegExp(r'[,;]'))
-              .map((e) => e.replaceFirst('#', '').trim())
-              .where((t) => t.isNotEmpty)
-              .toList();
-        }
-        // Always refresh tags from server when present (including empty = clear stale)
-        if (rawTags != null) {
-          _selectedTags
-            ..clear()
-            ..addAll(tags.take(3));
-        }
-        // Normalize audience labels from older values
-        final aud2 = (data['audience'] ?? '').toString().trim();
-        if (aud2.isNotEmpty) {
-          if (aud2.toLowerCase().contains('13') || aud2.toLowerCase().contains('teen')) {
-            _audience = 'Teen (13+)';
-          } else if (aud2.toLowerCase().contains('18') || aud2.toLowerCase().contains('mature')) {
-            _audience = 'Mature (18+)';
-          } else if (aud2.toLowerCase().contains('all')) {
-            _audience = 'All Ages';
-          } else {
-            _audience = aud2;
-          }
-        }
-        final warnings = (data['content_warnings'] ?? '').toString();
-        if (warnings.isNotEmpty) {
-          // best-effort: keep existing warning chips logic if any
-        }
-      });
-    } catch (_) {}
-  }
-
-
-  void _scheduleDraftSave() {
-    // Only mark form dirty. Do NOT auto-call API while user is filling
-    // language / audience / tags — that caused infinite buffering on slow network.
-    _dirty = true;
-    _draftDebounce?.cancel();
-  }
-
-  Future<void> _save({
-    required bool asDraft,
-    bool popAfter = false,
-    String? forceStatus,
-    bool silent = false,
-  }) async {
-    // Explicit user save always wins over silent autosave
-    if (_saving && silent) return;
-    if (_saving && !silent) {
-      // Wait briefly for silent save to finish, then proceed
-      for (var i = 0; i < 20 && _saving; i++) {
-        await Future<void>.delayed(const Duration(milliseconds: 100));
-      }
-    }
-    if (_saving && silent) return;
-
-    final title = _titleController.text.trim();
-    final summary = _summaryController.text.trim();
-    final author = _authorController.text.trim();
-    final genre = (_selectedGenre ?? '').trim();
-
-    // Accidental back / draft: allow empty title → Untitled Story
-    final safeTitle = title.isEmpty ? 'Untitled Story' : title;
-
-    _draftDebounce?.cancel();
-
-    // Only user-triggered Save/Save Draft/Back should show spinner / lock buttons.
-    // Silent path must never set _saving (form stays interactive).
-    if (silent) {
-      // no-op lock — silent autosave disabled at schedule; keep safe if called
-      return;
-    }
-    if (mounted) {
-      setState(() => _saving = true);
-    } else {
-      _saving = true;
-    }
-    try {
-      final warnings = _buildWarningsString();
-      final payload = <String, dynamic>{
-        'title': safeTitle,
-        'description': summary,
-        'author': author.isEmpty ? 'Author' : author,
-        'genre': genre.isEmpty ? 'Romance' : genre,
-        'content_warnings': warnings,
-        'tags': List<String>.from(_selectedTags.take(3)),
-        'status_text': forceStatus ?? (asDraft ? 'Draft' : 'Ongoing'),
-        'language': _language,
-        'audience': ((_audience ?? '').trim().isEmpty ? 'All Ages' : _audience!.trim()),
-        'cover_path': _coverPath,
-      };
-
-      int storyId = _savedStoryId ??
-          (_isEditing ? ((widget.story!['id'] as num?)?.toInt() ?? 0) : 0);
-
-      Future<int> persist() async {
-        if (storyId > 0) {
-          await widget.apiService.updateWriterStory(storyId, payload);
-          return storyId;
-        }
-        final id = await widget.apiService.createWriterStory(payload);
-        if (id > 0) _savedStoryId = id;
-        return id;
-      }
-
-      try {
-        storyId = await persist();
-      } catch (firstErr) {
-        // One retry for Vercel cold start / timeout
-        final msg = firstErr.toString().toLowerCase();
-        if (msg.contains('timeout') || msg.contains('timed out') || msg.contains('socket')) {
-          await Future<void>.delayed(const Duration(milliseconds: 800));
-          storyId = await persist();
-        } else {
-          rethrow;
-        }
-      }
-
-      if (!mounted) return;
-
-      if (storyId <= 0) {
-        if (!silent) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Could not save — try again')),
-          );
-        }
-        return;
-      }
-      _savedStoryId = storyId;
-      _dirty = false;
-
-      // Clear spinner BEFORE navigation so UI never looks stuck
-      _saving = false;
-      if (mounted && !silent) setState(() {});
-
-      if (asDraft) {
-        if (!popAfter && !silent) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Draft saved')),
-          );
-        }
-        if (popAfter && mounted) {
+        );
+        if (mounted && Navigator.of(context).canPop()) {
           Navigator.of(context).pop(true);
         }
         return;
       }
 
-      // Main Save → always open chapter editor for chapter 1
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Story saved — add your first chapter')),
-      );
-      await Navigator.of(context).push<Object?>(
-        MaterialPageRoute<Object?>(
-          builder: (_) => EditChapterScreen(
-            apiService: widget.apiService,
-            storyId: storyId,
-            createNew: true,
-            chapterNumber: 1,
-            chapterTitle: 'Chapter 1',
-          ),
-        ),
-      );
-      // After chapter editor closes, leave create-story too
-      if (mounted && Navigator.of(context).canPop()) {
-        Navigator.of(context).pop(true);
+      if (existingId > 0 && asDraft) {
+        if (!silent) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Draft saved')),
+          );
+        }
+        if (popAfter && mounted) Navigator.of(context).pop(true);
+        return;
       }
-    } catch (e) {
-      if (!mounted) return;
-      final msg = e.toString().toLowerCase();
-      final text = (msg.contains('timeout') || msg.contains('timed out'))
-          ? 'Server is slow — try Save again'
+
+      final text = isSlow
+          ? 'Still saving on server. Wait 10 seconds, then open Drafts — or tap Save once more.'
           : (msg.contains('401') || msg.contains('unauthorized'))
               ? 'Please sign in again to save'
               : 'Save failed: $e';
