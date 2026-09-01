@@ -2808,7 +2808,41 @@ class _HomeRecommendedRail extends StatefulWidget {
 }
 
 class _HomeRecommendedRailState extends State<_HomeRecommendedRail> {
-  int _selected = 0;
+  late final PageController _pageController;
+  int _activeIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(viewportFraction: 0.42, initialPage: 0);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _openBook(BookCardModel book) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => StoryDetailScreen(
+          apiService: widget.apiService,
+          book: BookDetailModel(
+            id: book.id,
+            title: book.title,
+            author: book.author,
+            description: book.description,
+            statusText: book.statusText,
+            rating: book.rating,
+            genre: book.primaryGenre,
+            cta: book.cta.isNotEmpty ? book.cta : 'Read Now',
+            coverPath: book.coverPath,
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2821,158 +2855,65 @@ class _HomeRecommendedRailState extends State<_HomeRecommendedRail> {
         child: Center(child: Text('No recommendations yet')),
       );
     }
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return SizedBox(
-      height: 300,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.only(right: 8, top: 6, bottom: 6),
-        itemCount: valid.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
-        itemBuilder: (context, index) {
-          final b = valid[index];
-          final selected = index == _selected;
-          final coverUrl = b.coverPath.isEmpty
-              ? null
-              : widget.apiService.resolveAssetUrl(b.coverPath);
-          final summary = b.description.trim().isNotEmpty
-              ? b.description.trim()
-              : (b.primaryGenre.isNotEmpty
-                  ? '${b.primaryGenre} · Tap to read'
-                  : 'Tap to open this story');
-          return AnimatedScale(
-            scale: selected ? 1.06 : 0.94,
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOutCubic,
-            child: AnimatedOpacity(
-              opacity: selected ? 1 : 0.82,
-              duration: const Duration(milliseconds: 220),
-              child: GestureDetector(
-                onTap: () {
-                  setState(() => _selected = index);
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => StoryDetailScreen(
+    final book = valid[_activeIndex.clamp(0, valid.length - 1)];
+
+    // Cover-only scale-up (like other section sliders).
+    // Title, summary, genres, CTA live in _ActiveStoryDetail below — not on the card.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 210,
+          child: PageView.builder(
+            controller: _pageController,
+            itemCount: valid.length,
+            onPageChanged: (i) => setState(() => _activeIndex = i),
+            itemBuilder: (context, index) {
+              final item = valid[index];
+              final isActive = index == _activeIndex;
+              return AnimatedScale(
+                scale: isActive ? 1.0 : 0.88,
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                child: AnimatedOpacity(
+                  opacity: isActive ? 1 : 0.75,
+                  duration: const Duration(milliseconds: 220),
+                  child: GestureDetector(
+                    onTap: () {
+                      if (!isActive) {
+                        _pageController.animateToPage(
+                          index,
+                          duration: const Duration(milliseconds: 280),
+                          curve: Curves.easeOutCubic,
+                        );
+                      } else {
+                        _openBook(item);
+                      }
+                    },
+                    child: Center(
+                      child: _StoryCard(
+                        book: item,
+                        // width <= 140 → compact cover-only
+                        width: isActive ? 138 : 120,
                         apiService: widget.apiService,
-                        book: BookDetailModel(
-                          id: b.id,
-                          title: b.title,
-                          author: b.author,
-                          description: b.description,
-                          statusText: b.statusText,
-                          rating: b.rating,
-                          genre: b.primaryGenre,
-                          cta: 'Read Now',
-                          coverPath: b.coverPath,
-                        ),
                       ),
                     ),
-                  );
-                },
-                child: Container(
-                  width: 148,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(18),
-                    color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-                    border: Border.all(
-                      color: selected
-                          ? const Color(0xFF6C3CE1).withValues(alpha: 0.55)
-                          : (isDark
-                              ? const Color(0xFF2C2C2C)
-                              : const Color(0xFFEDE9FE)),
-                      width: selected ? 1.5 : 1,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF6C3CE1)
-                            .withValues(alpha: selected ? 0.18 : 0.06),
-                        blurRadius: selected ? 18 : 10,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      ClipRRect(
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(18),
-                        ),
-                        child: AspectRatio(
-                          aspectRatio: 0.78,
-                          child: coverUrl == null
-                              ? Container(
-                                  color: const Color(0xFFF3F0FF),
-                                  child: const Icon(
-                                    Icons.menu_book_rounded,
-                                    color: Color(0xFF6C3CE1),
-                                  ),
-                                )
-                              : Image.network(
-                                  coverUrl,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => Container(
-                                    color: const Color(0xFFF3F0FF),
-                                    child: const Icon(Icons.menu_book_rounded),
-                                  ),
-                                ),
-                        ),
-                      ),
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                b.title,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 12.5,
-                                  height: 1.2,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'by ${b.author}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 10.5,
-                                  color: Colors.grey.shade600,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Expanded(
-                                child: Text(
-                                  summary,
-                                  maxLines: 3,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 10.5,
-                                    height: 1.25,
-                                    color: Colors.grey.shade700,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
                   ),
                 ),
-              ),
-            ),
-          );
-        },
-      ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 12),
+        _ActiveStoryDetail(
+          book: book,
+          apiService: widget.apiService,
+          onRead: () => _openBook(book),
+        ),
+      ],
     );
   }
 }
-
 
 class _HomeTopGenresRow extends StatelessWidget {
   const _HomeTopGenresRow({
