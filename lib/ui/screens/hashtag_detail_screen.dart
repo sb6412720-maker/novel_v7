@@ -145,6 +145,61 @@ class _HashtagDetailScreenState extends State<HashtagDetailScreen>
     );
   }
 
+
+  Future<void> _toggleFollow() async {
+    if (_followBusy) return;
+    setState(() => _followBusy = true);
+    try {
+      if (_following) {
+        final res = await widget.apiService.unfollowTag(_tagName);
+        if (!mounted) return;
+        setState(() {
+          _following = false;
+          _notify = false;
+          _followerCount =
+              (res['followers'] as num?)?.toInt() ?? _followerCount;
+        });
+      } else {
+        final res = await widget.apiService.followTag(_tagName);
+        if (!mounted) return;
+        setState(() {
+          _following = true;
+          _followerCount =
+              (res['followers'] as num?)?.toInt() ?? _followerCount;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not update follow: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _followBusy = false);
+    }
+  }
+
+  Future<void> _toggleNotify() async {
+    if (_followBusy) return;
+    setState(() => _followBusy = true);
+    try {
+      final next = !_notify;
+      final res =
+          await widget.apiService.setTagNotify(_tagName, notify: next);
+      if (!mounted) return;
+      setState(() {
+        _notify = (res['notify'] as bool?) ?? next;
+        _following = true;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not update notifications: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _followBusy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
