@@ -46,7 +46,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _bootstrapApp();
     _syncTimer = Timer.periodic(
-      const Duration(seconds: 12),
+      const Duration(seconds: 60),
       (_) => _pollContentVersion(),
     );
   }
@@ -60,9 +60,9 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Resume: only soft version check — avoid full bootstrap flash/buffer loop
     if (state == AppLifecycleState.resumed) {
       unawaited(_pollContentVersion());
-      unawaited(_loadBootstrap(showLoading: false));
     }
   }
 
@@ -111,7 +111,8 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
 
   Future<void> _loadBootstrap({bool showLoading = true}) async {
     final isFirst = _bootstrap == null;
-    if (mounted && showLoading && isFirst) {
+    // Only full-screen spinner on the very first load — never while data exists
+    if (mounted && showLoading && isFirst && _bootstrap == null) {
       setState(() => _loading = true);
     }
     try {

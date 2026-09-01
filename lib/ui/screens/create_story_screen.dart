@@ -481,16 +481,25 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         return;
       }
 
-      // Done → Submitted as Ongoing on Manage Stories
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('write_open_submitted', true);
-      } catch (_) {}
+      // Save details (keep Draft) → open chapter editor to write chapters.
+      // Publish from chapter editor moves story to Submitted / Ongoing.
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Saved as Ongoing — under Submitted')),
+        const SnackBar(content: Text('Story details saved — add your first chapter')),
       );
-      Navigator.of(context).popUntil((r) => r.isFirst);
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => EditChapterScreen(
+            apiService: widget.apiService,
+            storyId: storyId,
+            createNew: true,
+            chapterNumber: 1,
+            chapterTitle: 'Chapter 1',
+          ),
+        ),
+      );
+      // After chapter editor closes, return to Manage Stories
+      if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1196,7 +1205,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                   Expanded(
                     flex: 2,
                     child: ElevatedButton(
-                      onPressed: _saving ? null : () => _save(asDraft: false, forceStatus: 'Ongoing'), // Done → Submitted / Ongoing
+                      onPressed: _saving ? null : () => _save(asDraft: false, forceStatus: 'Draft'), // Save details → chapter editor
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _magenta,
                         disabledBackgroundColor: _magenta.withValues(alpha: 0.4),
@@ -1205,7 +1214,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                         elevation: 0,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      child: const Text('Done', style: TextStyle(fontWeight: FontWeight.w600)),
+                      child: const Text('Save', style: TextStyle(fontWeight: FontWeight.w600)),
                     ),
                   ),
                 ],

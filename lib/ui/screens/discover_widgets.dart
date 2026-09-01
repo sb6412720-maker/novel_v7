@@ -2634,16 +2634,24 @@ class _HomeFeaturedBanner extends StatelessWidget {
     final coverUrl = cover.isEmpty ? null : apiService.resolveAssetUrl(cover);
 
     return Container(
-      constraints: const BoxConstraints(minHeight: 168),
+      constraints: const BoxConstraints(minHeight: 176),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(22),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: isDark
-              ? const [Color(0xFF3B2A6B), Color(0xFF1A1228)]
-              : const [Color(0xFF6C3CE1), Color(0xFF9B6DFF)],
+              ? const [Color(0xFF2A1F4D), Color(0xFF15101F)]
+              : const [Color(0xFF5B2FD6), Color(0xFF8B5CF6), Color(0xFFC4B5FD)],
+          stops: isDark ? null : const [0.0, 0.55, 1.0],
         ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF6C3CE1).withValues(alpha: 0.22),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       clipBehavior: Clip.antiAlias,
       child: Stack(
@@ -2786,7 +2794,7 @@ class _HomeFeaturedBanner extends StatelessWidget {
   }
 }
 
-class _HomeRecommendedRail extends StatelessWidget {
+class _HomeRecommendedRail extends StatefulWidget {
   const _HomeRecommendedRail({
     required this.books,
     required this.apiService,
@@ -2796,8 +2804,17 @@ class _HomeRecommendedRail extends StatelessWidget {
   final ApiService apiService;
 
   @override
+  State<_HomeRecommendedRail> createState() => _HomeRecommendedRailState();
+}
+
+class _HomeRecommendedRailState extends State<_HomeRecommendedRail> {
+  int _selected = 0;
+
+  @override
   Widget build(BuildContext context) {
-    final valid = books.where((b) => b.id > 0 && b.title.trim().isNotEmpty).toList();
+    final valid = widget.books
+        .where((b) => b.id > 0 && b.title.trim().isNotEmpty)
+        .toList();
     if (valid.isEmpty) {
       return const SizedBox(
         height: 40,
@@ -2806,126 +2823,147 @@ class _HomeRecommendedRail extends StatelessWidget {
     }
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return SizedBox(
-      height: 320,
+      height: 300,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.only(right: 4),
+        padding: const EdgeInsets.only(right: 8, top: 6, bottom: 6),
         itemCount: valid.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
         itemBuilder: (context, index) {
           final b = valid[index];
-          final coverUrl =
-              b.coverPath.isEmpty ? null : apiService.resolveAssetUrl(b.coverPath);
+          final selected = index == _selected;
+          final coverUrl = b.coverPath.isEmpty
+              ? null
+              : widget.apiService.resolveAssetUrl(b.coverPath);
           final summary = b.description.trim().isNotEmpty
               ? b.description.trim()
               : (b.primaryGenre.isNotEmpty
-                  ? '${b.primaryGenre} story'
-                  : 'Tap to read this story');
-          return GestureDetector(
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => StoryDetailScreen(
-                    apiService: apiService,
-                    book: BookDetailModel(
-                      id: b.id,
-                      title: b.title,
-                      author: b.author,
-                      description: b.description,
-                      statusText: b.statusText,
-                      rating: b.rating,
-                      genre: b.primaryGenre,
-                      cta: 'Read Now',
-                      coverPath: b.coverPath,
-                    ),
-                  ),
-                ),
-              );
-            },
-            child: Container(
-              width: 160,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-                border: Border.all(
-                  color: isDark ? const Color(0xFF2C2C2C) : const Color(0xFFEDE9FE),
-                ),
-                boxShadow: isDark
-                    ? const []
-                    : [
-                        BoxShadow(
-                          color: const Color(0xFF6C3CE1).withValues(alpha: 0.08),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
+                  ? '${b.primaryGenre} · Tap to read'
+                  : 'Tap to open this story');
+          return AnimatedScale(
+            scale: selected ? 1.06 : 0.94,
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            child: AnimatedOpacity(
+              opacity: selected ? 1 : 0.82,
+              duration: const Duration(milliseconds: 220),
+              child: GestureDetector(
+                onTap: () {
+                  setState(() => _selected = index);
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => StoryDetailScreen(
+                        apiService: widget.apiService,
+                        book: BookDetailModel(
+                          id: b.id,
+                          title: b.title,
+                          author: b.author,
+                          description: b.description,
+                          statusText: b.statusText,
+                          rating: b.rating,
+                          genre: b.primaryGenre,
+                          cta: 'Read Now',
+                          coverPath: b.coverPath,
                         ),
-                      ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ClipRRect(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                    child: AspectRatio(
-                      aspectRatio: 0.75,
-                      child: coverUrl == null
-                          ? Container(
-                              color: const Color(0xFFF3F0FF),
-                              child: const Icon(Icons.menu_book, color: Color(0xFF6C3CE1)),
-                            )
-                          : Image.network(
-                              coverUrl,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Container(
-                                color: const Color(0xFFF3F0FF),
-                                child: const Icon(Icons.menu_book),
-                              ),
-                            ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            b.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 13,
-                              height: 1.2,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'by ${b.author}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Expanded(
-                            child: Text(
-                              summary,
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 11,
-                                height: 1.25,
-                                color: Colors.grey.shade700,
-                              ),
-                            ),
-                          ),
-                        ],
                       ),
                     ),
+                  );
+                },
+                child: Container(
+                  width: 148,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(18),
+                    color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                    border: Border.all(
+                      color: selected
+                          ? const Color(0xFF6C3CE1).withValues(alpha: 0.55)
+                          : (isDark
+                              ? const Color(0xFF2C2C2C)
+                              : const Color(0xFFEDE9FE)),
+                      width: selected ? 1.5 : 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF6C3CE1)
+                            .withValues(alpha: selected ? 0.18 : 0.06),
+                        blurRadius: selected ? 18 : 10,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
                   ),
-                ],
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ClipRRect(
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(18),
+                        ),
+                        child: AspectRatio(
+                          aspectRatio: 0.78,
+                          child: coverUrl == null
+                              ? Container(
+                                  color: const Color(0xFFF3F0FF),
+                                  child: const Icon(
+                                    Icons.menu_book_rounded,
+                                    color: Color(0xFF6C3CE1),
+                                  ),
+                                )
+                              : Image.network(
+                                  coverUrl,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Container(
+                                    color: const Color(0xFFF3F0FF),
+                                    child: const Icon(Icons.menu_book_rounded),
+                                  ),
+                                ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                b.title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 12.5,
+                                  height: 1.2,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'by ${b.author}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Expanded(
+                                child: Text(
+                                  summary,
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    height: 1.25,
+                                    color: Colors.grey.shade700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           );

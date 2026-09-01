@@ -109,7 +109,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
               return SliverToBoxAdapter(
                 child: Container(
                   color: isDark ? const Color(0xFF121212) : Colors.white,
-                  padding: const EdgeInsets.fromLTRB(12, 8, 8, 0),
+                  padding: const EdgeInsets.fromLTRB(16, 10, 10, 4),
                   child: Row(
                     children: [
                       Text(
@@ -121,6 +121,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                           color: fg,
                         ),
                       ),
+                      const SizedBox(width: 14),
                       const Spacer(),
                       // Premium chip (UI only — matches mockup)
                       Container(
