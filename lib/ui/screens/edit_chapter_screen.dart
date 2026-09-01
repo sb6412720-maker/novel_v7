@@ -306,7 +306,7 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
       } else {
         // bold already: use underscores for italic inside
         final inner = wrapped.substring(2, wrapped.length - 2);
-        wrapped = '**_$inner_**';
+        wrapped = '**_${inner}_**';
       }
     }
     final newText = text.replaceRange(start, end, wrapped);

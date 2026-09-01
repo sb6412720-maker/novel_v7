@@ -13,6 +13,7 @@ import '../../data/services/api_service.dart';
 import 'explore_screen.dart';
 import 'profile_screen.dart';
 import 'story_detail_screen.dart';
+import 'hashtag_detail_screen.dart';
 import 'chapter_reader_screen.dart';
 import 'notifications_screen.dart';
 
@@ -156,20 +157,6 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                             MaterialPageRoute<void>(
                               builder: (_) =>
                                   SearchScreen(apiService: widget.apiService),
-                            ),
-                          );
-                        },
-                      ),
-                      IconButton(
-                        tooltip: 'Notifications',
-                        icon: Icon(Icons.notifications_none_rounded, size: 26, color: fg),
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => NotificationsScreen(
-                                apiService: widget.apiService,
-                                onOpenDiscover: () => Navigator.of(context).pop(),
-                              ),
                             ),
                           );
                         },

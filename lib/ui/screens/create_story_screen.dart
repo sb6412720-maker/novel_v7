@@ -653,17 +653,6 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                     ),
                   ),
                   const Spacer(),
-                  TextButton(
-                    onPressed: _saving ? null : () => _save(asDraft: true),
-                    child: const Text(
-                      'Save',
-                      style: TextStyle(
-                        color: _magenta,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),

@@ -551,9 +551,10 @@ class _ActiveStoryDetail extends StatelessWidget {
             ],
             _GenreTag(
               label: book.primaryGenre.isEmpty ? 'Novel' : book.primaryGenre,
+              apiService: apiService,
             ),
             if (book.secondaryGenre.isNotEmpty)
-              _GenreTag(label: book.secondaryGenre),
+              _GenreTag(label: book.secondaryGenre, apiService: apiService),
             ElevatedButton(
               onPressed: onRead,
               style: ElevatedButton.styleFrom(
@@ -579,29 +580,56 @@ class _ActiveStoryDetail extends StatelessWidget {
 }
 
 class _GenreTag extends StatelessWidget {
-  const _GenreTag({required this.label});
+  const _GenreTag({required this.label, this.apiService});
 
   final String label;
+  final ApiService? apiService;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: Theme.of(context).brightness == Brightness.dark
-              ? const Color(0xFF2C2C2C)
-              : const Color(0xFFE0E0E0),
+    final text = label.trim().isEmpty ? 'Novel' : label.trim();
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: apiService == null
+            ? null
+            : () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => HashtagDetailScreen(
+                      tag: text,
+                      apiService: apiService!,
+                    ),
+                  ),
+                );
+              },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF2C2C2C)
+                  : const Color(0xFFE0E0E0),
+            ),
+            borderRadius: BorderRadius.circular(20),
+            color: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF1A1A1A)
+                : const Color(0xFFF7F5FC),
+          ),
+          child: Text(
+            text.startsWith('#') ? text : '#$text',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.brand,
+                ),
+          ),
         ),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11),
       ),
     );
   }
 }
+
 
 class _StoryCard extends StatefulWidget {
   const _StoryCard({
@@ -2613,8 +2641,8 @@ class _HomeFeaturedBanner extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: isDark
-              ? const [Color(0xFF2A2140), Color(0xFF1A1228)]
-              : const [Color(0xFFF3EEFF), Color(0xFFE8E0FF)],
+              ? const [Color(0xFF3B2A6B), Color(0xFF1A1228)]
+              : const [Color(0xFF6C3CE1), Color(0xFF9B6DFF)],
         ),
       ),
       clipBehavior: Clip.antiAlias,
@@ -2714,9 +2742,7 @@ class _HomeFeaturedBanner extends StatelessWidget {
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
-                                color: isDark
-                                    ? Colors.white70
-                                    : const Color(0xFF5B4B8A),
+                                color: Colors.white70,
                               ),
                             ),
                           ),
@@ -2780,15 +2806,21 @@ class _HomeRecommendedRail extends StatelessWidget {
     }
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return SizedBox(
-      height: 240,
+      height: 320,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.only(right: 4),
         itemCount: valid.length,
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (context, index) {
           final b = valid[index];
           final coverUrl =
               b.coverPath.isEmpty ? null : apiService.resolveAssetUrl(b.coverPath);
+          final summary = b.description.trim().isNotEmpty
+              ? b.description.trim()
+              : (b.primaryGenre.isNotEmpty
+                  ? '${b.primaryGenre} story'
+                  : 'Tap to read this story');
           return GestureDetector(
             onTap: () {
               Navigator.of(context).push(
@@ -2803,136 +2835,95 @@ class _HomeRecommendedRail extends StatelessWidget {
                       statusText: b.statusText,
                       rating: b.rating,
                       genre: b.primaryGenre,
-                      cta: b.cta,
+                      cta: 'Read Now',
                       coverPath: b.coverPath,
-                      authorUserId: b.authorUserId,
                     ),
                   ),
                 ),
               );
             },
-            child: SizedBox(
-              width: 130,
+            child: Container(
+              width: 160,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                border: Border.all(
+                  color: isDark ? const Color(0xFF2C2C2C) : const Color(0xFFEDE9FE),
+                ),
+                boxShadow: isDark
+                    ? const []
+                    : [
+                        BoxShadow(
+                          color: const Color(0xFF6C3CE1).withValues(alpha: 0.08),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: coverUrl != null
-                              ? Image.network(
-                                  coverUrl,
-                                  width: 130,
-                                  height: double.infinity,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => Container(
-                                    color: const Color(0xFFEDE9FE),
-                                    child: const Icon(Icons.menu_book),
-                                  ),
-                                )
-                              : Container(
-                                  color: const Color(0xFFEDE9FE),
-                                  child: const Icon(Icons.menu_book),
-                                ),
-                        ),
-                        if (index < 4)
-                          Positioned(
-                            left: 8,
-                            top: 8,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 3,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF6C3CE1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Text(
-                                'New',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w800,
-                                ),
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                    child: AspectRatio(
+                      aspectRatio: 0.75,
+                      child: coverUrl == null
+                          ? Container(
+                              color: const Color(0xFFF3F0FF),
+                              child: const Icon(Icons.menu_book, color: Color(0xFF6C3CE1)),
+                            )
+                          : Image.network(
+                              coverUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                color: const Color(0xFFF3F0FF),
+                                child: const Icon(Icons.menu_book),
                               ),
                             ),
-                          ),
-                      ],
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    b.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      height: 1.2,
-                      color: isDark ? Colors.white : const Color(0xFF1A1A1A),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      if (b.primaryGenre.isNotEmpty) ...[
-                        Container(
-                          width: 6,
-                          height: 6,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF6C3CE1),
-                            shape: BoxShape.circle,
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            b.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                              height: 1.2,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Text(
-                            b.primaryGenre,
+                          const SizedBox(height: 2),
+                          Text(
+                            'by ${b.author}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 11,
-                              color: isDark ? Colors.white60 : Colors.grey.shade600,
+                              color: Colors.grey.shade600,
                             ),
                           ),
-                        ),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      Icon(Icons.visibility_outlined,
-                          size: 12,
-                          color: isDark ? Colors.white54 : Colors.grey.shade500),
-                      const SizedBox(width: 3),
-                      Text(
-                        b.viewCount > 0
-                            ? (b.viewCount >= 1000
-                                ? '${(b.viewCount / 1000).toStringAsFixed(1)}K'
-                                : '${b.viewCount}')
-                            : '—',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: isDark ? Colors.white54 : Colors.grey.shade500,
-                        ),
+                          const SizedBox(height: 4),
+                          Expanded(
+                            child: Text(
+                              summary,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                height: 1.25,
+                                color: Colors.grey.shade700,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      Icon(Icons.star_rounded,
-                          size: 13, color: Colors.amber.shade600),
-                      const SizedBox(width: 2),
-                      Text(
-                        b.rating > 0 ? b.rating.toStringAsFixed(1) : '—',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: isDark ? Colors.white70 : Colors.black87,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ],
               ),
@@ -2943,6 +2934,7 @@ class _HomeRecommendedRail extends StatelessWidget {
     );
   }
 }
+
 
 class _HomeTopGenresRow extends StatelessWidget {
   const _HomeTopGenresRow({

@@ -5,6 +5,7 @@ import '../../data/models/app_bootstrap.dart';
 import '../../data/services/api_service.dart';
 import 'profile_screen.dart';
 import 'chapter_reader_screen.dart';
+import 'hashtag_detail_screen.dart';
 
 /// Story detail page modeled after the Inkitt video:
 /// centered cover, title, stats (Chapters / Last Updated / Reviews),
@@ -546,18 +547,17 @@ Future<void> _checkSavedAndReviewed() async {
   }
 
   Future<void> _openTag(String tag) async {
-    final books = await widget.apiService.fetchBooksByTag(tag);
     if (!mounted) return;
-    await Navigator.of(context).push(
+    Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => _TagBooksScreen(
+        builder: (_) => HashtagDetailScreen(
           tag: tag,
-          books: books,
           apiService: widget.apiService,
         ),
       ),
     );
   }
+
 
   Widget _statCell(String label, String value) {
     // IMPORTANT: do not return Expanded here — callers may wrap in GestureDetector.
