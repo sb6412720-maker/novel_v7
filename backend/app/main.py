@@ -4502,6 +4502,7 @@ def list_tags(q: str | None = None):
     }
 
 
+
 @app.get("/api/tags/{tag_name}/books")
 def list_books_by_tag(tag_name: str):
     """Return published books that have the given hashtag (admin-created tags only)."""
@@ -4519,6 +4520,196 @@ def list_books_by_tag(tag_name: str):
         (clean,),
     )
     return {"items": [_serialize_book(row) for row in rows], "tag": clean}
+
+
+def _ensure_tag_follows_table() -> None:
+    """Users following hashtags (for notifications / personalization)."""
+    try:
+        if _live_use_sqlite():
+            execute_write(
+                """
+                CREATE TABLE IF NOT EXISTS tag_follows (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    tag_id INTEGER NOT NULL,
+                    notify INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(user_id, tag_id)
+                )
+                """,
+                (),
+            )
+        else:
+            execute_write(
+                """
+                CREATE TABLE IF NOT EXISTS tag_follows (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id INT NOT NULL,
+                    tag_id INT NOT NULL,
+                    notify TINYINT NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_tag_follow (user_id, tag_id),
+                    INDEX idx_tag_follows_tag (tag_id)
+                )
+                """,
+                (),
+            )
+    except Exception as exc:
+        LOGGER.warning("tag_follows ensure failed: %s", exc)
+
+
+def _resolve_tag_id(tag_name: str) -> int | None:
+    clean = (tag_name or "").strip().lstrip("#")
+    if not clean:
+        return None
+    rows = fetch_all("SELECT id FROM tags WHERE name=%s LIMIT 1", (clean,))
+    if rows:
+        return int(_row_get(rows[0], "id") or 0) or None
+    # Case-insensitive fallback
+    rows = fetch_all("SELECT id FROM tags WHERE LOWER(name)=LOWER(%s) LIMIT 1", (clean,))
+    if rows:
+        return int(_row_get(rows[0], "id") or 0) or None
+    return None
+
+
+def _tag_follower_count(tag_id: int) -> int:
+    try:
+        rows = fetch_all(
+            "SELECT COUNT(*) AS c FROM tag_follows WHERE tag_id=%s",
+            (tag_id,),
+        )
+        return int(_row_get(rows[0], "c") or 0) if rows else 0
+    except Exception:
+        return 0
+
+
+@app.post("/api/tags/{tag_name}/follow")
+def follow_tag(tag_name: str, user: dict[str, Any] = Depends(require_user)):
+    """Follow a hashtag so it can power recommendations / notify later."""
+    _ensure_tag_follows_table()
+    tag_id = _resolve_tag_id(tag_name)
+    if not tag_id:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    uid = int(user["user_id"])
+    if _live_use_sqlite():
+        execute_write(
+            "INSERT OR IGNORE INTO tag_follows (user_id, tag_id, notify) VALUES (%s, %s, 0)",
+            (uid, tag_id),
+        )
+    else:
+        execute_write(
+            "INSERT IGNORE INTO tag_follows (user_id, tag_id, notify) VALUES (%s, %s, 0)",
+            (uid, tag_id),
+        )
+    return {
+        "ok": True,
+        "following": True,
+        "tag": tag_name.strip().lstrip("#"),
+        "followers": _tag_follower_count(tag_id),
+    }
+
+
+@app.get("/api/tags/{tag_name}/follow")
+def check_tag_follow(tag_name: str, user: dict[str, Any] = Depends(require_user)):
+    _ensure_tag_follows_table()
+    tag_id = _resolve_tag_id(tag_name)
+    if not tag_id:
+        return {"following": False, "notify": False, "followers": 0}
+    rows = fetch_all(
+        "SELECT id, notify FROM tag_follows WHERE user_id=%s AND tag_id=%s LIMIT 1",
+        (int(user["user_id"]), tag_id),
+    )
+    following = bool(rows)
+    notify = bool(int(_row_get(rows[0], "notify") or 0)) if rows else False
+    return {
+        "following": following,
+        "notify": notify,
+        "followers": _tag_follower_count(tag_id),
+    }
+
+
+@app.delete("/api/tags/{tag_name}/follow")
+def unfollow_tag(tag_name: str, user: dict[str, Any] = Depends(require_user)):
+    _ensure_tag_follows_table()
+    tag_id = _resolve_tag_id(tag_name)
+    if not tag_id:
+        return {"ok": True, "following": False, "followers": 0}
+    execute_write(
+        "DELETE FROM tag_follows WHERE user_id=%s AND tag_id=%s",
+        (int(user["user_id"]), tag_id),
+    )
+    return {
+        "ok": True,
+        "following": False,
+        "tag": tag_name.strip().lstrip("#"),
+        "followers": _tag_follower_count(tag_id),
+    }
+
+
+@app.post("/api/tags/{tag_name}/notify")
+def set_tag_notify(
+    tag_name: str,
+    payload: dict[str, Any] | None = None,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Toggle notification preference for a followed hashtag (auto-follows if needed)."""
+    _ensure_tag_follows_table()
+    tag_id = _resolve_tag_id(tag_name)
+    if not tag_id:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    uid = int(user["user_id"])
+    body = payload or {}
+    want = body.get("notify", True)
+    notify_val = 1 if want in (True, 1, "1", "true", "True") else 0
+    # Ensure follow row exists
+    if _live_use_sqlite():
+        execute_write(
+            "INSERT OR IGNORE INTO tag_follows (user_id, tag_id, notify) VALUES (%s, %s, %s)",
+            (uid, tag_id, notify_val),
+        )
+    else:
+        execute_write(
+            "INSERT IGNORE INTO tag_follows (user_id, tag_id, notify) VALUES (%s, %s, %s)",
+            (uid, tag_id, notify_val),
+        )
+    execute_write(
+        "UPDATE tag_follows SET notify=%s WHERE user_id=%s AND tag_id=%s",
+        (notify_val, uid, tag_id),
+    )
+    return {
+        "ok": True,
+        "following": True,
+        "notify": bool(notify_val),
+        "tag": tag_name.strip().lstrip("#"),
+    }
+
+
+@app.get("/api/me/followed-tags")
+def list_my_followed_tags(user: dict[str, Any] = Depends(require_user)):
+    _ensure_tag_follows_table()
+    rows = fetch_all(
+        """
+        SELECT t.id, t.name, tf.notify,
+               (SELECT COUNT(*) FROM book_tags bt WHERE bt.tag_id = t.id) AS book_count
+        FROM tag_follows tf
+        JOIN tags t ON t.id = tf.tag_id
+        WHERE tf.user_id = %s
+        ORDER BY t.name
+        """,
+        (int(user["user_id"]),),
+    )
+    return {
+        "items": [
+            {
+                "id": _row_get(r, "id"),
+                "name": _row_get(r, "name"),
+                "notify": bool(int(_row_get(r, "notify") or 0)),
+                "book_count": int(_row_get(r, "book_count") or 0),
+            }
+            for r in (rows or [])
+        ]
+    }
+
 
 
 @app.get("/api/me/reviews")

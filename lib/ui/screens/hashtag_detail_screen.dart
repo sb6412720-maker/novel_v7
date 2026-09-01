@@ -27,6 +27,9 @@ class _HashtagDetailScreenState extends State<HashtagDetailScreen>
   List<Map<String, dynamic>> _related = const [];
   bool _loading = true;
   bool _following = false;
+  bool _notify = false;
+  bool _followBusy = false;
+  int _followerCount = 0;
 
   String get _tagName {
     final t = widget.tag.trim();
@@ -66,10 +69,17 @@ class _HashtagDetailScreenState extends State<HashtagDetailScreen>
             .take(8)
             .toList();
       } catch (_) {}
+      Map<String, dynamic> follow = const {};
+      try {
+        follow = await widget.apiService.checkTagFollow(_tagName);
+      } catch (_) {}
       if (!mounted) return;
       setState(() {
         _books = books;
         _related = related;
+        _following = (follow['following'] as bool?) ?? false;
+        _notify = (follow['notify'] as bool?) ?? false;
+        _followerCount = (follow['followers'] as num?)?.toInt() ?? 0;
         _loading = false;
       });
     } catch (_) {
@@ -231,7 +241,8 @@ class _HashtagDetailScreenState extends State<HashtagDetailScreen>
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '$count ${count == 1 ? 'story' : 'stories'}',
+                        '$count ${count == 1 ? 'story' : 'stories'}'
+                        '${_followerCount > 0 ? ' · $_followerCount following' : ''}',
                         style: TextStyle(
                           color: Colors.grey.shade600,
                           fontWeight: FontWeight.w600,
@@ -251,11 +262,14 @@ class _HashtagDetailScreenState extends State<HashtagDetailScreen>
                       Row(
                         children: [
                           FilledButton.icon(
-                            onPressed: () =>
-                                setState(() => _following = !_following),
+                            onPressed: _followBusy ? null : _toggleFollow,
                             style: FilledButton.styleFrom(
-                              backgroundColor: AppTheme.brand,
-                              foregroundColor: Colors.white,
+                              backgroundColor: _following
+                                  ? const Color(0xFFEDE9FE)
+                                  : AppTheme.brand,
+                              foregroundColor: _following
+                                  ? AppTheme.brand
+                                  : Colors.white,
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 16, vertical: 10),
                               shape: RoundedRectangleBorder(
@@ -270,18 +284,30 @@ class _HashtagDetailScreenState extends State<HashtagDetailScreen>
                           ),
                           const SizedBox(width: 8),
                           OutlinedButton.icon(
-                            onPressed: () {},
+                            onPressed: _followBusy ? null : _toggleNotify,
                             style: OutlinedButton.styleFrom(
                               foregroundColor: AppTheme.brand,
-                              side: const BorderSide(color: Color(0xFFEDE9FE)),
+                              side: BorderSide(
+                                color: _notify
+                                    ? AppTheme.brand
+                                    : const Color(0xFFEDE9FE),
+                              ),
+                              backgroundColor: _notify
+                                  ? const Color(0xFFF3F0FF)
+                                  : null,
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 12, vertical: 10),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(24),
                               ),
                             ),
-                            icon: const Icon(Icons.notifications_none, size: 18),
-                            label: const Text('Notify'),
+                            icon: Icon(
+                              _notify
+                                  ? Icons.notifications_active
+                                  : Icons.notifications_none,
+                              size: 18,
+                            ),
+                            label: Text(_notify ? 'Notifying' : 'Notify'),
                           ),
                         ],
                       ),

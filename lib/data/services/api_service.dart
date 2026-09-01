@@ -1213,6 +1213,87 @@ Future<List<Map<String, dynamic>>> fetchNotifications({String? tab}) async {
     }
   }
 
+
+  Future<Map<String, dynamic>> followTag(String tagName) async {
+    final encoded = Uri.encodeComponent(tagName.trim().replaceFirst('#', ''));
+    final response = await _post(
+      '/api/tags/$encoded/follow',
+      const <String, dynamic>{},
+      timeout: const Duration(seconds: 30),
+    );
+    _ensureSuccessResponse(response);
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
+  Future<Map<String, dynamic>> unfollowTag(String tagName) async {
+    final encoded = Uri.encodeComponent(tagName.trim().replaceFirst('#', ''));
+    final response = await _delete(
+      '/api/tags/$encoded/follow',
+      timeout: const Duration(seconds: 30),
+    );
+    _ensureSuccessResponse(response);
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
+  Future<bool> isFollowingTag(String tagName) async {
+    try {
+      final encoded = Uri.encodeComponent(tagName.trim().replaceFirst('#', ''));
+      final response = await _get(
+        '/api/tags/$encoded/follow',
+        timeout: const Duration(seconds: 20),
+      );
+      if (response.statusCode != 200) return false;
+      final payload = jsonDecode(response.body) as Map<String, dynamic>;
+      return (payload['following'] as bool?) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<Map<String, dynamic>> checkTagFollow(String tagName) async {
+    try {
+      final encoded = Uri.encodeComponent(tagName.trim().replaceFirst('#', ''));
+      final response = await _get(
+        '/api/tags/$encoded/follow',
+        timeout: const Duration(seconds: 20),
+      );
+      if (response.statusCode != 200) {
+        return {'following': false, 'notify': false, 'followers': 0};
+      }
+      return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+    } catch (_) {
+      return {'following': false, 'notify': false, 'followers': 0};
+    }
+  }
+
+  Future<Map<String, dynamic>> setTagNotify(String tagName, {required bool notify}) async {
+    final encoded = Uri.encodeComponent(tagName.trim().replaceFirst('#', ''));
+    final response = await _post(
+      '/api/tags/$encoded/notify',
+      {'notify': notify},
+      timeout: const Duration(seconds: 30),
+    );
+    _ensureSuccessResponse(response);
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
+  Future<List<Map<String, dynamic>>> fetchFollowedTags() async {
+    try {
+      final response = await _get('/api/me/followed-tags', timeout: const Duration(seconds: 30));
+      if (response.statusCode != 200) return const [];
+      final payload = jsonDecode(response.body);
+      if (payload is Map && payload['items'] is List) {
+        return (payload['items'] as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      return const [];
+    } catch (_) {
+      return const [];
+    }
+  }
+
   /// Other public books by the same author (for "More Stories by Author").
   Future<List<Map<String, dynamic>>> fetchAuthorBooks(
     int authorId, {
