@@ -236,6 +236,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     }
   }
 
+
   Future<void> _pickCover() async {
     final picked = await _imagePicker.pickImage(
       source: ImageSource.gallery,
@@ -261,16 +262,252 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       );
     } catch (e) {
       if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Cover upload failed: $e')),
+      );
+    }
+  }
+
+  Future<void> _hydrateFromServer() async {
+    final id = _savedStoryId;
+    if (id == null || id <= 0) return;
+    try {
+      final data = await widget.apiService.fetchWriterStory(id);
+      if (data == null || !mounted) return;
+      setState(() {
+        if ((data['title'] ?? '').toString().trim().isNotEmpty) {
+          _titleController.text = data['title'].toString();
+        }
+        if ((data['description'] ?? '').toString().trim().isNotEmpty) {
+          _summaryController.text = data['description'].toString();
+        }
+        final genre = (data['genre'] ?? data['primary_genre'] ?? '').toString();
+        if (genre.isNotEmpty) _selectedGenre = genre;
+        final aud = (data['audience'] ?? '').toString();
+        if (aud.isNotEmpty) {
+          final a = aud.toLowerCase();
+          if (a.contains('18') || a.contains('mature')) {
+            _audience = 'Mature (18+)';
+          } else if (a.contains('13') || a.contains('teen')) {
+            _audience = 'Teen (13+)';
+          } else if (a.contains('all')) {
+            _audience = 'All Ages';
+          } else {
+            _audience = aud;
+          }
+        }
+        final lang = (data['language'] ?? '').toString();
+        if (lang.isNotEmpty) _language = lang;
+        final cover = (data['cover_path'] ?? '').toString();
+        if (cover.isNotEmpty) _coverPath = cover;
+        final tags = data['tags'];
+        if (tags is List) {
+          _selectedTags
+            ..clear()
+            ..addAll(
+              tags
+                  .map((e) => e.toString().replaceFirst('#', '').trim())
+                  .where((t) => t.isNotEmpty)
+                  .take(3),
+            );
+        }
+      });
+    } catch (_) {}
+  }
+
+  void _scheduleDraftSave() {
+    // Mark dirty only — no background network while filling form fields.
+    _dirty = true;
+    _draftDebounce?.cancel();
+  }
+
+  String _buildWarningsString() {
+    final parts = <String>[];
+    for (final w in _selectedWarnings) {
+      if (w == 'Other') {
+        final o = _otherWarningController.text.trim();
+        if (o.isNotEmpty) parts.add(o);
+      } else {
+        parts.add(w);
+      }
+    }
+    return parts.join(', ');
+  }
+
+  Iterable<String> _tagSuggestions(String text) {
+    final q = text.trim().toLowerCase().replaceFirst('#', '');
+    if (q.isEmpty) return const Iterable<String>.empty();
+    return _availableTags
+        .where((t) => t.toLowerCase().contains(q))
+        .where((t) => !_selectedTags.any((s) => s.toLowerCase() == t.toLowerCase()))
+        .take(8);
+  }
+
+  void _addTag(String raw) {
+    final name = raw.trim().replaceFirst('#', '');
+    if (name.isEmpty) return;
+    if (_selectedTags.any((t) => t.toLowerCase() == name.toLowerCase())) return;
+    if (_selectedTags.length >= 3) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Maximum 3 tags')),
+      );
+      return;
+    }
+    setState(() {
+      _selectedTags.add(name);
+      _tagInputController.clear();
+    });
+    _scheduleDraftSave();
+  }
+
+  void _removeTag(String name) {
+    setState(() => _selectedTags.remove(name));
+    _scheduleDraftSave();
+  }
+
+  Future<void> _save({
+    required bool asDraft,
+    bool popAfter = false,
+    String? forceStatus,
+    bool silent = false,
+  }) async {
+    if (_saving && silent) return;
+    if (_saving && !silent) {
+      for (var i = 0; i < 20 && _saving; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+    }
+    if (_saving && silent) return;
+
+    final title = _titleController.text.trim();
+    final summary = _summaryController.text.trim();
+    final author = _authorController.text.trim();
+    final genre = (_selectedGenre ?? '').trim();
+    final safeTitle = title.isEmpty ? 'Untitled Story' : title;
+
+    _draftDebounce?.cancel();
+    if (silent) return;
+
+    if (mounted) {
+      setState(() => _saving = true);
+    } else {
+      _saving = true;
+    }
+
+    try {
+      final warnings = _buildWarningsString();
+      final payload = <String, dynamic>{
+        'title': safeTitle,
+        'description': summary,
+        'author': author.isEmpty ? 'Author' : author,
+        'genre': genre.isEmpty ? 'Romance' : genre,
+        'content_warnings': warnings,
+        'tags': List<String>.from(_selectedTags.take(3)),
+        'status_text': forceStatus ?? (asDraft ? 'Draft' : 'Ongoing'),
+        'language': _language,
+        'audience': ((_audience ?? '').trim().isEmpty ? 'All Ages' : _audience!.trim()),
+        'cover_path': _coverPath,
+      };
+
+      var storyId = _savedStoryId ??
+          (_isEditing ? ((widget.story!['id'] as num?)?.toInt() ?? 0) : 0);
+
+      Future<int> persist() async {
+        if (storyId > 0) {
+          await widget.apiService.updateWriterStory(storyId, payload);
+          return storyId;
+        }
+        final id = await widget.apiService.createWriterStory(payload);
+        if (id > 0) _savedStoryId = id;
+        return id;
+      }
+
+      Object? lastErr;
+      for (var attempt = 1; attempt <= 2; attempt++) {
+        try {
+          storyId = await persist();
+          lastErr = null;
+          break;
+        } catch (e) {
+          lastErr = e;
+          final msg = e.toString().toLowerCase();
+          final isSlow = msg.contains('timeout') ||
+              msg.contains('timed out') ||
+              msg.contains('socket') ||
+              msg.contains('connection');
+          if (!isSlow || attempt >= 2) break;
+          await Future<void>.delayed(const Duration(seconds: 2));
+        }
+      }
+
+      if (storyId <= 0) {
+        await Future<void>.delayed(const Duration(milliseconds: 600));
+        final recovered =
+            await widget.apiService.findWriterStoryIdByTitle(safeTitle);
+        if (recovered > 0) {
+          storyId = recovered;
+          _savedStoryId = recovered;
+          lastErr = null;
+        }
+      }
+
+      if (storyId <= 0 && lastErr != null) throw lastErr;
+      if (!mounted) return;
+
+      if (storyId <= 0) {
+        if (!silent) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not save — try again')),
+          );
+        }
+        return;
+      }
+
+      _savedStoryId = storyId;
+      _dirty = false;
+      _saving = false;
+      if (mounted && !silent) setState(() {});
+
+      if (asDraft) {
+        if (!popAfter && !silent) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Draft saved')),
+          );
+        }
+        if (popAfter && mounted) Navigator.of(context).pop(true);
+        return;
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Story saved — add your first chapter')),
+      );
+      await Navigator.of(context).push<Object?>(
+        MaterialPageRoute<Object?>(
+          builder: (_) => EditChapterScreen(
+            apiService: widget.apiService,
+            storyId: storyId,
+            createNew: true,
+            chapterNumber: 1,
+            chapterTitle: 'Chapter 1',
+          ),
+        ),
+      );
+      if (mounted && Navigator.of(context).canPop()) {
+        Navigator.of(context).pop(true);
+      }
+    } catch (e) {
+      if (!mounted) return;
       final msg = e.toString().toLowerCase();
       final isSlow = msg.contains('timeout') ||
           msg.contains('timed out') ||
           msg.contains('socket');
 
-      // Last chance recovery after exception
       var existingId = _savedStoryId ?? 0;
       if (existingId <= 0 && isSlow) {
         try {
-          existingId = await widget.apiService.findWriterStoryIdByTitle(safeTitle);
+          existingId =
+              await widget.apiService.findWriterStoryIdByTitle(safeTitle);
           if (existingId > 0) _savedStoryId = existingId;
         } catch (_) {}
       }
@@ -321,7 +558,6 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       if (mounted && !silent) setState(() {});
     }
   }
-
 
   Future<void> _openPicker({
     required String title,
