@@ -423,9 +423,25 @@ def run_startup_tasks() -> dict[str, Any]:
             except Exception as enrich_exc:
                 LOGGER.warning("content_enrichment skipped: %s", enrich_exc)
                 result["content_enrichment_error"] = str(enrich_exc)
+        # Lightweight, idempotent: ensure tags table + seed default hashtags
+        # even when books already exist (fixes empty admin hashtags in prod).
+        try:
+            conn = get_connection()
+            try:
+                result["tables_ensured"] = _ensure_mysql_extra_tables(conn)
+                result["tags_seeded"] = _seed_tags(conn)
+                result["counts"]["tags"] = _query_count(conn, "tags")
+            finally:
+                conn.close()
+        except Exception as tag_exc:
+            LOGGER.warning("fast_path tag ensure/seed failed: %s", tag_exc)
+            result["tags_seed_error"] = str(tag_exc)
+
         LOGGER.info(
-            "Startup FAST PATH (books=%s) — enrichment=%s",
+            "Startup FAST PATH (books=%s tags_seeded=%s tags_count=%s) — enrichment=%s",
             book_count,
+            result.get("tags_seeded"),
+            result.get("counts", {}).get("tags"),
             result.get("content_enrichment"),
         )
         LOGGER.info("Startup tasks finished: %s", result)

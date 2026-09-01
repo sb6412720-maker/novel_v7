@@ -4469,6 +4469,27 @@ def get_public_book(book_id: int):
 
 @app.get("/api/tags")
 def list_tags(q: str | None = None):
+    # Self-heal: if tags table empty, seed defaults (admin hashtags)
+    try:
+        cnt_rows = fetch_all("SELECT COUNT(*) AS c FROM tags")
+        c = 0
+        if cnt_rows:
+            r = cnt_rows[0]
+            c = int(r.get("c") if isinstance(r, dict) else r[0] or 0)
+        if c == 0:
+            from .startup_tasks import DEFAULT_TAGS
+            for name in DEFAULT_TAGS:
+                try:
+                    execute_write(
+                        "INSERT INTO tags (name) VALUES (%s)",
+                        (name,),
+                    )
+                except Exception:
+                    pass
+            bump_content_version()
+    except Exception as _seed_exc:
+        LOGGER.warning("list_tags auto-seed: %s", _seed_exc)
+
     if q:
         like = f"%{q.strip().lstrip('#')}%"
         rows = fetch_all(
@@ -4503,10 +4524,11 @@ def list_tags(q: str | None = None):
 
 
 
-@app.get("/api/tags/{tag_name}/books")
+@app.get("/api/tags/{tag_name:path}/books")
 def list_books_by_tag(tag_name: str):
     """Return published books that have the given hashtag (admin-created tags only)."""
-    clean = tag_name.strip().lstrip("#")
+    from urllib.parse import unquote
+    clean = unquote(tag_name or "").strip().lstrip("#")
     rows = fetch_all(
         """
         SELECT b.* FROM books b
@@ -4583,7 +4605,7 @@ def _tag_follower_count(tag_id: int) -> int:
         return 0
 
 
-@app.post("/api/tags/{tag_name}/follow")
+@app.post("/api/tags/{tag_name:path}/follow")
 def follow_tag(tag_name: str, user: dict[str, Any] = Depends(require_user)):
     """Follow a hashtag so it can power recommendations / notify later."""
     _ensure_tag_follows_table()
@@ -4609,7 +4631,7 @@ def follow_tag(tag_name: str, user: dict[str, Any] = Depends(require_user)):
     }
 
 
-@app.get("/api/tags/{tag_name}/follow")
+@app.get("/api/tags/{tag_name:path}/follow")
 def check_tag_follow(tag_name: str, user: dict[str, Any] = Depends(require_user)):
     _ensure_tag_follows_table()
     tag_id = _resolve_tag_id(tag_name)
@@ -4628,7 +4650,7 @@ def check_tag_follow(tag_name: str, user: dict[str, Any] = Depends(require_user)
     }
 
 
-@app.delete("/api/tags/{tag_name}/follow")
+@app.delete("/api/tags/{tag_name:path}/follow")
 def unfollow_tag(tag_name: str, user: dict[str, Any] = Depends(require_user)):
     _ensure_tag_follows_table()
     tag_id = _resolve_tag_id(tag_name)
@@ -4646,7 +4668,7 @@ def unfollow_tag(tag_name: str, user: dict[str, Any] = Depends(require_user)):
     }
 
 
-@app.post("/api/tags/{tag_name}/notify")
+@app.post("/api/tags/{tag_name:path}/notify")
 def set_tag_notify(
     tag_name: str,
     payload: dict[str, Any] | None = None,

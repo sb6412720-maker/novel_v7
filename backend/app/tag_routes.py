@@ -39,7 +39,7 @@ def register_extra_routes(app, *, fetch_all, fetch_one=None, execute_write=None,
                 items.append({"id": row[0], "name": row[1]})
         return {"items": items}
 
-    @app.get("/api/tags/{tag_name}/books")
+    @app.get("/api/tags/{tag_name:path}/books")
     def list_books_by_tag(tag_name: str):
         clean = tag_name.strip().lstrip("#")
         rows = fetch_all(
