@@ -2895,6 +2895,56 @@ def get_my_activity(user: dict[str, Any] = Depends(require_user)):
     return {"items": items[:50]}
 
 
+
+@app.get("/api/notifications/admin")
+def get_admin_notifications(user: dict[str, Any] = Depends(require_user)):
+    """System / admin announcements for the in-app Admin notifications tab."""
+    items: list[dict[str, Any]] = []
+    try:
+        rows = fetch_all(
+            """
+            SELECT id, tab_name AS tab, title, message, created_at
+            FROM notifications
+            WHERE LOWER(COALESCE(tab_name, '')) IN ('admin', 'system', 'announcement', 'all')
+               OR LOWER(COALESCE(title, '')) LIKE '%%admin%%'
+            ORDER BY id DESC
+            LIMIT 50
+            """
+        )
+        for r in rows or []:
+            items.append({
+                "id": f"admin-{_row_get(r, 'id')}",
+                "tab": _row_get(r, "tab") or "Admin",
+                "type": "admin",
+                "title": _row_get(r, "title") or "Announcement",
+                "message": _row_get(r, "message") or "",
+                "created_at": _serialize_db_datetime(_row_get(r, "created_at")),
+            })
+    except Exception as exc:
+        LOGGER.warning("admin notifications: %s", exc)
+        try:
+            rows = fetch_all(
+                """
+                SELECT id, tab_name AS tab, title, message, created_at
+                FROM notifications
+                ORDER BY sort_order, id DESC
+                LIMIT 50
+                """
+            )
+            for r in rows or []:
+                items.append({
+                    "id": f"admin-{_row_get(r, 'id')}",
+                    "tab": _row_get(r, "tab") or "Admin",
+                    "type": "admin",
+                    "title": _row_get(r, "title") or "Announcement",
+                    "message": _row_get(r, "message") or "",
+                    "created_at": str(_row_get(r, "created_at") or ""),
+                })
+        except Exception as exc2:
+            LOGGER.warning("admin notifications fallback: %s", exc2)
+    return {"items": items}
+
+
 @app.get("/api/notifications")
 def get_notifications(
     tab: str = Query(default=""),

@@ -59,6 +59,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   final _otherWarningController = TextEditingController();
   final _customGenreController = TextEditingController();
   final _tagFocus = FocusNode();
+  final _summaryFocus = FocusNode();
   final ImagePicker _imagePicker = ImagePicker();
 
   bool _saving = false;
@@ -489,12 +490,29 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       int storyId = _savedStoryId ??
           (_isEditing ? ((widget.story!['id'] as num?)?.toInt() ?? 0) : 0);
 
-      if (storyId > 0) {
-        await widget.apiService.updateWriterStory(storyId, payload);
-      } else {
-        storyId = await widget.apiService.createWriterStory(payload);
-        if (storyId > 0) _savedStoryId = storyId;
+      Future<int> persist() async {
+        if (storyId > 0) {
+          await widget.apiService.updateWriterStory(storyId, payload);
+          return storyId;
+        }
+        final id = await widget.apiService.createWriterStory(payload);
+        if (id > 0) _savedStoryId = id;
+        return id;
       }
+
+      try {
+        storyId = await persist();
+      } catch (firstErr) {
+        // One retry for Vercel cold start / timeout
+        final msg = firstErr.toString().toLowerCase();
+        if (msg.contains('timeout') || msg.contains('timed out') || msg.contains('socket')) {
+          await Future<void>.delayed(const Duration(milliseconds: 800));
+          storyId = await persist();
+        } else {
+          rethrow;
+        }
+      }
+
       if (!mounted) return;
 
       if (storyId <= 0) {
@@ -568,6 +586,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     required String? current,
     required ValueChanged<String> onSelect,
   }) async {
+    // Prevent cursor jumping back to Summary after selecting genre/language/audience
+    FocusManager.instance.primaryFocus?.unfocus();
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: _panel,
@@ -621,6 +641,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                       onTap: () {
                         onSelect(opt);
                         Navigator.pop(ctx);
+                        FocusManager.instance.primaryFocus?.unfocus();
                       },
                     );
                   }).toList(),
@@ -644,6 +665,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     _otherWarningController.dispose();
     _customGenreController.dispose();
     _tagFocus.dispose();
+    _summaryFocus.dispose();
     super.dispose();
   }
 
@@ -900,6 +922,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                   _darkField(
                     child: TextField(
                       controller: _summaryController,
+                      focusNode: _summaryFocus,
                       maxLength: 500,
                       maxLines: 4,
                       style: const TextStyle(color: _textHi, fontSize: 15, height: 1.45),

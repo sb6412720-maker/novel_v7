@@ -400,7 +400,52 @@ class ApiService {
   }
 
   
-  Future<List<Map<String, dynamic>>> fetchMyActivity() async {
+  
+  /// Admin / system announcements (notifications table via bootstrap or dedicated endpoint).
+  Future<List<Map<String, dynamic>>> fetchAdminNotifications() async {
+    try {
+      final response = await _get(
+        '/api/notifications/admin',
+        timeout: const Duration(seconds: 12),
+      );
+      if (response.statusCode == 200) {
+        final payload = jsonDecode(response.body);
+        if (payload is Map && payload['items'] is List) {
+          return (payload['items'] as List)
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
+        }
+      }
+    } catch (_) {}
+    // Fallback: filter bootstrap-style notifications if present
+    try {
+      final response = await _get(
+        '/api/notifications?tab=Admin',
+        timeout: const Duration(seconds: 10),
+      );
+      if (response.statusCode == 200) {
+        final payload = jsonDecode(response.body);
+        if (payload is Map && payload['items'] is List) {
+          final items = (payload['items'] as List)
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
+          // Prefer admin/system tabs
+          final admin = items
+              .where((e) {
+                final t = '${e['tab'] ?? ''} ${e['type'] ?? ''}'.toLowerCase();
+                return t.contains('admin') || t.contains('system');
+              })
+              .toList();
+          return admin.isNotEmpty ? admin : items;
+        }
+      }
+    } catch (_) {}
+    return const [];
+  }
+
+Future<List<Map<String, dynamic>>> fetchMyActivity() async {
     try {
       final response = await _get('/api/me/activity');
       if (response.statusCode != 200) return const [];
@@ -1389,7 +1434,7 @@ Future<List<Map<String, dynamic>>> fetchNotifications({String? tab}) async {
     final response = await _post(
       '/api/write/stories',
       payload,
-      timeout: const Duration(seconds: 30),
+      timeout: const Duration(seconds: 45),
     );
     _ensureSuccessResponse(response);
     try {
