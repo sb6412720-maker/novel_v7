@@ -837,7 +837,11 @@ class _StoryListCard extends StatelessWidget {
     final description = story['description']?.toString() ?? '';
     final genre = story['genre']?.toString() ?? '';
     final statusText = story['status_text']?.toString().trim() ?? 'Draft';
-    final coverPath = story['cover_path']?.toString() ?? '';
+    final coverPath = (story['cover_path'] ??
+            story['cover'] ??
+            (story['book'] is Map ? (story['book']['cover_path'] ?? '') : '') ??
+            '')
+        .toString();
     final ratingRaw = story['rating'];
     final rating = (ratingRaw is num)
         ? ratingRaw.toDouble()
@@ -893,7 +897,11 @@ class _StoryListCard extends StatelessWidget {
       statusBg = const Color(0xFFFEF3C7);
       statusFg = const Color(0xFFB45309);
     }
-    final coverPath = story['cover_path']?.toString() ?? '';
+    final coverPath = (story['cover_path'] ??
+            story['cover'] ??
+            (story['book'] is Map ? (story['book']['cover_path'] ?? '') : '') ??
+            '')
+        .toString();
     final coverUrl = coverPath.isEmpty ? '' : apiService.resolveAssetUrl(coverPath);
 
     return Material(

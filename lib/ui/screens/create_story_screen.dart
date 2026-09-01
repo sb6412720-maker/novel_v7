@@ -232,7 +232,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     try {
       final bytes = await picked.readAsBytes();
       final result = await widget.apiService.uploadWriterImage(bytes, picked.name);
-      final path = (result['path'] ?? result['cover_path'] ?? result['url'] ?? '').toString();
+      final path = (result['path'] ?? result['cover_path'] ?? result['url'] ?? result['file_url'] ?? '').toString();
       if (!mounted) return;
       if (path.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -369,11 +369,24 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         final rawTags = data['tags'];
         List<String> tags = <String>[];
         if (rawTags is List) {
-          tags = rawTags.map((e) => e.toString().replaceFirst('#', '').trim()).where((t) => t.isNotEmpty).toList();
+          for (final e in rawTags) {
+            if (e is Map) {
+              final n = (e['name'] ?? e['tag'] ?? e['title'] ?? '').toString().replaceFirst('#', '').trim();
+              if (n.isNotEmpty) tags.add(n);
+            } else {
+              final n = e.toString().replaceFirst('#', '').trim();
+              if (n.isNotEmpty) tags.add(n);
+            }
+          }
         } else if (rawTags != null && '$rawTags'.trim().isNotEmpty) {
-          tags = '$rawTags'.split(RegExp(r'[,;]')).map((e) => e.replaceFirst('#', '').trim()).where((t) => t.isNotEmpty).toList();
+          tags = '$rawTags'
+              .split(RegExp(r'[,;]'))
+              .map((e) => e.replaceFirst('#', '').trim())
+              .where((t) => t.isNotEmpty)
+              .toList();
         }
-        if (tags.isNotEmpty) {
+        // Always refresh tags from server when present (including empty = clear stale)
+        if (rawTags != null) {
           _selectedTags
             ..clear()
             ..addAll(tags.take(3));
@@ -410,7 +423,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     });
   }
 
-  Future<void> _save({required bool asDraft, bool popAfter = false}) async {
+  Future<void> _save({required bool asDraft, bool popAfter = false, String? forceStatus}) async {
     if (_saving) return;
     final title = _titleController.text.trim();
     final summary = _summaryController.text.trim();
@@ -430,10 +443,10 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         'genre': genre.isEmpty ? 'Romance' : genre,
         'content_warnings': warnings,
         'tags': List<String>.from(_selectedTags.take(3)),
-        'status_text': 'Draft',
+        'status_text': forceStatus ?? (asDraft ? 'Draft' : 'Ongoing'),
         'language': _language,
         'audience': ((_audience ?? '').trim().isEmpty ? 'All Ages' : _audience!.trim()),
-        if (_coverPath.isNotEmpty) 'cover_path': _coverPath,
+        'cover_path': _coverPath,
       };
 
       int storyId = _savedStoryId ??
@@ -468,19 +481,16 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         return;
       }
 
-      // Explicit continue → chapter editor
-      await Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => EditChapterScreen(
-            apiService: widget.apiService,
-            storyId: storyId,
-            createNew: true,
-            chapterNumber: 1,
-            chapterTitle: 'Chapter 1',
-          ),
-        ),
+      // Done → Submitted as Ongoing on Manage Stories
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('write_open_submitted', true);
+      } catch (_) {}
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Saved as Ongoing — under Submitted')),
       );
-      if (mounted) Navigator.of(context).pop(true);
+      Navigator.of(context).popUntil((r) => r.isFirst);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1197,7 +1207,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                   Expanded(
                     flex: 2,
                     child: ElevatedButton(
-                      onPressed: _saving ? null : () => _save(asDraft: false), // save meta then open chapter editor
+                      onPressed: _saving ? null : () => _save(asDraft: false, forceStatus: 'Ongoing'), // Done → Submitted / Ongoing
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _magenta,
                         disabledBackgroundColor: _magenta.withValues(alpha: 0.4),
@@ -1206,7 +1216,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                         elevation: 0,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      child: const Text('Save', style: TextStyle(fontWeight: FontWeight.w600)),
+                      child: const Text('Done', style: TextStyle(fontWeight: FontWeight.w600)),
                     ),
                   ),
                 ],

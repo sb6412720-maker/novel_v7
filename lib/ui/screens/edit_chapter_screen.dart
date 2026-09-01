@@ -266,6 +266,61 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
     Navigator.of(context).pop();
   }
 
+
+  /// Apply bold/italic only to the current selection (markdown markers).
+  void _applyInlineFormat({bool bold = false, bool italic = false}) {
+    final sel = _textController.selection;
+    final text = _textController.text;
+    if (!sel.isValid || sel.start < 0 || sel.end > text.length) {
+      // No selection → toggle style for future typing (whole-field fallback)
+      setState(() {
+        if (bold) _isBold = !_isBold;
+        if (italic) _isItalic = !_isItalic;
+      });
+      return;
+    }
+    if (sel.isCollapsed) {
+      setState(() {
+        if (bold) _isBold = !_isBold;
+        if (italic) _isItalic = !_isItalic;
+      });
+      return;
+    }
+    final start = sel.start;
+    final end = sel.end;
+    final selected = text.substring(start, end);
+    String wrapped = selected;
+    if (bold) {
+      if (wrapped.startsWith('**') && wrapped.endsWith('**') && wrapped.length > 4) {
+        wrapped = wrapped.substring(2, wrapped.length - 2);
+      } else {
+        wrapped = '**$wrapped**';
+      }
+    }
+    if (italic) {
+      // Avoid double-wrapping with bold stars; use single * for italic
+      if (wrapped.startsWith('*') && wrapped.endsWith('*') && !wrapped.startsWith('**') && wrapped.length > 2) {
+        wrapped = wrapped.substring(1, wrapped.length - 1);
+      } else if (!(wrapped.startsWith('**') && wrapped.endsWith('**'))) {
+        wrapped = '*$wrapped*';
+      } else {
+        // bold already: use underscores for italic inside
+        final inner = wrapped.substring(2, wrapped.length - 2);
+        wrapped = '**_$inner_**';
+      }
+    }
+    final newText = text.replaceRange(start, end, wrapped);
+    _textController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: start + wrapped.length),
+    );
+    setState(() {
+      // Selection formatting applied — don't force whole body style
+      if (bold) _isBold = false;
+      if (italic) _isItalic = false;
+    });
+  }
+
   Future<void> _saveChapter({
     String? submissionStatus,
     DateTime? scheduledFor,
@@ -280,6 +335,29 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
       );
       return;
     }
+    if (content.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("You can't save an empty chapter")),
+      );
+      return;
+    }
+    // Block duplicate chapter titles on the same story
+    try {
+      final existing = await widget.apiService.fetchStoryChapters(widget.storyId);
+      for (final c in existing) {
+        final cid = (c['id'] as num?)?.toInt();
+        final ct = (c['title'] ?? '').toString().trim().toLowerCase();
+        if (ct == title.toLowerCase() && cid != _chapterId) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('A chapter with this title already exists'),
+            ),
+          );
+          return;
+        }
+      }
+    } catch (_) {}
     // CRITICAL: chapters must attach to existing book — never create a new book here
     if (widget.storyId <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -892,12 +970,12 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
                           _ToolbarButton(icon: Icons.redo_rounded, onPressed: () {}),
                           _ToolbarButton(
                             icon: Icons.format_bold_rounded,
-                            onPressed: () => setState(() => _isBold = !_isBold),
+                            onPressed: () => _applyInlineFormat(bold: true),
                             isActive: _isBold,
                           ),
                           _ToolbarButton(
                             icon: Icons.format_italic_rounded,
-                            onPressed: () => setState(() => _isItalic = !_isItalic),
+                            onPressed: () => _applyInlineFormat(italic: true),
                             isActive: _isItalic,
                           ),
                           Container(
