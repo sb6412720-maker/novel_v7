@@ -182,9 +182,12 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   }
 
   Future<void> _loadAvailableTags() async {
+    if (!mounted) return;
     setState(() => _loadingTags = true);
     try {
-      final items = await widget.apiService.fetchTags();
+      final items = await widget.apiService
+          .fetchTags()
+          .timeout(const Duration(seconds: 8), onTimeout: () => <Map<String, dynamic>>[]);
       if (!mounted) return;
       setState(() {
         _availableTags = items
@@ -200,9 +203,12 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   }
 
   Future<void> _loadGenres() async {
+    if (!mounted) return;
     setState(() => _loadingGenres = true);
     try {
-      final remote = await widget.apiService.fetchGenres();
+      final remote = await widget.apiService
+          .fetchGenres()
+          .timeout(const Duration(seconds: 8), onTimeout: () => <String>[]);
       if (!mounted) return;
       final merged = <String>{..._defaultGenres};
       for (final g in remote) {
@@ -212,13 +218,20 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       if (_selectedGenre != null && _selectedGenre!.isNotEmpty) {
         merged.add(_selectedGenre!);
       }
-      final list = merged.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      final list = merged.toList()
+        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
       setState(() {
         _genres = list;
         _loadingGenres = false;
       });
     } catch (_) {
-      if (mounted) setState(() => _loadingGenres = false);
+      if (mounted) {
+        setState(() {
+          // Keep defaults so genre picker always works
+          _genres = List<String>.from(_defaultGenres);
+          _loadingGenres = false;
+        });
+      }
     }
   }
 
@@ -415,14 +428,10 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
 
 
   void _scheduleDraftSave() {
+    // Only mark form dirty. Do NOT auto-call API while user is filling
+    // language / audience / tags — that caused infinite buffering on slow network.
     _dirty = true;
     _draftDebounce?.cancel();
-    _draftDebounce = Timer(const Duration(milliseconds: 1200), () {
-      if (!mounted || _saving) return;
-      if (!_dirty) return;
-      // Silent background save — no spinner when changing language/audience/tags
-      unawaited(_save(asDraft: true, popAfter: false, silent: true));
-    });
   }
 
   Future<void> _save({
@@ -451,10 +460,16 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
 
     _draftDebounce?.cancel();
 
-    if (!silent && mounted) {
+    // Only user-triggered Save/Save Draft/Back should show spinner / lock buttons.
+    // Silent path must never set _saving (form stays interactive).
+    if (silent) {
+      // no-op lock — silent autosave disabled at schedule; keep safe if called
+      return;
+    }
+    if (mounted) {
       setState(() => _saving = true);
     } else {
-      _saving = true; // lock without rebuild/spinner
+      _saving = true;
     }
     try {
       final warnings = _buildWarningsString();
@@ -657,7 +672,10 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         canPop: false,
         onPopInvokedWithResult: (didPop, result) async {
           if (didPop) return;
-          if (_saving) return;
+          if (_saving) {
+            // Never trap user on this page if a prior save is stuck
+            _saving = false;
+          }
           try {
             await _save(asDraft: true, popAfter: true);
           } catch (_) {
@@ -679,7 +697,10 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                 children: [
                   IconButton(
                     onPressed: () async {
-                      if (_saving) return;
+                      if (_saving) {
+                        _saving = false;
+                        if (mounted) setState(() {});
+                      }
                       try {
                         await _save(asDraft: true, popAfter: true);
                       } catch (_) {
@@ -911,11 +932,9 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                   _label('GENRE'),
                   const SizedBox(height: 7),
                   GestureDetector(
-                    onTap: _loadingGenres
-                        ? null
-                        : () => _openPicker(
+                    onTap: () => _openPicker(
                               title: 'Select genre',
-                              options: _genres,
+                              options: _genres.isEmpty ? _defaultGenres : _genres,
                               current: _selectedGenre,
                               onSelect: (v) => setState(() => _selectedGenre = v),
                             ),
