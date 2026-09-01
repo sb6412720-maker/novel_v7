@@ -225,8 +225,9 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   Future<void> _pickCover() async {
     final picked = await _imagePicker.pickImage(
       source: ImageSource.gallery,
-      maxWidth: 1200,
-      imageQuality: 85,
+      maxWidth: 1600,
+      maxHeight: 2400,
+      imageQuality: 90,
     );
     if (picked == null) return;
     try {
@@ -416,14 +417,20 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   void _scheduleDraftSave() {
     _dirty = true;
     _draftDebounce?.cancel();
-    _draftDebounce = Timer(const Duration(milliseconds: 900), () {
+    _draftDebounce = Timer(const Duration(milliseconds: 1200), () {
       if (!mounted || _saving) return;
       if (!_dirty) return;
-      unawaited(_save(asDraft: true, popAfter: false));
+      // Silent background save — no spinner when changing language/audience/tags
+      unawaited(_save(asDraft: true, popAfter: false, silent: true));
     });
   }
 
-  Future<void> _save({required bool asDraft, bool popAfter = false, String? forceStatus}) async {
+  Future<void> _save({
+    required bool asDraft,
+    bool popAfter = false,
+    String? forceStatus,
+    bool silent = false,
+  }) async {
     if (_saving) return;
     final title = _titleController.text.trim();
     final summary = _summaryController.text.trim();
@@ -433,7 +440,11 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     // Accidental back / draft: allow empty title → Untitled Story
     final safeTitle = title.isEmpty ? 'Untitled Story' : title;
 
-    setState(() => _saving = true);
+    if (!silent) {
+      setState(() => _saving = true);
+    } else {
+      _saving = true; // lock without rebuild/spinner
+    }
     try {
       final warnings = _buildWarningsString();
       final payload = <String, dynamic>{
@@ -470,7 +481,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
 
       if (asDraft) {
         _dirty = false;
-        if (!popAfter) {
+        if (!popAfter && !silent) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Draft saved (all fields)')),
           );
@@ -487,8 +498,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Story details saved — add your first chapter')),
       );
-      await Navigator.of(context).push(
-        MaterialPageRoute<void>(
+      final chapterRoute = await Navigator.of(context).push<Object?>(
+        MaterialPageRoute<Object?>(
           builder: (_) => EditChapterScreen(
             apiService: widget.apiService,
             storyId: storyId,
@@ -498,15 +509,18 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
           ),
         ),
       );
-      // After chapter editor closes, return to Manage Stories
-      if (mounted) Navigator.of(context).pop(true);
+      // If publish already popUntil(root), this route may be gone — only pop if still mounted & can pop
+      if (mounted && Navigator.of(context).canPop()) {
+        Navigator.of(context).pop(true);
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Save failed: $e')),
       );
     } finally {
-      if (mounted) setState(() => _saving = false);
+      _saving = false;
+      if (mounted && !silent) setState(() {});
     }
   }
 

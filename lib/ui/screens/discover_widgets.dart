@@ -2866,6 +2866,7 @@ class _HomeRecommendedRailState extends State<_HomeRecommendedRail> {
           height: 210,
           child: PageView.builder(
             controller: _pageController,
+            padEnds: false,
             itemCount: valid.length,
             onPageChanged: (i) => setState(() => _activeIndex = i),
             itemBuilder: (context, index) {

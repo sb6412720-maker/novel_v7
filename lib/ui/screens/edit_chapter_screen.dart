@@ -267,19 +267,61 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
   }
 
 
-  /// Apply bold/italic only to the current selection (markdown markers).
+
+  /// Convert Latin letters in [input] to Mathematical Bold / Italic code points
+  /// so formatting is visible in a plain TextField (no **markers**).
+  String _toStyledText(String input, {required bool bold, required bool italic}) {
+    final buf = StringBuffer();
+    for (final r in input.runes) {
+      final ch = String.fromCharCode(r);
+      // Already styled mathematical alphanumeric? leave as-is
+      if (r >= 0x1D400 && r <= 0x1D7FF) {
+        buf.write(ch);
+        continue;
+      }
+      if (bold && !italic) {
+        if (r >= 0x41 && r <= 0x5A) {
+          buf.write(String.fromCharCode(0x1D400 + (r - 0x41)));
+          continue;
+        }
+        if (r >= 0x61 && r <= 0x7A) {
+          buf.write(String.fromCharCode(0x1D41A + (r - 0x61)));
+          continue;
+        }
+      } else if (italic && !bold) {
+        if (r >= 0x41 && r <= 0x5A) {
+          buf.write(String.fromCharCode(0x1D434 + (r - 0x41)));
+          continue;
+        }
+        if (r >= 0x61 && r <= 0x7A) {
+          // h is special in mathematical italic
+          if (r == 0x68) {
+            buf.write(String.fromCharCode(0x210E));
+          } else {
+            buf.write(String.fromCharCode(0x1D44E + (r - 0x61)));
+          }
+          continue;
+        }
+      } else if (bold && italic) {
+        if (r >= 0x41 && r <= 0x5A) {
+          buf.write(String.fromCharCode(0x1D468 + (r - 0x41)));
+          continue;
+        }
+        if (r >= 0x61 && r <= 0x7A) {
+          buf.write(String.fromCharCode(0x1D482 + (r - 0x61)));
+          continue;
+        }
+      }
+      buf.write(ch);
+    }
+    return buf.toString();
+  }
+
   void _applyInlineFormat({bool bold = false, bool italic = false}) {
     final sel = _textController.selection;
     final text = _textController.text;
-    if (!sel.isValid || sel.start < 0 || sel.end > text.length) {
-      // No selection → toggle style for future typing (whole-field fallback)
-      setState(() {
-        if (bold) _isBold = !_isBold;
-        if (italic) _isItalic = !_isItalic;
-      });
-      return;
-    }
-    if (sel.isCollapsed) {
+    if (!sel.isValid || sel.start < 0 || sel.end > text.length || sel.isCollapsed) {
+      // No selection → toggle typing style for whole field (next keystrokes feel)
       setState(() {
         if (bold) _isBold = !_isBold;
         if (italic) _isItalic = !_isItalic;
@@ -289,33 +331,21 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
     final start = sel.start;
     final end = sel.end;
     final selected = text.substring(start, end);
-    String wrapped = selected;
-    if (bold) {
-      if (wrapped.startsWith('**') && wrapped.endsWith('**') && wrapped.length > 4) {
-        wrapped = wrapped.substring(2, wrapped.length - 2);
-      } else {
-        wrapped = '**$wrapped**';
-      }
-    }
-    if (italic) {
-      // Avoid double-wrapping with bold stars; use single * for italic
-      if (wrapped.startsWith('*') && wrapped.endsWith('*') && !wrapped.startsWith('**') && wrapped.length > 2) {
-        wrapped = wrapped.substring(1, wrapped.length - 1);
-      } else if (!(wrapped.startsWith('**') && wrapped.endsWith('**'))) {
-        wrapped = '*$wrapped*';
-      } else {
-        // bold already: use underscores for italic inside
-        final inner = wrapped.substring(2, wrapped.length - 2);
-        wrapped = '**_${inner}_**';
-      }
-    }
-    final newText = text.replaceRange(start, end, wrapped);
+    // Strip accidental markdown wrappers from older builds
+    var cleaned = selected
+        .replaceAll('**', '')
+        .replaceAll(RegExp(r'(?<!\*)\*(?!\*)'), '');
+    final styled = _toStyledText(
+      cleaned,
+      bold: bold || _isBold,
+      italic: italic || _isItalic,
+    );
+    final newText = text.replaceRange(start, end, styled);
     _textController.value = TextEditingValue(
       text: newText,
-      selection: TextSelection.collapsed(offset: start + wrapped.length),
+      selection: TextSelection.collapsed(offset: start + styled.length),
     );
     setState(() {
-      // Selection formatting applied — don't force whole body style
       if (bold) _isBold = false;
       if (italic) _isItalic = false;
     });
@@ -428,8 +458,23 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
             ],
           ),
         );
-        if (addNext == true && mounted) {
+        if (!mounted) return;
+        if (addNext == true) {
           await _openNextChapterEditor();
+        } else if (addNext == false) {
+          // Done → Submitted tab as Ongoing
+          try {
+            await widget.apiService.updateWriterStory(
+              widget.storyId,
+              {'status_text': 'Ongoing'},
+            );
+          } catch (_) {}
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setBool('write_open_submitted', true);
+          } catch (_) {}
+          if (!mounted) return;
+          Navigator.of(context).popUntil((r) => r.isFirst);
         }
       }
     } catch (e) {
