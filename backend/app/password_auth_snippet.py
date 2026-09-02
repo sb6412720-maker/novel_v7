@@ -2,15 +2,15 @@
 import hashlib
 import secrets
 
-def _ensure_password_hash_column() -> None:
-    """Add password_hash to app_users if missing (MySQL + SQLite)."""
-    try:
-        if USE_SQLITE:
-            execute_write("ALTER TABLE app_users ADD COLUMN password_hash TEXT", ())
-        else:
-            execute_write("ALTER TABLE app_users ADD COLUMN password_hash VARCHAR(255) NULL", ())
-    except Exception:
-        pass
+# def _ensure_password_hash_column() -> None:
+#     """Add password_hash to app_users if missing (MySQL + SQLite)."""
+#     try:
+#         if USE_SQLITE:
+#             execute_write("ALTER TABLE app_users ADD COLUMN password_hash TEXT", ())
+#         else:
+#             execute_write("ALTER TABLE app_users ADD COLUMN password_hash VARCHAR(255) NULL", ())
+#     except Exception:
+#         pass
 
 
 def _hash_password(password: str, salt: str | None = None) -> str:

@@ -194,6 +194,11 @@ class ProfileUpdateRequest(BaseModel):
     profile_complete: bool | None = None
 
 
+class LinkEmailRequest(BaseModel):
+    email: str
+    password: str
+
+
 class CategoryCreateRequest(BaseModel):
     name: str
     topic_count: int = 0
