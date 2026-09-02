@@ -1421,14 +1421,14 @@ def authenticate_google(payload: GoogleAuthRequest):
         execute_write(
             """
             UPDATE app_users
-            SET provider=%s, provider_subject=%s, display_name=%s, photo_url=%s,
+            SET provider=%s, provider_subject=%s,
+                photo_url=COALESCE(NULLIF(%s,''), photo_url),
                 email=%s, last_login_at=CURRENT_TIMESTAMP
             WHERE id=%s
             """,
             (
                 "google",
                 google_user["subject"],
-                google_user["display_name"],
                 google_user["photo_url"],
                 email,
                 user_id,
@@ -2058,90 +2058,81 @@ def update_me(
     payload: ProfileUpdateRequest,
     user: dict[str, Any] = Depends(require_user),
 ):
-    """Fast profile update — single UPDATE, no heavy SELECT when possible."""
+    """Persist profile fields into app_users (database is source of truth)."""
     uid = int(user["user_id"])
-    # Build SET dynamically from provided fields only
-    sets: list[str] = []
-    args: list[Any] = []
-    if payload.display_name is not None:
-        sets.append("display_name=%s")
-        args.append(payload.display_name.strip() or "Reader")
-    if payload.photo_url is not None:
-        sets.append("photo_url=%s")
-        args.append(payload.photo_url)
-    if payload.cover_url is not None:
-        sets.append("cover_url=%s")
-        args.append(payload.cover_url)
-    if payload.bio is not None:
-        sets.append("bio=%s")
-        args.append(payload.bio)
-    if payload.gender is not None:
-        sets.append("gender=%s")
-        args.append(payload.gender)
-    if payload.birth_date is not None:
-        sets.append("birth_date=%s")
-        args.append(payload.birth_date)
-    if payload.country is not None:
-        sets.append("country=%s")
-        args.append(payload.country)
-    if payload.facebook_url is not None:
-        sets.append("facebook_url=%s")
-        args.append(payload.facebook_url)
-    if payload.profile_complete is not None:
-        sets.append("profile_complete=%s")
-        args.append(1 if payload.profile_complete else 0)
-    elif payload.display_name is not None:
-        sets.append("profile_complete=%s")
-        args.append(1)
-
-    if not sets:
-        return {"ok": True}
-
-    sets.append("updated_at=CURRENT_TIMESTAMP")
-    sql = f"UPDATE app_users SET {', '.join(sets)} WHERE id=%s"
-    args.append(uid)
     try:
-        execute_write(sql, tuple(args))
+        _ensure_profile_extra_columns()
     except Exception as exc:
-        LOGGER.warning("update_me full failed (%s) — basic fallback", exc)
-        # Fallback without optional columns
-        basic_sets = [s for s in sets if not any(x in s for x in ("gender", "birth_date", "profile_complete"))]
-        if not basic_sets:
-            basic_sets = ["display_name=%s"]
-            args = [payload.display_name or "Reader", uid]
-            sql = "UPDATE app_users SET display_name=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s"
-        else:
-            # rebuild args for basic only
-            basic_args: list[Any] = []
-            if payload.display_name is not None:
-                basic_args.append(payload.display_name.strip() or "Reader")
-            if payload.photo_url is not None:
-                basic_args.append(payload.photo_url)
-            if payload.cover_url is not None:
-                basic_args.append(payload.cover_url)
-            if payload.bio is not None:
-                basic_args.append(payload.bio)
-            basic_args.append(uid)
-            sql = f"UPDATE app_users SET {', '.join(basic_sets)} WHERE id=%s"
-            args = basic_args
-        execute_write(sql, tuple(args))
+        LOGGER.warning("ensure profile cols: %s", exc)
 
+    # Apply fields one-by-one so a missing optional column cannot wipe profile_complete
+    def _set(col: str, val: Any) -> None:
+        try:
+            execute_write(f"UPDATE app_users SET {col}=%s WHERE id=%s", (val, uid))
+        except Exception as exc:
+            LOGGER.warning("update_me set %s failed: %s", col, exc)
+
+    if payload.display_name is not None:
+        _set("display_name", payload.display_name.strip() or "Reader")
+    if payload.photo_url is not None:
+        _set("photo_url", payload.photo_url)
+    if payload.cover_url is not None:
+        _set("cover_url", payload.cover_url)
+    if payload.bio is not None:
+        _set("bio", payload.bio)
+    if payload.gender is not None:
+        _set("gender", payload.gender)
+    if payload.birth_date is not None:
+        _set("birth_date", payload.birth_date)
+    if payload.country is not None:
+        _set("country", payload.country)
+    if payload.facebook_url is not None:
+        _set("facebook_url", payload.facebook_url)
+
+    # Always write profile_complete when requested OR when finishing onboarding fields
+    want_complete = payload.profile_complete is True or (
+        payload.profile_complete is None and payload.display_name is not None and payload.birth_date is not None
+    )
+    if payload.profile_complete is False:
+        _set("profile_complete", 0)
+    elif want_complete or payload.profile_complete is True:
+        _set("profile_complete", 1)
+
+    # Read back from DB (source of truth)
+    try:
+        rows = fetch_all(
+            """
+            SELECT id, email, display_name, photo_url, cover_url, bio, provider,
+                   gender, birth_date, country, facebook_url,
+                   COALESCE(profile_complete,0) AS profile_complete
+            FROM app_users WHERE id=%s LIMIT 1
+            """,
+            (uid,),
+        )
+    except Exception:
+        rows = fetch_all(
+            "SELECT id, email, display_name, photo_url, cover_url, bio, provider, COALESCE(profile_complete,0) AS profile_complete FROM app_users WHERE id=%s LIMIT 1",
+            (uid,),
+        )
+    u = rows[0] if rows else {}
+    pc = int(_row_get(u, "profile_complete") or 0)
+    LOGGER.info("update_me user=%s profile_complete=%s", uid, pc)
     return {
         "ok": True,
-        "display_name": payload.display_name or "",
-        "photo_url": payload.photo_url or "",
-        "cover_url": payload.cover_url or "",
-        "bio": payload.bio or "",
-        "gender": payload.gender or "",
-        "birth_date": payload.birth_date or "",
-        "profile_complete": True,
+        "id": _row_get(u, "id") or uid,
+        "email": _row_get(u, "email") or "",
+        "display_name": _row_get(u, "display_name") or "Reader",
+        "photo_url": _row_get(u, "photo_url") or "",
+        "cover_url": _row_get(u, "cover_url") or "",
+        "bio": _row_get(u, "bio") or "",
+        "gender": _row_get(u, "gender") or "",
+        "birth_date": str(_row_get(u, "birth_date") or ""),
+        "country": _row_get(u, "country") or "",
+        "facebook_url": _row_get(u, "facebook_url") or "",
+        "profile_complete": bool(pc),
     }
 
 
-
-class LinkEmailRequest(BaseModel):
-    email: str
-    password: str
 
 
 @app.post("/api/me/link-email")
@@ -2813,9 +2804,17 @@ def search_stories(
 
 @app.get("/api/me/activity")
 def get_my_activity(user: dict[str, Any] = Depends(require_user)):
-    """Actions performed BY the current user (My Activity). Schema-safe, fast."""
+    """Actions performed BY the current user — read only from DB tables."""
     uid = int(user["user_id"])
     items: list[dict[str, Any]] = []
+    try:
+        _ensure_book_likes_table()
+    except Exception:
+        pass
+    try:
+        _ensure_author_follows_table()
+    except Exception:
+        pass
 
     def push(typ: str, act_id: Any, title: str, message: str, book_id: Any = None, cover: Any = "") -> None:
         items.append({

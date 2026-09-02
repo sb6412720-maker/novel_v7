@@ -199,14 +199,18 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
         'display_name': name,
         'bio': _bioCtrl.text.trim(),
         if (_gender != null) 'gender': _gender,
+        if ((_country ?? '').trim().isNotEmpty) 'country': (_country ?? '').trim(),
         if (_birthDate != null)
-          'country': (_country ?? '').trim(),
-        'birth_date':
+          'birth_date':
               '${_birthDate!.year.toString().padLeft(4, '0')}-${_birthDate!.month.toString().padLeft(2, '0')}-${_birthDate!.day.toString().padLeft(2, '0')}',
         'profile_complete': true,
         if (_photoUrl.isNotEmpty) 'photo_url': _photoUrl,
         if (_coverUrl.isNotEmpty) 'cover_url': _coverUrl,
       });
+      // Force DB flag again (source of truth = app_users.profile_complete)
+      try {
+        await widget.apiService.updateMe({'profile_complete': true});
+      } catch (_) {}
       final em = _emailCtrl.text.trim();
       final pw = _passCtrl.text;
       if (em.contains('@') && pw.length >= 6) {

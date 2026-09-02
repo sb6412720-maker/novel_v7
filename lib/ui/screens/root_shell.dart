@@ -271,37 +271,44 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
 
   Future<bool> _needsCompleteProfile(AuthSession session) async {
     if (session.isGuest) return false;
-    // Device cache: once completed on this install, never show again
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      if (prefs.getBool(_profileDoneKey(session)) == true ||
-          prefs.getBool('profile_complete_local_done') == true) {
-        return false;
-      }
-    } catch (_) {}
+    // DATABASE is source of truth via GET /api/me → app_users.profile_complete
     try {
       final me = await _apiService.fetchMe();
       final done = _isProfileCompleteFlag(me['profile_complete']);
-      final hasBirth = (me['birth_date'] ?? me['birthday'] ?? '').toString().trim().isNotEmpty;
-      final hasCountry = (me['country'] ?? '').toString().trim().isNotEmpty;
-      // Server says complete OR user already filled key fields
-      if (done || (hasBirth && hasCountry)) {
+      final hasBirth =
+          (me['birth_date'] ?? me['birthday'] ?? '').toString().trim().isNotEmpty;
+      // DB says complete
+      if (done) {
         try {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setBool(_profileDoneKey(session), true);
           await prefs.setBool('profile_complete_local_done', true);
         } catch (_) {}
-        if (!done) {
-          // Heal server flag quietly
-          try {
-            await _apiService.updateMe({'profile_complete': true});
-          } catch (_) {}
-        }
         return false;
       }
-      return true;
+      // Already has birth_date in DB from earlier onboarding but flag missing — heal DB
+      if (hasBirth) {
+        try {
+          await _apiService.updateMe({'profile_complete': true});
+          final me2 = await _apiService.fetchMe();
+          if (_isProfileCompleteFlag(me2['profile_complete']) || hasBirth) {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setBool(_profileDoneKey(session), true);
+            await prefs.setBool('profile_complete_local_done', true);
+            return false;
+          }
+        } catch (_) {}
+      }
+      return true; // must show complete-profile
     } catch (_) {
-      // Network fail after first login: do not block app with onboarding loop
+      // If /api/me fails, use local only as last resort (avoid login loop)
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        if (prefs.getBool(_profileDoneKey(session)) == true ||
+            prefs.getBool('profile_complete_local_done') == true) {
+          return false;
+        }
+      } catch (_) {}
       return false;
     }
   }
