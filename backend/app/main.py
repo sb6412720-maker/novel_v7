@@ -2893,7 +2893,8 @@ def get_my_activity(user: dict[str, Any] = Depends(require_user)):
     try:
         rows = fetch_all(
             """
-            SELECT le.book_id, le.updated_at, b.title, b.cover_path
+            SELECT le.book_id, le.id, b.title, b.cover_path,
+                   COALESCE(le.updated_text, '') AS updated_text
             FROM library_entries le
             JOIN books b ON b.id = le.book_id
             WHERE le.user_id=%s
@@ -2907,7 +2908,7 @@ def get_my_activity(user: dict[str, Any] = Depends(require_user)):
                 "type": "save",
                 "title": f"You saved {_row_get(r,'title') or 'a story'}",
                 "message": "Library",
-                "created_at": str(_row_get(r, "updated_at") or ""),
+                "created_at": str(_row_get(r, "updated_text") or _row_get(r, "id") or ""),
                 "book_id": _row_get(r, "book_id"),
                 "cover_path": _normalize_cover_path(_row_get(r, "cover_path") or ""),
             })
@@ -2968,30 +2969,6 @@ def get_my_activity(user: dict[str, Any] = Depends(require_user)):
     except Exception as exc:
         LOGGER.warning("my activity list saves: %s", exc)
 
-    # Shares (optional table)
-    try:
-        rows = fetch_all(
-            """
-            SELECT s.book_id, s.created_at, b.title, b.cover_path
-            FROM book_shares s
-            JOIN books b ON b.id = s.book_id
-            WHERE s.user_id=%s
-            ORDER BY s.id DESC LIMIT 20
-            """,
-            (uid,),
-        )
-        for r in rows or []:
-            items.append({
-                "id": f"share-{_row_get(r,'book_id')}",
-                "type": "share",
-                "title": f"You shared {_row_get(r,'title') or 'a story'}",
-                "message": "Share",
-                "created_at": str(_row_get(r, "created_at") or ""),
-                "book_id": _row_get(r, "book_id"),
-                "cover_path": _normalize_cover_path(_row_get(r, "cover_path") or ""),
-            })
-    except Exception as exc:
-        LOGGER.warning("my activity shares: %s", exc)
 
     # Also try author_follows as follows-by-me if main follows empty for this user
     try:
@@ -3226,7 +3203,8 @@ def get_notifications(
     try:
         saves = fetch_all(
             """
-            SELECT le.id, le.user_id, le.book_id, le.updated_at, b.title, b.cover_path,
+            SELECT le.id, le.user_id, le.book_id, b.title, b.cover_path,
+                   COALESCE(le.updated_text, '') AS updated_text,
                    COALESCE(u.display_name, 'Someone') AS actor_name,
                    COALESCE(u.photo_url, '') AS actor_photo
             FROM library_entries le
@@ -3246,7 +3224,7 @@ def get_notifications(
                 "type": "save",
                 "title": f"{aname} saved {title}",
                 "message": f'{aname} saved your book "{title}"',
-                "created_at": _serialize_db_datetime(_row_get(row, "updated_at")),
+                "created_at": str(_row_get(row, "updated_text") or _row_get(row, "id") or ""),
                 "actor_name": aname,
                 "actor_photo": _row_get(row, "actor_photo") or "",
                 "book_id": _row_get(row, "book_id"),
@@ -3409,6 +3387,8 @@ def _ensure_library_entries_table() -> None:
             ("last_chapter_number", "INTEGER DEFAULT 1"),
             ("last_paragraph_index", "INTEGER DEFAULT 0"),
             ("chapters_read", "INTEGER DEFAULT 0"),
+            ("created_at", "TIMESTAMP NULL"),
+            ("updated_at", "TIMESTAMP NULL"),
         ):
             col, typ = col_sql
             try:
