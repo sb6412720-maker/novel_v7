@@ -5,472 +5,157 @@ import '../../core/theme/theme_controller.dart';
 import '../../data/models/app_bootstrap.dart';
 import '../../data/services/api_service.dart';
 import '../../data/services/auth_service.dart';
-import 'achievements_screen.dart';
+import 'more_settings_pages.dart';
 import 'profile_screen.dart';
 import 'reading_stats_screen.dart';
-import 'support_screen.dart';
 
 class MoreScreen extends StatelessWidget {
-  const MoreScreen({
-    super.key,
-    required this.data,
-    required this.apiService,
-    required this.session,
-    required this.onSignOut,
-  });
-
+  const MoreScreen({super.key, required this.data, required this.apiService, required this.session, required this.onSignOut});
   final AppBootstrap data;
   final ApiService apiService;
   final AuthSession session;
   final Future<void> Function() onSignOut;
+  static const _purple = Color(0xFF8B5CF6);
 
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 20),
-      children: [
-        _AccountCard(
-          session: session,
-          onSignOut: onSignOut,
-          onOpenProfile: () {
-            final p = data.profile;
-            final enriched = ProfileModel(
-              id: session.id ?? p.id,
-              displayName: session.displayName.isNotEmpty
-                  ? session.displayName
-                  : p.displayName,
-              username: p.username,
-              photoUrl: (session.photoUrl != null && session.photoUrl!.isNotEmpty)
-                  ? session.photoUrl!
-                  : p.photoUrl,
-              coverUrl: p.coverUrl,
-              following: p.following,
-              followers: p.followers,
-              blocked: p.blocked,
-              chaptersRead: p.chaptersRead,
-              socialKarma: p.socialKarma,
-              dayStreak: p.dayStreak,
-              readingLists: p.readingLists,
-              isAuthor: p.isAuthor,
-              bio: p.bio,
-              gender: p.gender,
-              birthDate: p.birthDate,
-            );
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => ProfileScreen(
-                  profile: enriched,
-                  apiService: apiService,
-                  achievements: data.achievements,
-                ),
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 10),
-        const _ThemeModeCard(),
-        const SizedBox(height: 10),
-        ...data.menuSections.map((section) {
-          return _Section(
-            section: section,
-            onTap: (item) async {
-              final routeName = item.route.toLowerCase();
-              final label = item.label.toLowerCase();
-
-              if (item.route == 'profile' || routeName.contains('profile')) {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => ProfileScreen(
-                      profile: ProfileModel(
-                    id: session.id ?? data.profile.id,
-                    displayName: session.displayName.isNotEmpty ? session.displayName : data.profile.displayName,
-                    username: data.profile.username,
-                    photoUrl: (session.photoUrl != null && session.photoUrl!.isNotEmpty) ? session.photoUrl! : data.profile.photoUrl,
-                    coverUrl: data.profile.coverUrl,
-                    following: data.profile.following,
-                    followers: data.profile.followers,
-                    blocked: data.profile.blocked,
-                    chaptersRead: data.profile.chaptersRead,
-                    socialKarma: data.profile.socialKarma,
-                    dayStreak: data.profile.dayStreak,
-                    readingLists: data.profile.readingLists,
-                    isAuthor: data.profile.isAuthor,
-                    bio: data.profile.bio,
-                    gender: data.profile.gender,
-                    birthDate: data.profile.birthDate,
-                  ),
-                      apiService: apiService,
-                      achievements: data.achievements,
-                    ),
-                  ),
-                );
-                return;
-              }
-
-              if (routeName.contains('logout') || label.contains('logout')) {
-                await onSignOut();
-                return;
-              }
-
-              if (routeName.contains('achievement') ||
-                  label.contains('achievement')) {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => AchievementsScreen(
-                      achievements: data.achievements,
-                      profile: ProfileModel(
-                    id: session.id ?? data.profile.id,
-                    displayName: session.displayName.isNotEmpty ? session.displayName : data.profile.displayName,
-                    username: data.profile.username,
-                    photoUrl: (session.photoUrl != null && session.photoUrl!.isNotEmpty) ? session.photoUrl! : data.profile.photoUrl,
-                    coverUrl: data.profile.coverUrl,
-                    following: data.profile.following,
-                    followers: data.profile.followers,
-                    blocked: data.profile.blocked,
-                    chaptersRead: data.profile.chaptersRead,
-                    socialKarma: data.profile.socialKarma,
-                    dayStreak: data.profile.dayStreak,
-                    readingLists: data.profile.readingLists,
-                    isAuthor: data.profile.isAuthor,
-                    bio: data.profile.bio,
-                    gender: data.profile.gender,
-                    birthDate: data.profile.birthDate,
-                  ),
-                    ),
-                  ),
-                );
-                return;
-              }
-
-              if (routeName.contains('stat') ||
-                  routeName.contains('reading') ||
-                  label.contains('reading stat') ||
-                  label.contains('stats')) {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => ReadingStatsScreen(
-                      profile: ProfileModel(
-                    id: session.id ?? data.profile.id,
-                    displayName: session.displayName.isNotEmpty ? session.displayName : data.profile.displayName,
-                    username: data.profile.username,
-                    photoUrl: (session.photoUrl != null && session.photoUrl!.isNotEmpty) ? session.photoUrl! : data.profile.photoUrl,
-                    coverUrl: data.profile.coverUrl,
-                    following: data.profile.following,
-                    followers: data.profile.followers,
-                    blocked: data.profile.blocked,
-                    chaptersRead: data.profile.chaptersRead,
-                    socialKarma: data.profile.socialKarma,
-                    dayStreak: data.profile.dayStreak,
-                    readingLists: data.profile.readingLists,
-                    isAuthor: data.profile.isAuthor,
-                    bio: data.profile.bio,
-                    gender: data.profile.gender,
-                    birthDate: data.profile.birthDate,
-                  ),
-                    ),
-                  ),
-                );
-                return;
-              }
-
-              if (routeName.contains('support') ||
-                  routeName.contains('help') ||
-                  label.contains('support') ||
-                  label.contains('request')) {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => SupportScreen(
-                      title: item.label,
-                      apiService: apiService,
-                    ),
-                  ),
-                );
-                return;
-              }
-
-              if (label.contains('badge') || label.contains('trophy')) {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => AchievementsScreen(
-                      achievements: data.achievements,
-                      profile: ProfileModel(
-                    id: session.id ?? data.profile.id,
-                    displayName: session.displayName.isNotEmpty ? session.displayName : data.profile.displayName,
-                    username: data.profile.username,
-                    photoUrl: (session.photoUrl != null && session.photoUrl!.isNotEmpty) ? session.photoUrl! : data.profile.photoUrl,
-                    coverUrl: data.profile.coverUrl,
-                    following: data.profile.following,
-                    followers: data.profile.followers,
-                    blocked: data.profile.blocked,
-                    chaptersRead: data.profile.chaptersRead,
-                    socialKarma: data.profile.socialKarma,
-                    dayStreak: data.profile.dayStreak,
-                    readingLists: data.profile.readingLists,
-                    isAuthor: data.profile.isAuthor,
-                    bio: data.profile.bio,
-                    gender: data.profile.gender,
-                    birthDate: data.profile.birthDate,
-                  ),
-                    ),
-                  ),
-                );
-                return;
-              }
-
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => _PlaceholderScreen(title: item.label),
-                ),
-              );
-            },
-          );
-        }),
-      ],
+  ProfileModel _profile() {
+    final p = data.profile;
+    return ProfileModel(
+      id: session.id ?? p.id,
+      displayName: session.displayName.isNotEmpty ? session.displayName : p.displayName,
+      username: p.username,
+      photoUrl: (session.photoUrl != null && session.photoUrl!.isNotEmpty) ? session.photoUrl! : p.photoUrl,
+      coverUrl: p.coverUrl,
+      following: p.following,
+      followers: p.followers,
+      blocked: p.blocked,
+      chaptersRead: p.chaptersRead,
+      socialKarma: p.socialKarma,
+      dayStreak: p.dayStreak,
+      readingLists: p.readingLists,
+      isAuthor: p.isAuthor,
+      bio: p.bio,
+      gender: p.gender,
+      birthDate: p.birthDate,
     );
   }
-}
 
-class _AccountCard extends StatelessWidget {
-  const _AccountCard({
-    required this.session,
-    required this.onSignOut,
-    this.onOpenProfile,
-  });
+  void _openProfile(BuildContext context) {
+    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ProfileScreen(profile: _profile(), apiService: apiService, achievements: data.achievements)));
+  }
 
-  final AuthSession session;
-  final Future<void> Function() onSignOut;
-  final VoidCallback? onOpenProfile;
+  Future<void> _signOut(BuildContext context) async {
+    if (await showSignOutConfirmDialog(context)) await onSignOut();
+  }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return GestureDetector(
-      onTap: onOpenProfile,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isDark ? const Color(0xFF2C2C2C) : AppTheme.border),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 24,
-            backgroundColor: AppTheme.brand.withValues(alpha: 0.12),
-            backgroundImage:
-                session.photoUrl != null && session.photoUrl!.isNotEmpty
-                ? NetworkImage(session.photoUrl!)
-                : null,
-            child: session.photoUrl == null || session.photoUrl!.isEmpty
-                ? Text(
-                    session.displayName.substring(0, 1).toUpperCase(),
-                    style: const TextStyle(
-                      color: AppTheme.brand,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  )
-                : null,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  session.displayName,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  session.email,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
+    final name = session.displayName.isNotEmpty ? session.displayName : (data.profile.displayName.isNotEmpty ? data.profile.displayName : 'Reader');
+    final email = session.email.isNotEmpty ? session.email : '';
+    final photo = (session.photoUrl != null && session.photoUrl!.isNotEmpty) ? session.photoUrl! : data.profile.photoUrl;
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 28),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: _card(isDark),
+          child: Row(children: [
+            GestureDetector(
+              onTap: () => _openProfile(context),
+              child: CircleAvatar(
+                radius: 26,
+                backgroundColor: _purple.withValues(alpha: 0.15),
+                backgroundImage: photo.isNotEmpty ? NetworkImage(apiService.resolveAssetUrl(photo)) : null,
+                child: photo.isEmpty ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?', style: const TextStyle(color: _purple, fontWeight: FontWeight.w800, fontSize: 20)) : null,
+              ),
             ),
-          ),
-          TextButton(onPressed: onSignOut, child: const Text('Log out')),
-        ],
-      ),
-    ),
-    );
-  }
-}
-
-class _Section extends StatelessWidget {
-  const _Section({required this.section, required this.onTap});
-
-  final MenuSectionModel section;
-  final ValueChanged<MenuItemModel> onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(2, 4, 2, 4),
-            child: Text(
-              section.section,
-              style: Theme.of(context).textTheme.bodySmall,
+            const SizedBox(width: 12),
+            Expanded(
+              child: GestureDetector(
+                onTap: () => _openProfile(context),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                  if (email.isNotEmpty) Text(email, style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+                ]),
+              ),
             ),
-          ),
-          ...section.items.where((item) {
-            // Account card already opens profile — hide duplicate "My Profile" rows
-            final label = item.label.toLowerCase().trim();
-            final route = item.route.toLowerCase();
-            if (label.contains('profile') || route.contains('profile')) {
-              return false;
-            }
-            return true;
-          }).map((item) {
-            return ListTile(
-              dense: true,
-              leading: Icon(
-                _iconFor(item.icon),
-                size: 20,
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? const Color(0xFFEDE9FE)
-                    : AppTheme.ink,
-              ),
-              title: Text(
-                item.label,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              trailing: const Icon(
-                Icons.chevron_right_rounded,
-                color: AppTheme.muted,
-              ),
-              onTap: () => onTap(item),
-            );
+            TextButton(onPressed: () => _signOut(context), child: const Text('Log out', style: TextStyle(color: _purple, fontWeight: FontWeight.w700))),
+          ]),
+        ),
+        const SizedBox(height: 12),
+        _sectionLabel('Appearance'),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: _card(isDark),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Light / Dark mode', style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 10),
+            AnimatedBuilder(
+              animation: ThemeController.instance,
+              builder: (context, _) {
+                final mode = ThemeController.instance.mode;
+                return Row(children: [
+                  _themeChip('Light', mode == ThemeMode.light, () => ThemeController.instance.setMode(ThemeMode.light)),
+                  const SizedBox(width: 8),
+                  _themeChip('Dark', mode == ThemeMode.dark, () => ThemeController.instance.setMode(ThemeMode.dark)),
+                  const SizedBox(width: 8),
+                  _themeChip('System', mode == ThemeMode.system, () => ThemeController.instance.setMode(ThemeMode.system)),
+                ]);
+              },
+            ),
+          ]),
+        ),
+        const SizedBox(height: 12),
+        _sectionLabel('Profile'),
+        _menuCard(isDark, [
+          _Item(Icons.bar_chart_rounded, 'Reading Stats', () {
+            Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ReadingStatsScreen(profile: _profile(), apiService: apiService)));
           }),
-        ],
-      ),
+        ]),
+        const SizedBox(height: 12),
+        _sectionLabel('Support'),
+        _menuCard(isDark, [
+          _Item(Icons.help_outline, 'Help Center', () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => HelpCenterScreen(apiService: apiService)))),
+          _Item(Icons.mail_outline, 'Contact Us', () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ContactUsScreen(apiService: apiService, email: email)))),
+        ]),
+        const SizedBox(height: 12),
+        _sectionLabel('Settings'),
+        _menuCard(isDark, [
+          _Item(Icons.notifications_none, 'Notifications', () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => NotificationSettingsScreen(apiService: apiService)))),
+          _Item(Icons.language, 'App Language', () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => AppLanguageScreen(apiService: apiService)))),
+          _Item(Icons.favorite_border, 'Favourite Genres', () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => FavouriteGenresScreen(apiService: apiService)))),
+          _Item(Icons.warning_amber_outlined, 'Content Warnings', () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ContentWarningsScreen(apiService: apiService)))),
+        ]),
+        const SizedBox(height: 12),
+        _sectionLabel('Legal'),
+        _menuCard(isDark, [
+          _Item(Icons.cookie_outlined, 'Manage Cookie Preferences', () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => CookiePreferencesScreen(apiService: apiService)))),
+          _Item(Icons.description_outlined, 'Terms of Service', () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => LegalTextScreen(title: 'Terms of Service', sections: termsSections())))),
+          _Item(Icons.privacy_tip_outlined, 'Privacy Policy', () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => LegalTextScreen(title: 'Privacy Policy', sections: privacySections())))),
+        ]),
+        const SizedBox(height: 12),
+        _sectionLabel('Change Accounts'),
+        _menuCard(isDark, [_Item(Icons.logout, 'Sign Out', () => _signOut(context), danger: true)]),
+      ],
     );
   }
 
-  IconData _iconFor(String icon) {
-    switch (icon) {
-      case 'person':
-        return Icons.person;
-      case 'bar_chart':
-        return Icons.bar_chart;
-      case 'groups':
-        return Icons.groups;
-      case 'help':
-        return Icons.help_outline;
-      case 'chat':
-        return Icons.chat_bubble_outline;
-      case 'notifications':
-        return Icons.notifications_none;
-      case 'language':
-        return Icons.language;
-      case 'favorite':
-        return Icons.favorite_border;
-      case 'auto_awesome':
-        return Icons.auto_awesome_outlined;
-      case 'warning':
-        return Icons.warning_amber_rounded;
-      case 'cookie':
-        return Icons.cookie_outlined;
-      case 'description':
-        return Icons.description_outlined;
-      case 'lock':
-        return Icons.lock_outline;
-      case 'logout':
-        return Icons.logout;
-      default:
-        return Icons.chevron_right;
-    }
-  }
+  BoxDecoration _card(bool isDark) => BoxDecoration(color: isDark ? const Color(0xFF121212) : Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? Colors.white24 : const Color(0xFFE9E4F5)));
+  Widget _sectionLabel(String t) => Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text(t, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.grey.shade600, letterSpacing: 0.3)));
+  Widget _themeChip(String label, bool selected, VoidCallback onTap) => Expanded(child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(20), child: Container(padding: const EdgeInsets.symmetric(vertical: 10), alignment: Alignment.center, decoration: BoxDecoration(color: selected ? _purple : Colors.transparent, borderRadius: BorderRadius.circular(20), border: Border.all(color: selected ? _purple : const Color(0xFFE9E4F5))), child: Text(label, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: selected ? Colors.white : AppTheme.ink)))));
+  Widget _menuCard(bool isDark, List<_Item> items) => Container(decoration: _card(isDark), child: Column(children: [
+    for (var i = 0; i < items.length; i++) ...[
+      ListTile(leading: Icon(items[i].icon, color: items[i].danger ? const Color(0xFFE53935) : _purple), title: Text(items[i].label, style: TextStyle(fontWeight: FontWeight.w600, color: items[i].danger ? const Color(0xFFE53935) : null)), trailing: items[i].danger ? null : const Icon(Icons.chevron_right, size: 20), onTap: items[i].onTap),
+      if (i < items.length - 1) Divider(height: 1, indent: 56, color: isDark ? Colors.white12 : const Color(0xFFE9E4F5)),
+    ],
+  ]));
 }
 
-class _ThemeModeCard extends StatelessWidget {
-  const _ThemeModeCard();
-
-  @override
-  Widget build(BuildContext context) {
-    final ctrl = ThemeController.instance;
-    return AnimatedBuilder(
-      animation: ctrl,
-      builder: (context, _) {
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-        return Container(
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isDark ? const Color(0xFF2C2C2C) : AppTheme.border,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Appearance',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: isDark ? Colors.white70 : AppTheme.muted,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Light / Dark mode',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white : AppTheme.ink,
-                ),
-              ),
-              const SizedBox(height: 10),
-              SegmentedButton<ThemeMode>(
-                segments: const [
-                  ButtonSegment(
-                    value: ThemeMode.light,
-                    label: Text('Light'),
-                    icon: Icon(Icons.light_mode, size: 16),
-                  ),
-                  ButtonSegment(
-                    value: ThemeMode.dark,
-                    label: Text('Dark'),
-                    icon: Icon(Icons.dark_mode, size: 16),
-                  ),
-                  ButtonSegment(
-                    value: ThemeMode.system,
-                    label: Text('System'),
-                    icon: Icon(Icons.settings_suggest, size: 16),
-                  ),
-                ],
-                selected: {ctrl.mode},
-                onSelectionChanged: (set) {
-                  if (set.isNotEmpty) {
-                    ctrl.setMode(set.first);
-                  }
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _PlaceholderScreen extends StatelessWidget {
-  const _PlaceholderScreen({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Center(child: Text('$title page is ready.')),
-    );
-  }
+class _Item {
+  const _Item(this.icon, this.label, this.onTap, {this.danger = false});
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool danger;
 }

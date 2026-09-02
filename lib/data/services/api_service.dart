@@ -497,6 +497,44 @@ Future<List<Map<String, dynamic>>> fetchNotifications({String? tab}) async {
     }
   }
 
+  Future<Map<String, dynamic>> fetchUserPreferences() async {
+    try {
+      final response = await _get('/api/me/preferences', timeout: const Duration(seconds: 12));
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body);
+        if (body is Map<String, dynamic>) return body;
+        if (body is Map) return Map<String, dynamic>.from(body);
+      }
+    } catch (e) {
+      debugPrint('fetchUserPreferences: $e');
+    }
+    return {};
+  }
+
+  Future<void> updateUserPreferences(Map<String, dynamic> patch) async {
+    final response = await _put(
+      '/api/me/preferences',
+      patch,
+      timeout: const Duration(seconds: 15),
+    );
+    _ensureSuccessResponse(response);
+  }
+
+  Future<Map<String, dynamic>> fetchReadingStats() async {
+    try {
+      final response = await _get('/api/me/reading-stats', timeout: const Duration(seconds: 12));
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body);
+        if (body is Map<String, dynamic>) return body;
+        if (body is Map) return Map<String, dynamic>.from(body);
+      }
+    } catch (e) {
+      debugPrint('fetchReadingStats: $e');
+    }
+    return {};
+  }
+
+
   Future<Map<String, dynamic>> verifyGoogleSignIn({
     String? idToken,
     String? accessToken,

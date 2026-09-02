@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// App-wide light / dark / system theme controller (persisted).
+/// Default is Light (matches product UI).
 class ThemeController extends ChangeNotifier {
   ThemeController._();
   static final ThemeController instance = ThemeController._();
 
   static const _prefsKey = 'app_theme_mode';
 
-  ThemeMode _mode = ThemeMode.system;
+  ThemeMode _mode = ThemeMode.light;
   bool _loaded = false;
 
   ThemeMode get mode => _mode;
@@ -17,14 +18,18 @@ class ThemeController extends ChangeNotifier {
   Future<void> load() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_prefsKey) ?? 'system';
-      _mode = switch (raw) {
-        'light' => ThemeMode.light,
-        'dark' => ThemeMode.dark,
-        _ => ThemeMode.system,
-      };
+      final raw = prefs.getString(_prefsKey);
+      if (raw == null || raw.isEmpty) {
+        _mode = ThemeMode.light;
+      } else {
+        _mode = switch (raw) {
+          'dark' => ThemeMode.dark,
+          'system' => ThemeMode.system,
+          _ => ThemeMode.light,
+        };
+      }
     } catch (_) {
-      _mode = ThemeMode.system;
+      _mode = ThemeMode.light;
     }
     _loaded = true;
     notifyListeners();

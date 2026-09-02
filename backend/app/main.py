@@ -14,7 +14,7 @@ from urllib.parse import urlencode
 from urllib.request import urlopen
 from uuid import uuid4
 
-from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, UploadFile
+from fastapi import Body, Depends, FastAPI, File, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 try:
@@ -3222,6 +3222,162 @@ def get_notifications(
         items = [i for i in items if str(i.get("tab", "")).lower() == tab_f]
         LOGGER.info("notifications user=%s items=%s", uid, len(items))
     return {"items": items[:80]}
+
+
+
+
+def _ensure_user_preferences_table() -> None:
+    try:
+        if _live_use_sqlite():
+            execute_write(
+                """
+                CREATE TABLE IF NOT EXISTS user_preferences (
+                    user_id INTEGER PRIMARY KEY,
+                    prefs_json TEXT NOT NULL DEFAULT '{}',
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                )
+                """,
+                (),
+            )
+        else:
+            execute_write(
+                """
+                CREATE TABLE IF NOT EXISTS user_preferences (
+                    user_id INT PRIMARY KEY,
+                    prefs_json TEXT NOT NULL,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """,
+                (),
+            )
+    except Exception as exc:
+        LOGGER.warning("user_preferences table: %s", exc)
+
+
+@app.get("/api/me/preferences")
+def get_my_preferences(user: dict[str, Any] = Depends(require_user)):
+    uid = int(user["user_id"])
+    _ensure_user_preferences_table()
+    try:
+        rows = fetch_all("SELECT prefs_json FROM user_preferences WHERE user_id=%s LIMIT 1", (uid,))
+        if rows:
+            raw = _row_get(rows[0], "prefs_json") or "{}"
+            try:
+                data = json.loads(raw) if isinstance(raw, str) else (raw or {})
+            except Exception:
+                data = {}
+            if isinstance(data, dict):
+                return data
+    except Exception as exc:
+        LOGGER.warning("get preferences: %s", exc)
+    return {
+        "notifications": {"reading_reminders": True, "new_releases": True, "recommendations": False, "marketing": False, "system": True},
+        "language": "en",
+        "favourite_genres": [],
+        "content_warnings": {},
+        "cookies": {"essential": True, "analytics": True, "marketing": False, "functional": True},
+    }
+
+
+@app.put("/api/me/preferences")
+def put_my_preferences(payload: dict[str, Any] = Body(default={}), user: dict[str, Any] = Depends(require_user)):
+    uid = int(user["user_id"])
+    _ensure_user_preferences_table()
+    current: dict[str, Any] = {}
+    try:
+        rows = fetch_all("SELECT prefs_json FROM user_preferences WHERE user_id=%s LIMIT 1", (uid,))
+        if rows:
+            raw = _row_get(rows[0], "prefs_json") or "{}"
+            try:
+                current = json.loads(raw) if isinstance(raw, str) else dict(raw or {})
+            except Exception:
+                current = {}
+    except Exception:
+        current = {}
+    for k, v in (payload or {}).items():
+        if isinstance(v, dict) and isinstance(current.get(k), dict):
+            merged = dict(current.get(k) or {})
+            merged.update(v)
+            current[k] = merged
+        else:
+            current[k] = v
+    blob = json.dumps(current)
+    try:
+        if _live_use_sqlite():
+            execute_write(
+                """
+                INSERT INTO user_preferences (user_id, prefs_json, updated_at)
+                VALUES (%s, %s, CURRENT_TIMESTAMP)
+                ON CONFLICT(user_id) DO UPDATE SET prefs_json=excluded.prefs_json, updated_at=CURRENT_TIMESTAMP
+                """,
+                (uid, blob),
+            )
+        else:
+            execute_write(
+                """
+                INSERT INTO user_preferences (user_id, prefs_json, updated_at)
+                VALUES (%s, %s, CURRENT_TIMESTAMP)
+                ON DUPLICATE KEY UPDATE prefs_json=VALUES(prefs_json), updated_at=CURRENT_TIMESTAMP
+                """,
+                (uid, blob),
+            )
+    except Exception as exc:
+        LOGGER.warning("put preferences: %s", exc)
+        try:
+            execute_write("DELETE FROM user_preferences WHERE user_id=%s", (uid,))
+            execute_write("INSERT INTO user_preferences (user_id, prefs_json) VALUES (%s, %s)", (uid, blob))
+        except Exception as exc2:
+            LOGGER.warning("put preferences fallback: %s", exc2)
+            raise HTTPException(status_code=500, detail="Could not save preferences")
+    return current
+
+
+@app.get("/api/me/reading-stats")
+def get_my_reading_stats(user: dict[str, Any] = Depends(require_user)):
+    uid = int(user["user_id"])
+    books_read = 0
+    streak = 0
+    top_genres: list[dict[str, Any]] = []
+    try:
+        rows = fetch_all(
+            """
+            SELECT COUNT(*) AS c FROM library_entries
+            WHERE user_id=%s AND LOWER(COALESCE(reading_status,'')) IN ('completed','complete','finished')
+            """,
+            (uid,),
+        )
+        if rows:
+            books_read = int(_row_get(rows[0], "c") or 0)
+    except Exception:
+        try:
+            rows = fetch_all("SELECT COUNT(*) AS c FROM library_entries WHERE user_id=%s", (uid,))
+            books_read = int(_row_get(rows[0], "c") or 0) if rows else 0
+        except Exception:
+            books_read = 0
+    try:
+        rows = fetch_all(
+            """
+            SELECT COALESCE(b.primary_genre, b.genre, 'General') AS g, COUNT(*) AS c
+            FROM library_entries le
+            JOIN books b ON b.id = le.book_id
+            WHERE le.user_id=%s
+            GROUP BY g ORDER BY c DESC LIMIT 5
+            """,
+            (uid,),
+        )
+        for r in rows or []:
+            top_genres.append({"name": _row_get(r, "g") or "General", "count": int(_row_get(r, "c") or 0)})
+    except Exception:
+        pass
+    return {
+        "books_read": books_read,
+        "pages_read": books_read * 180,
+        "current_streak": streak,
+        "month_books": min(books_read, 6) if books_read else 0,
+        "goal_pct": 75 if books_read else 0,
+        "top_genres": top_genres,
+        "reading_time_label": "",
+    }
 
 
 @app.post("/api/support/requests")
