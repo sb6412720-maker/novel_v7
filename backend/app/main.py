@@ -2794,222 +2794,192 @@ def search_stories(
 
 @app.get("/api/me/activity")
 def get_my_activity(user: dict[str, Any] = Depends(require_user)):
-    """What *I* did: likes, reviews, follows, library saves by current user."""
+    """What *I* did: likes, reviews, follows, comments, library/list saves."""
     uid = int(user["user_id"])
     items: list[dict[str, Any]] = []
+
+    def _add(row_type: str, title: str, message: str, created: Any,
+             book_id: Any = None, cover: Any = "", extra: dict | None = None) -> None:
+        entry = {
+            "id": f"{row_type}-{book_id or created}-{len(items)}",
+            "type": row_type,
+            "title": title,
+            "message": message,
+            "created_at": str(created or ""),
+            "book_id": book_id,
+            "cover_path": _normalize_cover_path(cover or ""),
+        }
+        if extra:
+            entry.update(extra)
+        items.append(entry)
+
+    # Likes I made
     try:
         rows = fetch_all(
             """
-            SELECT bl.book_id, bl.created_at, b.title, b.cover_path
+            SELECT bl.book_id, b.title, b.cover_path, bl.id
             FROM book_likes bl
             JOIN books b ON b.id = bl.book_id
             WHERE bl.user_id=%s
-            ORDER BY bl.id DESC LIMIT 30
+            ORDER BY bl.id DESC LIMIT 40
             """,
             (uid,),
         )
         for r in rows or []:
-            items.append({
-                "id": f"like-{_row_get(r,'book_id')}",
-                "type": "like",
-                "title": f"You liked {_row_get(r,'title') or 'a story'}",
-                "message": "Like",
-                "created_at": str(_row_get(r, "created_at") or ""),
-                "book_id": _row_get(r, "book_id"),
-                "cover_path": _normalize_cover_path(_row_get(r, "cover_path") or ""),
-            })
+            _add(
+                "like",
+                f"You liked {_row_get(r,'title') or 'a story'}",
+                "Like",
+                _row_get(r, "id"),
+                _row_get(r, "book_id"),
+                _row_get(r, "cover_path") or "",
+            )
     except Exception as exc:
         LOGGER.warning("my activity likes: %s", exc)
+
+    # Reviews I wrote (real table: book_reviews)
     try:
         rows = fetch_all(
             """
-            SELECT r.book_id, r.rating, r.created_at, b.title, b.cover_path
-            FROM reviews r
+            SELECT r.id, r.book_id, r.rating, r.comment, r.created_at, b.title, b.cover_path
+            FROM book_reviews r
             JOIN books b ON b.id = r.book_id
             WHERE r.user_id=%s
-            ORDER BY r.id DESC LIMIT 30
+            ORDER BY r.id DESC LIMIT 40
             """,
             (uid,),
         )
         for r in rows or []:
-            items.append({
-                "id": f"review-{_row_get(r,'book_id')}",
-                "type": "review",
-                "title": f"You reviewed {_row_get(r,'title') or 'a story'}",
-                "message": f"Rating {_row_get(r,'rating')}",
-                "created_at": str(_row_get(r, "created_at") or ""),
-                "book_id": _row_get(r, "book_id"),
-                "cover_path": _normalize_cover_path(_row_get(r, "cover_path") or ""),
-            })
-    except Exception as exc:
-        LOGGER.warning("my activity reviews: %s", exc)
-        try:
-            rows = fetch_all(
-                """
-                SELECT r.book_id, r.rating, r.created_at, b.title, b.cover_path
-                FROM book_reviews r
-                JOIN books b ON b.id = r.book_id
-                WHERE r.user_id=%s
-                ORDER BY r.id DESC LIMIT 30
-                """,
-                (uid,),
+            body = (_row_get(r, "comment") or "")[:120]
+            _add(
+                "review",
+                f"You reviewed {_row_get(r,'title') or 'a story'}",
+                body or f"Rating {_row_get(r,'rating')}",
+                _row_get(r, "created_at") or _row_get(r, "id"),
+                _row_get(r, "book_id"),
+                _row_get(r, "cover_path") or "",
             )
-            for r in rows or []:
-                items.append({
-                    "id": f"review-{_row_get(r,'book_id')}",
-                    "type": "review",
-                    "title": f"You reviewed {_row_get(r,'title') or 'a story'}",
-                    "message": f"Rating {_row_get(r,'rating')}",
-                    "created_at": str(_row_get(r, "created_at") or ""),
-                    "book_id": _row_get(r, "book_id"),
-                    "cover_path": _normalize_cover_path(_row_get(r, "cover_path") or ""),
-                })
-        except Exception as exc2:
-            LOGGER.warning("my activity book_reviews: %s", exc2)
+    except Exception as exc:
+        LOGGER.warning("my activity book_reviews: %s", exc)
+
+    # Follows I made (real table: author_follows)
     try:
         rows = fetch_all(
             """
-            SELECT f.following_id, f.created_at,
-                   COALESCE(u.display_name, u.email, 'someone') AS name,
-                   COALESCE(u.photo_url,'') AS photo
-            FROM follows f
-            LEFT JOIN app_users u ON u.id = f.following_id
-            WHERE f.follower_id=%s
-            ORDER BY f.id DESC LIMIT 30
+            SELECT f.author_id, f.created_at, f.id,
+                   COALESCE(u.display_name, u.email, u.username, 'someone') AS name
+            FROM author_follows f
+            LEFT JOIN app_users u ON u.id = f.author_id
+            WHERE f.user_id=%s
+            ORDER BY f.id DESC LIMIT 40
             """,
             (uid,),
         )
         for r in rows or []:
             items.append({
-                "id": f"follow-{_row_get(r,'following_id')}",
+                "id": f"follow-{_row_get(r,'author_id')}",
                 "type": "follow",
                 "title": f"You followed {_row_get(r,'name') or 'someone'}",
                 "message": "Follow",
-                "created_at": str(_row_get(r, "created_at") or ""),
-                "actor_user_id": _row_get(r, "following_id"),
+                "created_at": str(_row_get(r, "created_at") or _row_get(r, "id") or ""),
+                "actor_user_id": _row_get(r, "author_id"),
+                "book_id": None,
+                "cover_path": "",
             })
     except Exception as exc:
-        LOGGER.warning("my activity follows: %s", exc)
-    try:
-        rows = fetch_all(
-            """
-            SELECT le.book_id, le.id, b.title, b.cover_path,
-                   COALESCE(le.updated_text, '') AS updated_text
-            FROM library_entries le
-            JOIN books b ON b.id = le.book_id
-            WHERE le.user_id=%s
-            ORDER BY le.id DESC LIMIT 30
-            """,
-            (uid,),
-        )
-        for r in rows or []:
-            items.append({
-                "id": f"save-{_row_get(r,'book_id')}",
-                "type": "save",
-                "title": f"You saved {_row_get(r,'title') or 'a story'}",
-                "message": "Library",
-                "created_at": str(_row_get(r, "updated_text") or _row_get(r, "id") or ""),
-                "book_id": _row_get(r, "book_id"),
-                "cover_path": _normalize_cover_path(_row_get(r, "cover_path") or ""),
-            })
-    except Exception as exc:
-        LOGGER.warning("my activity saves: %s", exc)
+        LOGGER.warning("my activity author_follows: %s", exc)
 
-    # Comments I wrote on chapters
+    # Comments I wrote
     try:
         rows = fetch_all(
             """
-            SELECT cc.id, cc.body, cc.created_at, c.story_id AS book_id,
+            SELECT cc.id, cc.body, cc.created_at,
+                   COALESCE(cc.book_id, c.story_id) AS book_id,
                    b.title, b.cover_path
             FROM chapter_comments cc
-            JOIN chapters c ON c.id = cc.chapter_id
-            JOIN books b ON b.id = c.story_id
+            LEFT JOIN chapters c ON c.id = cc.chapter_id
+            LEFT JOIN books b ON b.id = COALESCE(cc.book_id, c.story_id)
             WHERE cc.user_id=%s
-            ORDER BY cc.id DESC LIMIT 30
+            ORDER BY cc.id DESC LIMIT 40
             """,
             (uid,),
         )
         for r in rows or []:
             body = (_row_get(r, "body") or "")[:120]
-            items.append({
-                "id": f"comment-{_row_get(r,'id')}",
-                "type": "comment",
-                "title": f"You commented on {_row_get(r,'title') or 'a story'}",
-                "message": body or "Comment",
-                "created_at": str(_row_get(r, "created_at") or ""),
-                "book_id": _row_get(r, "book_id"),
-                "cover_path": _normalize_cover_path(_row_get(r, "cover_path") or ""),
-            })
+            _add(
+                "comment",
+                f"You commented on {_row_get(r,'title') or 'a story'}",
+                body or "Comment",
+                _row_get(r, "created_at") or _row_get(r, "id"),
+                _row_get(r, "book_id"),
+                _row_get(r, "cover_path") or "",
+            )
     except Exception as exc:
         LOGGER.warning("my activity comments: %s", exc)
 
-    # Saves to reading lists
+    # Library saves
     try:
         rows = fetch_all(
             """
-            SELECT rli.book_id, rli.created_at, b.title, b.cover_path, rl.name AS list_name
+            SELECT le.id, le.book_id, b.title, b.cover_path,
+                   COALESCE(le.updated_text, '') AS updated_text
+            FROM library_entries le
+            JOIN books b ON b.id = le.book_id
+            WHERE le.user_id=%s
+            ORDER BY le.id DESC LIMIT 40
+            """,
+            (uid,),
+        )
+        for r in rows or []:
+            _add(
+                "save",
+                f"You saved {_row_get(r,'title') or 'a story'}",
+                "Library",
+                _row_get(r, "updated_text") or _row_get(r, "id"),
+                _row_get(r, "book_id"),
+                _row_get(r, "cover_path") or "",
+            )
+    except Exception as exc:
+        LOGGER.warning("my activity library: %s", exc)
+
+    # Reading list saves
+    try:
+        rows = fetch_all(
+            """
+            SELECT rli.id, rli.book_id, rli.created_at, b.title, b.cover_path,
+                   rl.name AS list_name
             FROM reading_list_items rli
             JOIN reading_lists rl ON rl.id = rli.reading_list_id
             JOIN books b ON b.id = rli.book_id
             WHERE rl.user_id=%s
-            ORDER BY rli.id DESC LIMIT 30
+            ORDER BY rli.id DESC LIMIT 40
             """,
             (uid,),
         )
         for r in rows or []:
-            items.append({
-                "id": f"listsave-{_row_get(r,'book_id')}-{_row_get(r,'created_at')}",
-                "type": "save",
-                "title": f"You saved {_row_get(r,'title') or 'a story'}",
-                "message": f"List: {_row_get(r,'list_name') or 'Reading list'}",
-                "created_at": str(_row_get(r, "created_at") or ""),
-                "book_id": _row_get(r, "book_id"),
-                "cover_path": _normalize_cover_path(_row_get(r, "cover_path") or ""),
-            })
+            _add(
+                "save",
+                f"You saved {_row_get(r,'title') or 'a story'}",
+                f"List: {_row_get(r,'list_name') or 'Reading list'}",
+                _row_get(r, "created_at") or _row_get(r, "id"),
+                _row_get(r, "book_id"),
+                _row_get(r, "cover_path") or "",
+            )
     except Exception as exc:
         LOGGER.warning("my activity list saves: %s", exc)
 
-
-    # Also try author_follows as follows-by-me if main follows empty for this user
-    try:
-        rows = fetch_all(
-            """
-            SELECT f.author_id AS following_id, f.created_at,
-                   COALESCE(u.display_name, u.email, 'someone') AS name
-            FROM author_follows f
-            LEFT JOIN app_users u ON u.id = f.author_id
-            WHERE f.user_id=%s
-            ORDER BY f.id DESC LIMIT 30
-            """,
-            (uid,),
-        )
-        for r in rows or []:
-            fid = _row_get(r, "following_id")
-            items.append({
-                "id": f"afollow-{fid}",
-                "type": "follow",
-                "title": f"You followed {_row_get(r,'name') or 'someone'}",
-                "message": "Follow",
-                "created_at": str(_row_get(r, "created_at") or ""),
-                "actor_user_id": fid,
-            })
-    except Exception as exc:
-        LOGGER.warning("my activity author_follows: %s", exc)
-
-    # Dedupe by id
-    seen = set()
-    deduped = []
+    # Dedupe by type+book_id+title
+    seen: set[str] = set()
+    deduped: list[dict[str, Any]] = []
     for it in items:
-        iid = str(it.get("id") or "")
-        if iid in seen:
+        key = f"{it.get('type')}-{it.get('book_id')}-{it.get('title')}"
+        if key in seen:
             continue
-        seen.add(iid)
+        seen.add(key)
         deduped.append(it)
-    items = deduped
-
-    items.sort(key=lambda x: str(x.get("created_at") or ""), reverse=True)
-    return {"items": items[:80]}
-
+    deduped.sort(key=lambda x: str(x.get("created_at") or ""), reverse=True)
+    LOGGER.info("my activity user=%s items=%s", uid, len(deduped))
+    return {"items": deduped[:80]}
 
 
 @app.get("/api/notifications/admin")
@@ -3073,7 +3043,7 @@ def get_notifications(
     try:
         likes = fetch_all(
             """
-            SELECT bl.id, bl.user_id, bl.book_id, bl.created_at, b.title, b.cover_path,
+            SELECT bl.id, bl.user_id, bl.book_id, b.title, b.cover_path,
                    COALESCE(u.display_name, 'Someone') AS actor_name,
                    COALESCE(u.photo_url, '') AS actor_photo
             FROM book_likes bl
@@ -3093,7 +3063,7 @@ def get_notifications(
                 "type": "like",
                 "title": f"{aname} liked {title}",
                 "message": f'{aname} liked your book "{title}"',
-                "created_at": _serialize_db_datetime(_row_get(row, "created_at")),
+                "created_at": str(_row_get(row, "id") or ""),
                 "actor_name": aname,
                 "actor_photo": _row_get(row, "actor_photo") or "",
                 "book_id": _row_get(row, "book_id"),
@@ -3106,12 +3076,13 @@ def get_notifications(
         comments = fetch_all(
             """
             SELECT cc.id, cc.user_id, cc.body, cc.created_at,
-                   c.story_id AS book_id, b.title AS book_title, b.cover_path,
+                   COALESCE(cc.book_id, c.story_id) AS book_id,
+                   b.title AS book_title, b.cover_path,
                    COALESCE(u.display_name, 'Someone') AS actor_name,
                    COALESCE(u.photo_url, '') AS actor_photo
             FROM chapter_comments cc
-            JOIN chapters c ON c.id = cc.chapter_id
-            JOIN books b ON b.id = c.story_id
+            LEFT JOIN chapters c ON c.id = cc.chapter_id
+            JOIN books b ON b.id = COALESCE(cc.book_id, c.story_id)
             LEFT JOIN app_users u ON u.id = cc.user_id
             WHERE b.user_id=%s AND cc.user_id != %s
             ORDER BY cc.id DESC LIMIT 25
@@ -3266,6 +3237,7 @@ def get_notifications(
     tab_f = (tab or "").strip().lower()
     if tab_f:
         items = [i for i in items if str(i.get("tab", "")).lower() == tab_f]
+        LOGGER.info("notifications user=%s items=%s", uid, len(items))
     return {"items": items[:80]}
 
 
