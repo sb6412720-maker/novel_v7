@@ -261,6 +261,10 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
   }
 
   Future<void> _saveAsDraftChapter() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('write_open_drafts', true);
+    } catch (_) {}
     await _saveChapter(
       submissionStatus: 'draft',
       scheduledFor: null,
@@ -802,6 +806,11 @@ class _EditChapterScreenState extends State<EditChapterScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool('write_open_drafts', true);
+        } catch (_) {}
+
         final shouldPop = await _onWillPop();
         if (shouldPop == true && context.mounted) {
           Navigator.pop(context);

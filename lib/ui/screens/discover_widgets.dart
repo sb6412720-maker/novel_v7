@@ -91,7 +91,7 @@ class _ExploreStoriesSectionState extends State<_ExploreStoriesSection> {
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(viewportFraction: 0.42, initialPage: 0);
+    _pageController = PageController(viewportFraction: 0.34, initialPage: 0);
   }
 
   @override
@@ -197,7 +197,7 @@ class _ExploreStoriesSectionState extends State<_ExploreStoriesSection> {
               final item = _validBooks[index];
               final isActive = index == _activeIndex;
               return AnimatedScale(
-                scale: isActive ? 1.08 : 0.88,
+                scale: isActive ? 1.0 : 0.92,
                 duration: const Duration(milliseconds: 220),
                 curve: Curves.easeOutCubic,
                 child: AnimatedOpacity(
@@ -218,7 +218,7 @@ class _ExploreStoriesSectionState extends State<_ExploreStoriesSection> {
                     child: Center(
                       child: _StoryCard(
                         book: item,
-                        width: isActive ? 148 : 124,
+                        width: isActive ? 120 : 108,
                         apiService: widget.apiService,
                       ),
                     ),
@@ -266,7 +266,7 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
   void initState() {
     super.initState();
     // Match the first Discover slider format (no leading blank gap)
-    _pageController = PageController(viewportFraction: 0.42, initialPage: 0);
+    _pageController = PageController(viewportFraction: 0.34, initialPage: 0);
   }
 
   @override
@@ -347,7 +347,7 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
               final item = valid[index];
               final isActive = index == _activeIndex;
               return AnimatedScale(
-                scale: isActive ? 1.08 : 0.88,
+                scale: isActive ? 1.0 : 0.92,
                 duration: const Duration(milliseconds: 220),
                 curve: Curves.easeOutCubic,
                 child: AnimatedOpacity(
@@ -385,7 +385,7 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
                     child: Center(
                       child: _StoryCard(
                         book: item,
-                        width: isActive ? 148 : 124,
+                        width: isActive ? 120 : 108,
                         apiService: widget.apiService,
                       ),
                     ),
@@ -1192,10 +1192,9 @@ class _ContinueReadingSectionState extends State<_ContinueReadingSection> {
       if (st.contains('complete') || st.contains('finished') || st.contains('done')) {
         return false;
       }
-      // Fully read (chapters_read >= chapters)
-      if (e.chapters > 0 && e.chaptersRead >= e.chapters && e.progressFraction >= 0.99) {
-        return false;
-      }
+      // Fully read by progress or chapter count
+      if (e.progressFraction >= 0.98) return false;
+      if (e.chapters > 0 && e.chaptersRead >= e.chapters) return false;
       return e.book.id > 0;
     }).toList();
   }
@@ -1334,7 +1333,14 @@ class _ContinueReadingSectionState extends State<_ContinueReadingSection> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final books = _items;
+    // Hide books the user already finished (all chapters / progress complete)
+    final books = _items.where((e) {
+      if (e.progressFraction >= 0.98) return false;
+      final st = e.readingStatus.toLowerCase();
+      if (st.contains('complete') || st.contains('finish')) return false;
+      if (e.chapters > 0 && e.chaptersRead >= e.chapters) return false;
+      return true;
+    }).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2814,7 +2820,7 @@ class _HomeRecommendedRailState extends State<_HomeRecommendedRail> {
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(viewportFraction: 0.42, initialPage: 0);
+    _pageController = PageController(viewportFraction: 0.34, initialPage: 0);
   }
 
   @override
@@ -2863,7 +2869,7 @@ class _HomeRecommendedRailState extends State<_HomeRecommendedRail> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          height: 210,
+          height: 172,
           child: PageView.builder(
             controller: _pageController,
             padEnds: false,
@@ -2873,7 +2879,7 @@ class _HomeRecommendedRailState extends State<_HomeRecommendedRail> {
               final item = valid[index];
               final isActive = index == _activeIndex;
               return AnimatedScale(
-                scale: isActive ? 1.0 : 0.88,
+                scale: isActive ? 1.0 : 0.92,
                 duration: const Duration(milliseconds: 220),
                 curve: Curves.easeOutCubic,
                 child: AnimatedOpacity(
@@ -2895,7 +2901,7 @@ class _HomeRecommendedRailState extends State<_HomeRecommendedRail> {
                       child: _StoryCard(
                         book: item,
                         // width <= 140 → compact cover-only
-                        width: isActive ? 138 : 120,
+                        width: isActive ? 120 : 108,
                         apiService: widget.apiService,
                       ),
                     ),

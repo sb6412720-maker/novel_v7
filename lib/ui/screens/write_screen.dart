@@ -54,6 +54,16 @@ class _WriteScreenState extends State<WriteScreen>
           _mainTabs.animateTo(0);
           _storySubTabs.animateTo(0); // Submitted
           setState(() {});
+        } else if (prefs.getBool('write_open_drafts') == true) {
+          await prefs.setBool('write_open_drafts', false);
+          if (!mounted) return;
+          _mainTabs.animateTo(0);
+          _storySubTabs.animateTo(1); // Drafts
+          setState(() {});
+          // Refresh list so newly saved draft appears
+          setState(() {
+            _storiesFuture = widget.apiService.fetchWriterStories();
+          });
         }
       } catch (_) {}
     });

@@ -43,8 +43,9 @@ class _LibraryScreenState extends State<LibraryScreen>
         s.contains('finish')) {
       return true;
     }
-    // Fully read by chapter count
+    // Fully read by chapter count or progress bar
     if (e.chapters > 0 && e.chaptersRead >= e.chapters) return true;
+    if (e.progressFraction >= 0.98) return true;
     return false;
   }
 

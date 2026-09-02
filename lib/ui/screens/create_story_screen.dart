@@ -474,7 +474,13 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
             const SnackBar(content: Text('Draft saved')),
           );
         }
-        if (popAfter && mounted) Navigator.of(context).pop(true);
+        if (popAfter && mounted) {
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setBool('write_open_drafts', true);
+          } catch (_) {}
+          Navigator.of(context).pop(true);
+        }
         return;
       }
 
