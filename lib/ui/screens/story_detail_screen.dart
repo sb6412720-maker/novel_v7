@@ -317,6 +317,9 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
     )
         .then((ok) async {
       if (ok == true && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Review added')),
+        );
         setState(() => _hasMyReview = true);
         final reviews = await widget.apiService.fetchBookReviews(_book.id);
         if (mounted) setState(() => _reviews = reviews);
@@ -1264,6 +1267,8 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
                                   ),
                                 ),
                               );
+      
+
                               if (posted == true) {
                                 await widget.onReviewPosted();
                                 await _load();
@@ -1528,10 +1533,7 @@ class _WriteReviewScreenState extends State<_WriteReviewScreen> {
         'tech_rating': _tech > 0 ? _tech : _overall,
       });
       if (!mounted) return;
-      Navigator.pop(context, true);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Review posted')));
+      Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(

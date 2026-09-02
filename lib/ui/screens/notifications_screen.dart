@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../data/models/app_bootstrap.dart';
 import '../../data/services/api_service.dart';
+import 'story_detail_screen.dart';
 
-/// Bottom-nav notifications:
-/// - Activity: other users liked/commented/reviewed/followed you
-/// - Admin: system / admin announcements from notifications table
+/// Bell icon screen:
+/// - Activity: other users liked / commented / reviewed / followed / saved your work
+/// - Admin: system announcements
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({
     super.key,
@@ -73,6 +75,55 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     }
   }
 
+  void _openBook(Map<String, dynamic> n) {
+    final bookId = (n['book_id'] as num?)?.toInt() ?? 0;
+    if (bookId <= 0) return;
+    final cover = (n['cover_path'] ?? '').toString();
+    final title = (n['title'] ?? 'Story').toString();
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => StoryDetailScreen(
+          apiService: widget.apiService,
+          book: BookDetailModel(
+            id: bookId,
+            title: title,
+            author: (n['actor_name'] ?? '').toString(),
+            description: (n['message'] ?? '').toString(),
+            statusText: '',
+            rating: 0,
+            genre: '',
+            cta: 'Read Now',
+            coverPath: cover,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _coverOrIcon(Map<String, dynamic> n, String type) {
+    final cover = (n['cover_path'] ?? '').toString();
+    if (cover.isNotEmpty) {
+      final url = widget.apiService.resolveAssetUrl(cover);
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.network(
+          url,
+          width: 48,
+          height: 64,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => CircleAvatar(
+            backgroundColor: AppTheme.brand.withValues(alpha: 0.12),
+            child: Icon(_iconFor(type), color: AppTheme.brand, size: 20),
+          ),
+        ),
+      );
+    }
+    return CircleAvatar(
+      backgroundColor: AppTheme.brand.withValues(alpha: 0.12),
+      child: Icon(_iconFor(type), color: AppTheme.brand, size: 20),
+    );
+  }
+
   Widget _list({
     required Future<List<Map<String, dynamic>>> future,
     required String emptyTitle,
@@ -115,7 +166,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
           }
           return ListView.separated(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
             itemCount: rows.length,
             separatorBuilder: (_, __) => const Divider(height: 1),
             itemBuilder: (context, i) {
@@ -124,18 +175,21 @@ class _NotificationsScreenState extends State<NotificationsScreen>
               final title = (n['title'] ?? n['message'] ?? 'Update').toString();
               final message = (n['message'] ?? '').toString();
               final when = (n['created_at'] ?? '').toString();
+              final bookId = (n['book_id'] as num?)?.toInt() ?? 0;
               return ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: AppTheme.brand.withValues(alpha: 0.12),
-                  child: Icon(_iconFor(type), color: AppTheme.brand, size: 20),
-                ),
-                title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                leading: _coverOrIcon(n, type),
+                title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
                 subtitle: Text(
                   [
                     if (message.isNotEmpty && message != title) message,
                     if (when.isNotEmpty) when,
                   ].join(' · '),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
+                trailing: bookId > 0 ? const Icon(Icons.chevron_right, size: 20) : null,
+                onTap: bookId > 0 ? () => _openBook(n) : null,
               );
             },
           );
@@ -168,7 +222,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
             future: _activityFuture,
             emptyTitle: 'No activity yet',
             emptyBody:
-                'When people like, comment, review, save or follow you, it shows here.',
+                'When people like, comment, review, save, share or follow you, it shows here.',
           ),
           _list(
             future: _adminFuture,

@@ -2843,6 +2843,29 @@ def get_my_activity(user: dict[str, Any] = Depends(require_user)):
             })
     except Exception as exc:
         LOGGER.warning("my activity reviews: %s", exc)
+        try:
+            rows = fetch_all(
+                """
+                SELECT r.book_id, r.rating, r.created_at, b.title, b.cover_path
+                FROM book_reviews r
+                JOIN books b ON b.id = r.book_id
+                WHERE r.user_id=%s
+                ORDER BY r.id DESC LIMIT 30
+                """,
+                (uid,),
+            )
+            for r in rows or []:
+                items.append({
+                    "id": f"review-{_row_get(r,'book_id')}",
+                    "type": "review",
+                    "title": f"You reviewed {_row_get(r,'title') or 'a story'}",
+                    "message": f"Rating {_row_get(r,'rating')}",
+                    "created_at": str(_row_get(r, "created_at") or ""),
+                    "book_id": _row_get(r, "book_id"),
+                    "cover_path": _normalize_cover_path(_row_get(r, "cover_path") or ""),
+                })
+        except Exception as exc2:
+            LOGGER.warning("my activity book_reviews: %s", exc2)
     try:
         rows = fetch_all(
             """
@@ -2891,8 +2914,124 @@ def get_my_activity(user: dict[str, Any] = Depends(require_user)):
     except Exception as exc:
         LOGGER.warning("my activity saves: %s", exc)
 
+    # Comments I wrote on chapters
+    try:
+        rows = fetch_all(
+            """
+            SELECT cc.id, cc.body, cc.created_at, c.story_id AS book_id,
+                   b.title, b.cover_path
+            FROM chapter_comments cc
+            JOIN chapters c ON c.id = cc.chapter_id
+            JOIN books b ON b.id = c.story_id
+            WHERE cc.user_id=%s
+            ORDER BY cc.id DESC LIMIT 30
+            """,
+            (uid,),
+        )
+        for r in rows or []:
+            body = (_row_get(r, "body") or "")[:120]
+            items.append({
+                "id": f"comment-{_row_get(r,'id')}",
+                "type": "comment",
+                "title": f"You commented on {_row_get(r,'title') or 'a story'}",
+                "message": body or "Comment",
+                "created_at": str(_row_get(r, "created_at") or ""),
+                "book_id": _row_get(r, "book_id"),
+                "cover_path": _normalize_cover_path(_row_get(r, "cover_path") or ""),
+            })
+    except Exception as exc:
+        LOGGER.warning("my activity comments: %s", exc)
+
+    # Saves to reading lists
+    try:
+        rows = fetch_all(
+            """
+            SELECT rli.book_id, rli.created_at, b.title, b.cover_path, rl.name AS list_name
+            FROM reading_list_items rli
+            JOIN reading_lists rl ON rl.id = rli.reading_list_id
+            JOIN books b ON b.id = rli.book_id
+            WHERE rl.user_id=%s
+            ORDER BY rli.id DESC LIMIT 30
+            """,
+            (uid,),
+        )
+        for r in rows or []:
+            items.append({
+                "id": f"listsave-{_row_get(r,'book_id')}-{_row_get(r,'created_at')}",
+                "type": "save",
+                "title": f"You saved {_row_get(r,'title') or 'a story'}",
+                "message": f"List: {_row_get(r,'list_name') or 'Reading list'}",
+                "created_at": str(_row_get(r, "created_at") or ""),
+                "book_id": _row_get(r, "book_id"),
+                "cover_path": _normalize_cover_path(_row_get(r, "cover_path") or ""),
+            })
+    except Exception as exc:
+        LOGGER.warning("my activity list saves: %s", exc)
+
+    # Shares (optional table)
+    try:
+        rows = fetch_all(
+            """
+            SELECT s.book_id, s.created_at, b.title, b.cover_path
+            FROM book_shares s
+            JOIN books b ON b.id = s.book_id
+            WHERE s.user_id=%s
+            ORDER BY s.id DESC LIMIT 20
+            """,
+            (uid,),
+        )
+        for r in rows or []:
+            items.append({
+                "id": f"share-{_row_get(r,'book_id')}",
+                "type": "share",
+                "title": f"You shared {_row_get(r,'title') or 'a story'}",
+                "message": "Share",
+                "created_at": str(_row_get(r, "created_at") or ""),
+                "book_id": _row_get(r, "book_id"),
+                "cover_path": _normalize_cover_path(_row_get(r, "cover_path") or ""),
+            })
+    except Exception as exc:
+        LOGGER.warning("my activity shares: %s", exc)
+
+    # Also try author_follows as follows-by-me if main follows empty for this user
+    try:
+        rows = fetch_all(
+            """
+            SELECT f.author_id AS following_id, f.created_at,
+                   COALESCE(u.display_name, u.email, 'someone') AS name
+            FROM author_follows f
+            LEFT JOIN app_users u ON u.id = f.author_id
+            WHERE f.user_id=%s
+            ORDER BY f.id DESC LIMIT 30
+            """,
+            (uid,),
+        )
+        for r in rows or []:
+            fid = _row_get(r, "following_id")
+            items.append({
+                "id": f"afollow-{fid}",
+                "type": "follow",
+                "title": f"You followed {_row_get(r,'name') or 'someone'}",
+                "message": "Follow",
+                "created_at": str(_row_get(r, "created_at") or ""),
+                "actor_user_id": fid,
+            })
+    except Exception as exc:
+        LOGGER.warning("my activity author_follows: %s", exc)
+
+    # Dedupe by id
+    seen = set()
+    deduped = []
+    for it in items:
+        iid = str(it.get("id") or "")
+        if iid in seen:
+            continue
+        seen.add(iid)
+        deduped.append(it)
+    items = deduped
+
     items.sort(key=lambda x: str(x.get("created_at") or ""), reverse=True)
-    return {"items": items[:50]}
+    return {"items": items[:80]}
 
 
 
@@ -3082,6 +3221,39 @@ def get_notifications(
             })
     except Exception as exc:
         LOGGER.warning("notifications follows: %s", exc)
+
+    # Others saved my books to library
+    try:
+        saves = fetch_all(
+            """
+            SELECT le.id, le.user_id, le.book_id, le.updated_at, b.title, b.cover_path,
+                   COALESCE(u.display_name, 'Someone') AS actor_name,
+                   COALESCE(u.photo_url, '') AS actor_photo
+            FROM library_entries le
+            JOIN books b ON b.id = le.book_id
+            LEFT JOIN app_users u ON u.id = le.user_id
+            WHERE b.user_id=%s AND le.user_id != %s
+            ORDER BY le.id DESC LIMIT 25
+            """,
+            (uid, uid),
+        )
+        for row in saves or []:
+            aname = _row_get(row, "actor_name") or "Someone"
+            title = _row_get(row, "title") or "your story"
+            items.append({
+                "id": f"save-{_row_get(row, 'id')}",
+                "tab": "Story",
+                "type": "save",
+                "title": f"{aname} saved {title}",
+                "message": f'{aname} saved your book "{title}"',
+                "created_at": _serialize_db_datetime(_row_get(row, "updated_at")),
+                "actor_name": aname,
+                "actor_photo": _row_get(row, "actor_photo") or "",
+                "book_id": _row_get(row, "book_id"),
+                "cover_path": _normalize_cover_path(_row_get(row, "cover_path") or ""),
+            })
+    except Exception as exc:
+        LOGGER.warning("notifications saves: %s", exc)
 
     try:
         wall = fetch_all(

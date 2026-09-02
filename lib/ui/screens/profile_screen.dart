@@ -2384,55 +2384,126 @@ class _ProfileScreenState extends State<ProfileScreen>
   // ─── Reviews ─────────────────────────────────────────────
 
   Widget _buildMyActivityTab() {
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: widget.apiService.fetchMyActivity(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final rows = snapshot.data ?? [];
-        if (rows.isEmpty) {
-          return ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(24),
-            children: const [
-              SizedBox(height: 40),
-              Center(child: Text('No activity yet', style: TextStyle(fontWeight: FontWeight.w600))),
-              SizedBox(height: 8),
-              Center(
-                child: Text(
-                  'Likes, reviews, follows and saves you make will appear here.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Color(0xFF888888)),
-                ),
-              ),
-            ],
-          );
-        }
-        return ListView.separated(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          itemCount: rows.length,
-          separatorBuilder: (_, __) => const Divider(height: 1),
-          itemBuilder: (context, i) {
-            final n = rows[i];
-            final type = (n['type'] ?? '').toString();
-            final title = (n['title'] ?? 'Activity').toString();
-            final message = (n['message'] ?? '').toString();
-            IconData icon = Icons.notifications;
-            if (type == 'like') icon = Icons.favorite;
-            if (type == 'review') icon = Icons.star;
-            if (type == 'follow') icon = Icons.person_add_alt_1;
-            if (type == 'save') icon = Icons.bookmark;
-            if (type == 'comment') icon = Icons.chat_bubble_outline;
-            return ListTile(
-              leading: Icon(icon, color: const Color(0xFF6C3CE1)),
-              title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: Text(message),
-            );
-          },
-        );
+    return RefreshIndicator(
+      onRefresh: () async {
+        setState(() {});
+        await widget.apiService.fetchMyActivity();
       },
+      child: FutureBuilder<List<Map<String, dynamic>>>(
+        future: widget.apiService.fetchMyActivity(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final rows = snapshot.data ?? [];
+          if (rows.isEmpty) {
+            return ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(24),
+              children: const [
+                SizedBox(height: 40),
+                Center(
+                  child: Text(
+                    'No activity yet',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                SizedBox(height: 8),
+                Center(
+                  child: Text(
+                    'Likes, comments, reviews, follows, shares and saves you make will appear here.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Color(0xFF888888)),
+                  ),
+                ),
+              ],
+            );
+          }
+          return ListView.separated(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+            itemCount: rows.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (context, i) {
+              final n = rows[i];
+              final type = (n['type'] ?? '').toString();
+              final title = (n['title'] ?? 'Activity').toString();
+              final message = (n['message'] ?? '').toString();
+              final when = (n['created_at'] ?? '').toString();
+              final bookId = (n['book_id'] as num?)?.toInt() ?? 0;
+              final cover = (n['cover_path'] ?? '').toString();
+              IconData icon = Icons.notifications;
+              if (type == 'like') icon = Icons.favorite;
+              if (type == 'review') icon = Icons.star;
+              if (type == 'follow') icon = Icons.person_add_alt_1;
+              if (type == 'save') icon = Icons.bookmark;
+              if (type == 'comment') icon = Icons.chat_bubble_outline;
+              if (type == 'share') icon = Icons.ios_share;
+
+              Widget leading;
+              if (cover.isNotEmpty) {
+                final url = widget.apiService.resolveAssetUrl(cover);
+                leading = ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(
+                    url,
+                    width: 48,
+                    height: 64,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 48,
+                      height: 64,
+                      color: const Color(0xFFEDE9FE),
+                      child: Icon(icon, color: const Color(0xFF6C3CE1), size: 20),
+                    ),
+                  ),
+                );
+              } else {
+                leading = CircleAvatar(
+                  backgroundColor: const Color(0xFFEDE9FE),
+                  child: Icon(icon, color: const Color(0xFF6C3CE1), size: 20),
+                );
+              }
+
+              return ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                leading: leading,
+                title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                subtitle: Text(
+                  [if (message.isNotEmpty) message, if (when.isNotEmpty) when].join(' · '),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: bookId > 0
+                    ? const Icon(Icons.chevron_right, size: 20)
+                    : null,
+                onTap: bookId <= 0
+                    ? null
+                    : () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => StoryDetailScreen(
+                              apiService: widget.apiService,
+                              book: BookDetailModel(
+                                id: bookId,
+                                title: title.replaceFirst(RegExp(r'^You (liked|reviewed|commented on|saved|shared)\s+'), ''),
+                                author: '',
+                                description: message,
+                                statusText: '',
+                                rating: 0,
+                                genre: '',
+                                cta: 'Read Now',
+                                coverPath: cover,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+              );
+            },
+          );
+        },
+      ),
     );
   }
 
