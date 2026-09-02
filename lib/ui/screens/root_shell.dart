@@ -271,7 +271,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
 
   Future<bool> _needsCompleteProfile(AuthSession session) async {
     if (session.isGuest) return false;
-    // Device cache: once completed on this install, never show again (More/Profile included)
+    // Device cache: once completed on this install, never show again
     try {
       final prefs = await SharedPreferences.getInstance();
       if (prefs.getBool(_profileDoneKey(session)) == true ||
@@ -282,16 +282,26 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
     try {
       final me = await _apiService.fetchMe();
       final done = _isProfileCompleteFlag(me['profile_complete']);
-      if (done) {
+      final hasBirth = (me['birth_date'] ?? me['birthday'] ?? '').toString().trim().isNotEmpty;
+      final hasCountry = (me['country'] ?? '').toString().trim().isNotEmpty;
+      // Server says complete OR user already filled key fields
+      if (done || (hasBirth && hasCountry)) {
         try {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setBool(_profileDoneKey(session), true);
+          await prefs.setBool('profile_complete_local_done', true);
         } catch (_) {}
+        if (!done) {
+          // Heal server flag quietly
+          try {
+            await _apiService.updateMe({'profile_complete': true});
+          } catch (_) {}
+        }
         return false;
       }
       return true;
     } catch (_) {
-      // Do not re-prompt from More/Profile when /api/me fails
+      // Network fail after first login: do not block app with onboarding loop
       return false;
     }
   }
@@ -329,6 +339,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       try {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool(_profileDoneKey(session), true);
+        await prefs.setBool('profile_complete_local_done', true);
       } catch (_) {}
       try {
         await _apiService.updateMe({'profile_complete': true});
