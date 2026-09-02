@@ -14,23 +14,51 @@ class MorePageChrome {
   }
 }
 
-class HelpCenterScreen extends StatelessWidget {
+class HelpCenterScreen extends StatefulWidget {
   const HelpCenterScreen({super.key, required this.apiService});
   final ApiService apiService;
   @override
+  State<HelpCenterScreen> createState() => _HelpCenterScreenState();
+}
+
+class _HelpCenterScreenState extends State<HelpCenterScreen> {
+  String _query = '';
+
+  static const Map<String, List<Map<String, String>>> _faq = {
+    'Account & Login': [
+      {'q': 'How do I sign in with Google?', 'a': 'On the login screen tap Continue with Google, choose your account, and complete the one-time profile form if this is your first visit. Next logins skip the form automatically.'},
+      {'q': 'Why am I asked to complete my profile?', 'a': 'Only the first time you sign in with Google (or email). We store display name, birthday and preferences in the database so we never ask again on that account.'},
+      {'q': 'How do I sign out?', 'a': 'Open the More tab → Change Accounts → Sign Out. Your reading progress stays linked to your account.'},
+      {'q': 'Can I delete my account?', 'a': 'Contact support via Live Chat or Contact Us and request account deletion. An admin will process the request.'},
+    ],
+    'Reading': [
+      {'q': 'How does reading progress work?', 'a': 'Progress is saved per chapter as you scroll and when you mark a story complete from Library. Resume opens the exact paragraph you left.'},
+      {'q': 'How are reading stats calculated?', 'a': 'Chapters read, completed books and day streak come from your library activity stored on the server.'},
+    ],
+    'Writing & Stories': [
+      {'q': 'How do I publish a story?', 'a': 'Open Write → Create Story, add chapters, then publish. Stories default to Published; three reports can unpublish until an admin reviews.'},
+      {'q': 'Where do likes and reviews appear?', 'a': 'Your own actions appear under Profile → My Activity. When others interact with your stories you see them under Notifications → Activity.'},
+    ],
+    'Notifications & Privacy': [
+      {'q': 'What is the Activity tab?', 'a': 'Notifications → Activity lists likes, comments, reviews, saves and follows on your work, with story covers when available.'},
+      {'q': 'How do I manage notification settings?', 'a': 'More → Settings → Notifications. Toggle reading reminders, new releases, recommendations and system messages.'},
+      {'q': 'Who can see my profile?', 'a': 'Public profile shows display name, bio, stories and public lists. Private reading lists stay private to you.'},
+    ],
+    'Support': [
+      {'q': 'How do I contact support?', 'a': 'Use More → Support → Contact Us or Live Chat. Live Chat messages go to the admin team and replies appear in the same chat.'},
+    ],
+  };
+
+  @override
   Widget build(BuildContext context) {
-    final groups = {
-      'Account': ['How to change password?', 'How to change email?', 'How to delete account?'],
-      'Reading': ['How does reading progress work?', 'How are stats calculated?'],
-      'Notifications': ['Notification settings'],
-      'Privacy': ['Managing your data'],
-    };
+    final q = _query.trim().toLowerCase();
     return Scaffold(
       appBar: AppBar(title: const Text('Help Center'), centerTitle: true),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
           TextField(
+            onChanged: (v) => setState(() => _query = v),
             decoration: InputDecoration(
               hintText: 'Search for help...',
               prefixIcon: const Icon(Icons.search),
@@ -39,35 +67,264 @@ class HelpCenterScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          for (final e in groups.entries) ...[
-            Padding(
-              padding: const EdgeInsets.only(left: 4, bottom: 8, top: 8),
-              child: Text(e.key, style: const TextStyle(color: MorePageChrome.purple, fontWeight: FontWeight.w700)),
+          for (final e in _faq.entries) ...[
+            Builder(builder: (context) {
+              final items = e.value.where((item) {
+                if (q.isEmpty) return true;
+                return item['q']!.toLowerCase().contains(q) || item['a']!.toLowerCase().contains(q);
+              }).toList();
+              if (items.isEmpty) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4, bottom: 8, top: 8),
+                    child: Text(e.key, style: const TextStyle(color: MorePageChrome.purple, fontWeight: FontWeight.w700)),
+                  ),
+                  Container(
+                    decoration: MorePageChrome.card(context),
+                    child: Column(children: [
+                      for (var i = 0; i < items.length; i++) ...[
+                        ListTile(
+                          title: Text(items[i]['q']!),
+                          trailing: const Icon(Icons.chevron_right, size: 20),
+                          onTap: () => showModalBottomSheet<void>(
+                            context: context,
+                            isScrollControlled: true,
+                            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+                            builder: (_) => Padding(
+                              padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + MediaQuery.of(context).viewInsets.bottom),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(items[i]['q']!, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                                  const SizedBox(height: 12),
+                                  Text(items[i]['a']!, style: const TextStyle(height: 1.45, color: MorePageChrome.muted)),
+                                  const SizedBox(height: 16),
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton(onPressed: () => Navigator.pop(context), child: const Text('Got it')),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (i < items.length - 1) const Divider(height: 1, indent: 16),
+                      ],
+                    ]),
+                  ),
+                ],
+              );
+            }),
+          ],
+          const SizedBox(height: 20),
+          ListTile(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            tileColor: MorePageChrome.purple.withValues(alpha: 0.08),
+            leading: const Icon(Icons.chat_bubble_outline, color: MorePageChrome.purple),
+            title: const Text('Still need help? Live Chat', style: TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: const Text('Message the admin team'),
+            onTap: () {
+              Navigator.of(context).push(MaterialPageRoute<void>(
+                builder: (_) => LiveChatScreen(apiService: widget.apiService),
+              ));
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// User ↔ Admin live support chat (backed by /api/chat/messages).
+class LiveChatScreen extends StatefulWidget {
+  const LiveChatScreen({super.key, required this.apiService});
+  final ApiService apiService;
+  @override
+  State<LiveChatScreen> createState() => _LiveChatScreenState();
+}
+
+class _LiveChatScreenState extends State<LiveChatScreen> {
+  final _ctrl = TextEditingController();
+  final _scroll = ScrollController();
+  List<Map<String, dynamic>> _messages = [];
+  bool _loading = true;
+  bool _sending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    try {
+      final rows = await widget.apiService.fetchChatMessages();
+      if (!mounted) return;
+      setState(() {
+        _messages = rows;
+        _loading = false;
+      });
+      _jumpBottom();
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _jumpBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scroll.hasClients) return;
+      _scroll.animateTo(
+        _scroll.position.maxScrollExtent + 80,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  Future<void> _send() async {
+    final text = _ctrl.text.trim();
+    if (text.isEmpty || _sending) return;
+    setState(() => _sending = true);
+    try {
+      await widget.apiService.sendChatMessage(text);
+      _ctrl.clear();
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not send: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Live Chat'),
+        centerTitle: true,
+        actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load, tooltip: 'Refresh')],
+      ),
+      body: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            color: MorePageChrome.purple.withValues(alpha: 0.08),
+            child: const Text(
+              'Messages are delivered to the admin team. Replies appear here.',
+              style: TextStyle(fontSize: 12, color: MorePageChrome.muted),
             ),
-            Container(
-              decoration: MorePageChrome.card(context),
-              child: Column(children: [
-                for (final item in e.value)
-                  ListTile(
-                    title: Text(item),
-                    trailing: const Icon(Icons.chevron_right, size: 20),
-                    onTap: () => showModalBottomSheet<void>(
-                      context: context,
-                      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-                      builder: (_) => Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-                        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(item, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-                          const SizedBox(height: 12),
-                          Text('Find answers under Settings or Contact Us. Your account data is stored securely.',
-                              style: TextStyle(color: Colors.grey.shade700, height: 1.45)),
-                        ]),
+          ),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _messages.isEmpty
+                    ? const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Text(
+                            'No messages yet.\nSay hello — support will reply here.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: MorePageChrome.muted, height: 1.4),
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: _scroll,
+                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                        itemCount: _messages.length,
+                        itemBuilder: (context, i) {
+                          final m = _messages[i];
+                          final sender = (m['sender'] ?? 'user').toString().toLowerCase();
+                          final isUser = sender == 'user';
+                          final body = (m['message'] ?? '').toString();
+                          final when = (m['created_at'] ?? '').toString();
+                          return Align(
+                            alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 10),
+                              constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: isUser
+                                    ? MorePageChrome.purple
+                                    : (isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF3F0FA)),
+                                borderRadius: BorderRadius.only(
+                                  topLeft: const Radius.circular(16),
+                                  topRight: const Radius.circular(16),
+                                  bottomLeft: Radius.circular(isUser ? 16 : 4),
+                                  bottomRight: Radius.circular(isUser ? 4 : 16),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (!isUser)
+                                    const Padding(
+                                      padding: EdgeInsets.only(bottom: 4),
+                                      child: Text('Admin', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: MorePageChrome.purple)),
+                                    ),
+                                  Text(body, style: TextStyle(color: isUser ? Colors.white : null, height: 1.35)),
+                                  if (when.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 4),
+                                      child: Text(when, style: TextStyle(fontSize: 10, color: isUser ? Colors.white70 : MorePageChrome.muted)),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _ctrl,
+                      minLines: 1,
+                      maxLines: 4,
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => _send(),
+                      decoration: InputDecoration(
+                        hintText: 'Type a message…',
+                        filled: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide.none),
                       ),
                     ),
                   ),
-              ]),
+                  const SizedBox(width: 8),
+                  Material(
+                    color: MorePageChrome.purple,
+                    shape: const CircleBorder(),
+                    child: IconButton(
+                      onPressed: _sending ? null : _send,
+                      icon: _sending
+                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.send, color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ],
+          ),
         ],
       ),
     );
@@ -150,7 +407,9 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
           Text('Other ways to reach us', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
           const SizedBox(height: 12),
           _tile(Icons.email_outlined, 'Email', 'support@example.com'),
-          _tile(Icons.chat_bubble_outline, 'Live Chat', 'Available 9AM – 6PM'),
+          _tile(Icons.chat_bubble_outline, 'Live Chat', 'Message admin team', onTap: () {
+            Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => LiveChatScreen(apiService: widget.apiService)));
+          }),
           _tile(Icons.help_outline, 'FAQ', 'Find answers quickly', onTap: () {
             Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => HelpCenterScreen(apiService: widget.apiService)));
           }),

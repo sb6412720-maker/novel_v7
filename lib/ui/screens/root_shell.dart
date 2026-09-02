@@ -82,8 +82,9 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
 
   Future<void> _bootstrapApp() async {
     // Restore token session first — login gate if none.
+    AuthSession? restored;
     try {
-      final restored = await _authService.restoreSession();
+      restored = await _authService.restoreSession();
       if (mounted && restored != null) {
         setState(() {
           _session = restored;
@@ -117,6 +118,28 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       }
     } catch (_) {}
     await _loadBootstrap(showLoading: _bootstrap == null);
+
+    // First-time users only: complete profile before using the app.
+    // DB profile_complete is source of truth — never re-ask once set.
+    if (mounted && restored != null && !restored.isGuest) {
+      final needs = await _needsCompleteProfile(restored);
+      if (!mounted) return;
+      if (needs) {
+        await _showOnboardingBlocking(restored);
+        if (!mounted) return;
+        final still = await _needsCompleteProfile(restored);
+        if (!mounted) return;
+        if (still) {
+          setState(() {
+            _session = null;
+            _showLoginOverlay = true;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please complete your profile to continue')),
+          );
+        }
+      }
+    }
   }
 
   Future<void> _loadBootstrap({bool showLoading = true}) async {

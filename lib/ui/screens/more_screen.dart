@@ -117,6 +117,7 @@ class MoreScreen extends StatelessWidget {
         _sectionLabel('Support'),
         _menuCard(isDark, [
           _Item(Icons.help_outline, 'Help Center', () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => HelpCenterScreen(apiService: apiService)))),
+          _Item(Icons.chat_bubble_outline, 'Live Chat', () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => LiveChatScreen(apiService: apiService)))),
           _Item(Icons.mail_outline, 'Contact Us', () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ContactUsScreen(apiService: apiService, email: email)))),
         ]),
         const SizedBox(height: 12),

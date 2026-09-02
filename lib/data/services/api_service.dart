@@ -445,7 +445,7 @@ class ApiService {
     return const [];
   }
 
-Future<List<Map<String, dynamic>>> fetchMyActivity() async {
+  Future<List<Map<String, dynamic>>> fetchMyActivity() async {
     try {
       final response = await _get('/api/me/activity');
       if (response.statusCode != 200) return const [];
@@ -463,7 +463,7 @@ Future<List<Map<String, dynamic>>> fetchMyActivity() async {
     }
   }
 
-Future<List<Map<String, dynamic>>> fetchNotifications({String? tab}) async {
+  Future<List<Map<String, dynamic>>> fetchNotifications({String? tab}) async {
     try {
       final response = await _get(
         '/api/notifications${tab != null && tab.trim().isNotEmpty ? '?tab=${Uri.encodeComponent(tab)}' : ''}',
@@ -766,6 +766,17 @@ Future<List<Map<String, dynamic>>> fetchNotifications({String? tab}) async {
       return List<Map<String, dynamic>>.from(payload['items'] as List<dynamic>);
     } catch (_) {
       return const <Map<String, dynamic>>[];
+    }
+  }
+
+  Future<void> sendChatMessage(String message) async {
+    final response = await _post(
+      '/api/chat/messages',
+      {'message': message, 'sender': 'user'},
+      timeout: const Duration(seconds: 10),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Unable to send message');
     }
   }
 

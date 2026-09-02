@@ -139,8 +139,9 @@ class _ProfileScreenState extends State<ProfileScreen>
           widget.apiService
               .fetchUserWall(targetId)
               .catchError((_) => <Map<String, dynamic>>[]),
-          widget.apiService
-              .fetchUserActivity(targetId)
+          (_isOwnProfile
+                  ? widget.apiService.fetchMyActivity()
+                  : widget.apiService.fetchUserActivity(targetId))
               .catchError((_) => <Map<String, dynamic>>[]),
           (_isOwnProfile
                   ? widget.apiService.fetchMyReviews()

@@ -2821,13 +2821,13 @@ def get_my_activity(user: dict[str, Any] = Depends(require_user)):
     except Exception:
         pass
 
-    def push(typ: str, act_id: Any, title: str, message: str, book_id: Any = None, cover: Any = "") -> None:
+    def push(typ: str, act_id: Any, title: str, message: str, book_id: Any = None, cover: Any = "", created_at: Any = None) -> None:
         items.append({
             "id": f"{typ}-{act_id}",
             "type": typ,
             "title": title,
             "message": message or typ.title(),
-            "created_at": str(act_id or ""),
+            "created_at": _serialize_db_datetime(created_at) if created_at is not None else str(act_id or ""),
             "book_id": book_id,
             "cover_path": _normalize_cover_path(cover or ""),
         })
@@ -3442,6 +3442,48 @@ def create_chat_message(
     row_id, _ = execute_write(
         "INSERT INTO chat_messages (user_id, sender, message) VALUES (%s, %s, %s)",
         (user["user_id"], sender, message),
+    )
+    return {"ok": True, "id": row_id}
+
+
+@app.get("/api/admin/chat/{target_user_id}")
+def admin_get_chat_messages(target_user_id: int, admin: dict[str, Any] = Depends(require_admin)):
+    """Admin reads a user's support chat thread."""
+    rows = fetch_all(
+        """
+        SELECT id, user_id, sender, message, created_at
+        FROM chat_messages
+        WHERE user_id=%s
+        ORDER BY created_at ASC, id ASC
+        """,
+        (target_user_id,),
+    )
+    return {
+        "items": [
+            {
+                "id": row["id"],
+                "sender": row["sender"],
+                "message": row["message"],
+                "created_at": _serialize_db_datetime(row["created_at"]),
+            }
+            for row in (rows or [])
+        ]
+    }
+
+
+@app.post("/api/admin/chat/{target_user_id}")
+def admin_reply_chat(
+    target_user_id: int,
+    payload: ChatMessageCreateRequest,
+    admin: dict[str, Any] = Depends(require_admin),
+):
+    """Admin sends a reply into a user's chat thread."""
+    message = payload.message.strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
+    row_id, _ = execute_write(
+        "INSERT INTO chat_messages (user_id, sender, message) VALUES (%s, %s, %s)",
+        (target_user_id, "admin", message),
     )
     return {"ok": True, "id": row_id}
 
