@@ -51,7 +51,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _loadAll();
   }
 
@@ -118,7 +118,6 @@ class _ProfileScreenState extends State<ProfileScreen>
       // Always load from backend — never use bootstrap fake lists/stories
       List stories = const [];
       List wall = const [];
-      List activity = const [];
       List reviews = const [];
       List lists = const [];
 
@@ -132,10 +131,6 @@ class _ProfileScreenState extends State<ProfileScreen>
               .fetchUserWall(targetId)
               .catchError((_) => <Map<String, dynamic>>[]),
           (_isOwnProfile
-                  ? widget.apiService.fetchMyActivity()
-                  : widget.apiService.fetchUserActivity(targetId))
-              .catchError((_) => <Map<String, dynamic>>[]),
-          (_isOwnProfile
                   ? widget.apiService.fetchMyReviews()
                   : widget.apiService.fetchUserReviews(targetId))
               .catchError((_) => <Map<String, dynamic>>[]),
@@ -146,36 +141,15 @@ class _ProfileScreenState extends State<ProfileScreen>
         ]);
         stories = List<Map<String, dynamic>>.from(results[0] as List);
         wall = List<Map<String, dynamic>>.from(results[1] as List);
-        activity = List<Map<String, dynamic>>.from(results[2] as List);
-        reviews = List<Map<String, dynamic>>.from(results[3] as List);
-        lists = List<Map<String, dynamic>>.from(results[4] as List);
-        // Own profile: if activity empty, merge live notifications (likes/comments/follows)
-        if (_isOwnProfile && activity.isEmpty) {
-          try {
-            final notes = await widget.apiService.fetchNotifications();
-            activity = notes
-                .map(
-                  (n) => {
-                    'type': n['type'] ?? 'system',
-                    'title': n['title'] ?? n['message'] ?? '',
-                    'message': n['message'] ?? '',
-                    'actor_name': n['actor_name'] ?? '',
-                    'actor_photo': n['actor_photo'] ?? '',
-                    'cover_path': n['cover_path'] ?? '',
-                    'book_id': n['book_id'],
-                    'created_at': n['created_at'] ?? '',
-                  },
-                )
-                .toList();
-          } catch (_) {}
-        }
+        reviews = List<Map<String, dynamic>>.from(results[2] as List);
+        lists = List<Map<String, dynamic>>.from(results[3] as List);
       }
 
       if (!mounted) return;
       setState(() {
         _stories = stories.cast<Map<String, dynamic>>();
         _wall = wall.cast<Map<String, dynamic>>();
-        _activity = activity.cast<Map<String, dynamic>>();
+        _activity = const [];
         _reviews = reviews.cast<Map<String, dynamic>>();
         _readingLists = lists.cast<Map<String, dynamic>>();
         _loadingProfile = false;
@@ -782,7 +756,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                           Tab(text: 'Wall'),
 
                           Tab(text: 'Reviews'),
-                          Tab(text: 'My Activity'),
                         ],
                       ),
                     ),
@@ -796,7 +769,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                   _buildStoriesTab(),
                   _buildWallTab(),
                   _buildReviewsTab(),
-                  _buildMyActivityTab(),
                 ],
               ),
             ),
@@ -2727,7 +2699,15 @@ class _WallComposeSheetState extends State<_WallComposeSheet> {
     final query = match.group(1)!;
     final rows = await widget.apiService.searchStories(query: query);
     if (!mounted || _ctrl.text != value) return;
-    setState(() => _suggestions = rows.take(5).toList());
+    final normalizedQuery = query.toLowerCase();
+    final titleMatches = rows
+        .where((book) {
+          final title = (book['title'] ?? '').toString().toLowerCase();
+          return title.contains(normalizedQuery);
+        })
+        .take(5)
+        .toList();
+    setState(() => _suggestions = titleMatches);
   }
 
   void _selectBook(Map<String, dynamic> book) {

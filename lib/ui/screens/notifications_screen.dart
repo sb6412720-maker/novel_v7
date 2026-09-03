@@ -27,7 +27,6 @@ class NotificationsScreen extends StatefulWidget {
 class _NotificationsScreenState extends State<NotificationsScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabs;
-  late Future<List<Map<String, dynamic>>> _activityFuture;
   late Future<List<Map<String, dynamic>>> _adminFuture;
 
   @override
@@ -44,13 +43,12 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   }
 
   void _reload() {
-    _activityFuture = widget.apiService.fetchNotifications();
     _adminFuture = widget.apiService.fetchAdminNotifications();
   }
 
   Future<void> _refresh() async {
     setState(_reload);
-    await Future.wait([_activityFuture, _adminFuture]);
+    await _adminFuture;
   }
 
   IconData _iconFor(String type) {
@@ -144,12 +142,19 @@ class _NotificationsScreenState extends State<NotificationsScreen>
               physics: const AlwaysScrollableScrollPhysics(),
               children: [
                 const SizedBox(height: 100),
-                Icon(Icons.notifications_none, size: 48, color: Colors.grey.shade400),
+                Icon(
+                  Icons.notifications_none,
+                  size: 48,
+                  color: Colors.grey.shade400,
+                ),
                 const SizedBox(height: 12),
                 Center(
                   child: Text(
                     emptyTitle,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -177,9 +182,18 @@ class _NotificationsScreenState extends State<NotificationsScreen>
               final when = (n['created_at'] ?? '').toString();
               final bookId = (n['book_id'] as num?)?.toInt() ?? 0;
               return ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
                 leading: _coverOrIcon(n, type),
-                title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                title: Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
                 subtitle: Text(
                   [
                     if (message.isNotEmpty && message != title) message,
@@ -188,7 +202,9 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                trailing: bookId > 0 ? const Icon(Icons.chevron_right, size: 20) : null,
+                trailing: bookId > 0
+                    ? const Icon(Icons.chevron_right, size: 20)
+                    : null,
                 onTap: bookId > 0 ? () => _openBook(n) : null,
               );
             },
@@ -209,21 +225,12 @@ class _NotificationsScreenState extends State<NotificationsScreen>
           labelColor: AppTheme.brand,
           unselectedLabelColor: Colors.grey,
           indicatorColor: AppTheme.brand,
-          tabs: const [
-            Tab(text: 'Activity'),
-            Tab(text: 'Admin'),
-          ],
+          tabs: const [Tab(text: 'Admin')],
         ),
       ),
       body: TabBarView(
         controller: _tabs,
         children: [
-          _list(
-            future: _activityFuture,
-            emptyTitle: 'No activity yet',
-            emptyBody:
-                'When people like, comment, review, save, share or follow you, it shows here.',
-          ),
           _list(
             future: _adminFuture,
             emptyTitle: 'No admin notices',

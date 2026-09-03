@@ -15,7 +15,6 @@ import 'profile_screen.dart';
 import 'story_detail_screen.dart';
 import 'hashtag_detail_screen.dart';
 import 'chapter_reader_screen.dart';
-import 'notifications_screen.dart';
 
 part 'discover_widgets.dart';
 
@@ -125,18 +124,29 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                       const Spacer(),
                       // Premium chip (UI only — matches mockup)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF2A2140) : const Color(0xFFF3EEFF),
+                          color: isDark
+                              ? const Color(0xFF2A2140)
+                              : const Color(0xFFF3EEFF),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: isDark ? const Color(0xFF4C3A7A) : const Color(0xFFD6C7FF),
+                            color: isDark
+                                ? const Color(0xFF4C3A7A)
+                                : const Color(0xFFD6C7FF),
                           ),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: const [
-                            Icon(Icons.diamond_outlined, size: 14, color: Color(0xFF6C3CE1)),
+                            Icon(
+                              Icons.diamond_outlined,
+                              size: 14,
+                              color: Color(0xFF6C3CE1),
+                            ),
                             SizedBox(width: 4),
                             Text(
                               'Premium',
@@ -374,7 +384,8 @@ class _DiscoverScreenState extends State<DiscoverScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     // Home-style layout for first / For You / Discover tabs
-    final isHomeTab = tabIndex == 0 ||
+    final isHomeTab =
+        tabIndex == 0 ||
         tabLabel.contains('for you') ||
         tabLabel.contains('discover') ||
         tabLabel.contains('home') ||
@@ -478,10 +489,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                     },
             ),
             const SizedBox(height: 12),
-            _HomeTrendingList(
-              books: trending,
-              apiService: widget.apiService,
-            ),
+            _HomeTrendingList(books: trending, apiService: widget.apiService),
             // Keep existing rails below so no content is lost
             if (sections.isNotEmpty) ...[
               const SizedBox(height: 16),
@@ -560,7 +568,6 @@ class _DiscoverScreenState extends State<DiscoverScreen>
       ),
     );
   }
-
 
   List<BookCardModel> _booksForDiscover() {
     final seen = <int>{};
@@ -953,7 +960,9 @@ class _SearchScreenState extends State<SearchScreen> {
               '_kind': 'profile',
               'id': uid ?? name.hashCode,
               'title': name.isEmpty ? username : name,
-              'author': username.isNotEmpty ? '@$username' : 'Author',
+              'author': username.isNotEmpty
+                  ? (username.startsWith('@') ? username : '@$username')
+                  : 'Author',
               'cover_path': photo,
               'rating': '',
               'author_user_id': uid,
@@ -1159,9 +1168,12 @@ class _SearchScreenState extends State<SearchScreen> {
                       _searchQuery = value;
                       _showRecent = value.trim().isEmpty;
                     });
-                    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
-                      if (mounted) _runSearch(recordHistory: false);
-                    });
+                    _searchDebounce = Timer(
+                      const Duration(milliseconds: 300),
+                      () {
+                        if (mounted) _runSearch(recordHistory: false);
+                      },
+                    );
                   },
                   onSubmitted: (value) {
                     setState(() {
@@ -1182,7 +1194,11 @@ class _SearchScreenState extends State<SearchScreen> {
                     _searchController.clear();
                     _runSearch();
                   },
-                  child: Icon(Icons.close_rounded, size: 18, color: Colors.grey.shade500),
+                  child: Icon(
+                    Icons.close_rounded,
+                    size: 18,
+                    color: Colors.grey.shade500,
+                  ),
                 ),
             ],
           ),
@@ -1243,12 +1259,18 @@ class _SearchScreenState extends State<SearchScreen> {
                           _runSearch(recordHistory: false);
                         }
                       },
-                      selectedColor: const Color(0xFF6C3CE1).withValues(alpha: 0.18),
-                      backgroundColor: isDark ? const Color(0xFF1E1E1E) : const Color(0xFFF7F5FC),
+                      selectedColor: const Color(
+                        0xFF6C3CE1,
+                      ).withValues(alpha: 0.18),
+                      backgroundColor: isDark
+                          ? const Color(0xFF1E1E1E)
+                          : const Color(0xFFF7F5FC),
                       side: BorderSide(
                         color: _searchScope == entry['id']
                             ? const Color(0xFF6C3CE1)
-                            : (isDark ? const Color(0xFF2C2C2C) : const Color(0xFFEDE9FE)),
+                            : (isDark
+                                  ? const Color(0xFF2C2C2C)
+                                  : const Color(0xFFEDE9FE)),
                       ),
                       labelStyle: TextStyle(
                         fontWeight: FontWeight.w700,
@@ -1294,7 +1316,11 @@ class _SearchScreenState extends State<SearchScreen> {
                         children: [
                           for (final term in recent.take(5))
                             ActionChip(
-                              avatar: Icon(Icons.history, size: 16, color: muted),
+                              avatar: Icon(
+                                Icons.history,
+                                size: 16,
+                                color: muted,
+                              ),
                               label: Text(term),
                               backgroundColor: isDark
                                   ? const Color(0xFF1E1E1E)
@@ -1359,14 +1385,20 @@ class _SearchScreenState extends State<SearchScreen> {
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(g.$2, color: const Color(0xFF6C3CE1), size: 26),
+                                  Icon(
+                                    g.$2,
+                                    color: const Color(0xFF6C3CE1),
+                                    size: 26,
+                                  ),
                                   const SizedBox(height: 8),
                                   Text(
                                     g.$1,
                                     style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w600,
-                                      color: isDark ? Colors.white70 : const Color(0xFF3A3A3A),
+                                      color: isDark
+                                          ? Colors.white70
+                                          : const Color(0xFF3A3A3A),
                                     ),
                                   ),
                                 ],
@@ -1390,7 +1422,9 @@ class _SearchScreenState extends State<SearchScreen> {
                         Padding(
                           padding: const EdgeInsets.only(bottom: 8),
                           child: Material(
-                            color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
+                            color: isDark
+                                ? const Color(0xFF1A1A1A)
+                                : Colors.white,
                             borderRadius: BorderRadius.circular(12),
                             child: InkWell(
                               borderRadius: BorderRadius.circular(12),
@@ -1426,8 +1460,8 @@ class _SearchScreenState extends State<SearchScreen> {
                                         color: i < 3
                                             ? const Color(0xFF6C3CE1)
                                             : (isDark
-                                                ? const Color(0xFF2A2A2A)
-                                                : const Color(0xFFF3F0FF)),
+                                                  ? const Color(0xFF2A2A2A)
+                                                  : const Color(0xFFF3F0FF)),
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Text(
@@ -1452,7 +1486,11 @@ class _SearchScreenState extends State<SearchScreen> {
                                         ),
                                       ),
                                     ),
-                                    Icon(Icons.north_east_rounded, size: 16, color: muted),
+                                    Icon(
+                                      Icons.north_east_rounded,
+                                      size: 16,
+                                      color: muted,
+                                    ),
                                   ],
                                 ),
                               ),
@@ -1482,234 +1520,255 @@ class _SearchScreenState extends State<SearchScreen> {
                         ],
                       )
                     : _results.isEmpty
-                        ? ListView(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            children: [
-                              SizedBox(height: 80),
-                              Icon(Icons.search_off_rounded, size: 48, color: muted),
-                              const SizedBox(height: 12),
-                              Center(
-                                child: Text(
-                                  'No results found',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: fg,
-                                  ),
-                                ),
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          SizedBox(height: 80),
+                          Icon(
+                            Icons.search_off_rounded,
+                            size: 48,
+                            color: muted,
+                          ),
+                          const SizedBox(height: 12),
+                          Center(
+                            child: Text(
+                              'No results found',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: fg,
                               ),
-                              const SizedBox(height: 6),
-                              Center(
-                                child: Text(
-                                  'Try a different keyword or filter',
-                                  style: TextStyle(fontSize: 13, color: muted),
-                                ),
-                              ),
-                            ],
-                          )
-                        : ListView.separated(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-                            itemCount: _results.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 8),
-                            itemBuilder: (context, index) {
-                              final item = _results[index];
-                              final kind = (item['kind'] ?? item['type'] ?? 'book')
-                                  .toString()
-                                  .toLowerCase();
-                              final cover = (item['cover_path'] ??
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Center(
+                            child: Text(
+                              'Try a different keyword or filter',
+                              style: TextStyle(fontSize: 13, color: muted),
+                            ),
+                          ),
+                        ],
+                      )
+                    : ListView.separated(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+                        itemCount: _results.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          final item = _results[index];
+                          final kind = (item['kind'] ?? item['type'] ?? 'book')
+                              .toString()
+                              .toLowerCase();
+                          final cover =
+                              (item['cover_path'] ??
                                       item['photo_url'] ??
                                       item['avatar_url'] ??
                                       '')
                                   .toString();
-                              final coverUrl = cover.isEmpty
-                                  ? ''
-                                  : widget.apiService.resolveAssetUrl(cover);
-                              Widget leading;
-                              if (kind == 'profile') {
-                                leading = CircleAvatar(
-                                  backgroundColor: const Color(0xFFEDE9FE),
-                                  backgroundImage: coverUrl.isNotEmpty
-                                      ? NetworkImage(coverUrl)
-                                      : null,
-                                  child: coverUrl.isEmpty
-                                      ? const Icon(Icons.person, color: Color(0xFF6C3CE1))
-                                      : null,
-                                );
-                              } else if (kind == 'tag') {
-                                leading = Container(
-                                  width: 44,
-                                  height: 44,
-                                  alignment: Alignment.center,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFEDE9FE),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: const Icon(Icons.tag, color: Color(0xFF6C3CE1)),
-                                );
-                              } else {
-                                leading = ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: SizedBox(
-                                    width: 48,
-                                    height: 64,
-                                    child: coverUrl.isNotEmpty
-                                        ? Image.network(
-                                            coverUrl,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) => Container(
-                                              color: const Color(0xFFEDE9FE),
-                                              child: const Icon(Icons.menu_book),
-                                            ),
-                                          )
-                                        : Container(
-                                            color: const Color(0xFFEDE9FE),
-                                            child: const Icon(Icons.menu_book),
-                                          ),
-                                  ),
-                                );
-                              }
-                              return Material(
-                                color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
-                                borderRadius: BorderRadius.circular(14),
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(14),
-                                  onTap: () {
-                                    if (kind == 'tag') {
-                                      final tag = (item['tag_name'] ??
-                                              item['title'] ??
-                                              '')
+                          final coverUrl = cover.isEmpty
+                              ? ''
+                              : widget.apiService.resolveAssetUrl(cover);
+                          Widget leading;
+                          if (kind == 'profile') {
+                            leading = CircleAvatar(
+                              backgroundColor: const Color(0xFFEDE9FE),
+                              backgroundImage: coverUrl.isNotEmpty
+                                  ? NetworkImage(coverUrl)
+                                  : null,
+                              child: coverUrl.isEmpty
+                                  ? const Icon(
+                                      Icons.person,
+                                      color: Color(0xFF6C3CE1),
+                                    )
+                                  : null,
+                            );
+                          } else if (kind == 'tag') {
+                            leading = Container(
+                              width: 44,
+                              height: 44,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEDE9FE),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.tag,
+                                color: Color(0xFF6C3CE1),
+                              ),
+                            );
+                          } else {
+                            leading = ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: SizedBox(
+                                width: 48,
+                                height: 64,
+                                child: coverUrl.isNotEmpty
+                                    ? Image.network(
+                                        coverUrl,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => Container(
+                                          color: const Color(0xFFEDE9FE),
+                                          child: const Icon(Icons.menu_book),
+                                        ),
+                                      )
+                                    : Container(
+                                        color: const Color(0xFFEDE9FE),
+                                        child: const Icon(Icons.menu_book),
+                                      ),
+                              ),
+                            );
+                          }
+                          return Material(
+                            color: isDark
+                                ? const Color(0xFF1A1A1A)
+                                : Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(14),
+                              onTap: () {
+                                if (kind == 'tag') {
+                                  final tag =
+                                      (item['tag_name'] ?? item['title'] ?? '')
                                           .toString();
-                                      if (tag.isEmpty) return;
-                                      setState(() {
-                                        _searchScope = 'tag';
-                                        _searchQuery = tag;
-                                        _showRecent = false;
-                                      });
-                                      _searchController.text = tag;
-                                      _runSearch(recordHistory: true);
-                                      return;
-                                    }
-                                    if (kind == 'profile') {
-                                      final uid =
-                                          (item['author_user_id'] as num?)?.toInt() ??
-                                          (item['id'] as num?)?.toInt() ??
-                                          0;
-                                      final name =
-                                          (item['title'] ?? item['display_name'] ?? 'Author')
-                                              .toString();
-                                      if (uid <= 0) return;
-                                      Navigator.of(context).push(
-                                        MaterialPageRoute<void>(
-                                          builder: (_) => ProfileScreen(
-                                            apiService: widget.apiService,
-                                            viewingUserId: uid,
-                                            achievements: const [],
-                                            profile: ProfileModel(
-                                              id: uid,
-                                              displayName: name,
-                                              username: name
-                                                  .toLowerCase()
-                                                  .replaceAll(' ', ''),
-                                              photoUrl: cover,
-                                              coverUrl: '',
-                                              following: 0,
-                                              followers: 0,
-                                              blocked: 0,
-                                              chaptersRead: 0,
-                                              socialKarma: 0,
-                                              dayStreak: 0,
-                                              readingLists: const [],
-                                            ),
-                                          ),
-                                        ),
-                                      );
-                                      return;
-                                    }
-                                    final id = (item['id'] as num?)?.toInt();
-                                    if (id == null) return;
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute<void>(
-                                        builder: (_) => StoryDetailScreen(
-                                          apiService: widget.apiService,
-                                          book: BookDetailModel.fromMap(item),
+                                  if (tag.isEmpty) return;
+                                  setState(() {
+                                    _searchScope = 'tag';
+                                    _searchQuery = tag;
+                                    _showRecent = false;
+                                  });
+                                  _searchController.text = tag;
+                                  _runSearch(recordHistory: true);
+                                  return;
+                                }
+                                if (kind == 'profile') {
+                                  final uid =
+                                      (item['author_user_id'] as num?)
+                                          ?.toInt() ??
+                                      (item['id'] as num?)?.toInt() ??
+                                      0;
+                                  final name =
+                                      (item['title'] ??
+                                              item['display_name'] ??
+                                              'Author')
+                                          .toString();
+                                  if (uid <= 0) return;
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => ProfileScreen(
+                                        apiService: widget.apiService,
+                                        viewingUserId: uid,
+                                        achievements: const [],
+                                        profile: ProfileModel(
+                                          id: uid,
+                                          displayName: name,
+                                          username: name
+                                              .toLowerCase()
+                                              .replaceAll(' ', ''),
+                                          photoUrl: cover,
+                                          coverUrl: '',
+                                          following: 0,
+                                          followers: 0,
+                                          blocked: 0,
+                                          chaptersRead: 0,
+                                          socialKarma: 0,
+                                          dayStreak: 0,
+                                          readingLists: const [],
                                         ),
                                       ),
-                                    );
-                                  },
-                                  child: Container(
-                                    padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(
-                                        color: isDark
-                                            ? const Color(0xFF2C2C2C)
-                                            : const Color(0xFFEDE9FE),
-                                      ),
                                     ),
-                                    child: Row(
-                                      children: [
-                                        leading,
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                item['title']?.toString() ?? '',
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.w700,
-                                                  fontSize: 14,
-                                                  color: fg,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                item['author']?.toString() ?? '',
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: muted,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        if (kind == 'book' &&
-                                            (item['rating'] != null &&
-                                                item['rating'].toString().isNotEmpty))
-                                          Row(
-                                            children: [
-                                              Icon(Icons.star_rounded,
-                                                  size: 14, color: Colors.amber.shade600),
-                                              const SizedBox(width: 2),
-                                              Text(
-                                                item['rating'].toString(),
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: fg,
-                                                ),
-                                              ),
-                                            ],
-                                          )
-                                        else
-                                          Icon(
-                                            kind == 'profile'
-                                                ? Icons.person_outline
-                                                : Icons.chevron_right,
-                                            color: muted,
-                                          ),
-                                      ],
+                                  );
+                                  return;
+                                }
+                                final id = (item['id'] as num?)?.toInt();
+                                if (id == null) return;
+                                Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => StoryDetailScreen(
+                                      apiService: widget.apiService,
+                                      book: BookDetailModel.fromMap(item),
                                     ),
+                                  ),
+                                );
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: isDark
+                                        ? const Color(0xFF2C2C2C)
+                                        : const Color(0xFFEDE9FE),
                                   ),
                                 ),
-                              );
-                            },
-                          ),
+                                child: Row(
+                                  children: [
+                                    leading,
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            item['title']?.toString() ?? '',
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 14,
+                                              color: fg,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            item['author']?.toString() ?? '',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: muted,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    if (kind == 'book' &&
+                                        (item['rating'] != null &&
+                                            item['rating']
+                                                .toString()
+                                                .isNotEmpty))
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.star_rounded,
+                                            size: 14,
+                                            color: Colors.amber.shade600,
+                                          ),
+                                          const SizedBox(width: 2),
+                                          Text(
+                                            item['rating'].toString(),
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: fg,
+                                            ),
+                                          ),
+                                        ],
+                                      )
+                                    else
+                                      Icon(
+                                        kind == 'profile'
+                                            ? Icons.person_outline
+                                            : Icons.chevron_right,
+                                        color: muted,
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
               ),
             ),
         ],
@@ -1717,7 +1776,6 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 }
-
 
 class _SearchFilters {
   const _SearchFilters({required this.genre, required this.minRating});

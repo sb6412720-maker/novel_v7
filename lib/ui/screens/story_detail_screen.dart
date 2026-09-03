@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../../data/models/app_bootstrap.dart';
 import '../../data/services/api_service.dart';
-import 'profile_screen.dart';
 import 'chapter_reader_screen.dart';
 import 'hashtag_detail_screen.dart';
 
@@ -50,6 +49,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
     final me = _currentUserId;
     return aid != null && me != null && aid == me;
   }
+
   List<Map<String, dynamic>> _authorStories = const [];
   List<Map<String, dynamic>> _youMayAlsoLike = const [];
   String? _authorPhotoUrl;
@@ -73,8 +73,8 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
     // Resolve current user immediately so owner self-actions stay disabled
     try {
       final me = await widget.apiService.fetchMe();
-      final uid = (me['id'] as num?)?.toInt() ??
-          (me['user_id'] as num?)?.toInt();
+      final uid =
+          (me['id'] as num?)?.toInt() ?? (me['user_id'] as num?)?.toInt();
       if (mounted && uid != null) setState(() => _currentUserId = uid);
     } catch (_) {}
     try {
@@ -189,7 +189,9 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
             await addFrom(await widget.apiService.fetchBooksByTag(_book.genre));
           } catch (_) {}
           try {
-            await addFrom(await widget.apiService.searchStories(query: _book.genre));
+            await addFrom(
+              await widget.apiService.searchStories(query: _book.genre),
+            );
           } catch (_) {}
         }
         if (related.length < 8) {
@@ -219,13 +221,16 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
         if (related.length < 6) {
           try {
             // Popular / broad search fallback so sections are rarely empty
-            await addFrom(await widget.apiService.searchStories(
-              query: _book.title.split(' ').first,
-            ));
+            await addFrom(
+              await widget.apiService.searchStories(
+                query: _book.title.split(' ').first,
+              ),
+            );
           } catch (_) {}
         }
 
-        if (mounted) setState(() => _youMayAlsoLike = related.take(12).toList());
+        if (mounted)
+          setState(() => _youMayAlsoLike = related.take(12).toList());
       } catch (_) {}
     } catch (e) {
       if (mounted) {
@@ -237,7 +242,6 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
       }
     }
   }
-
 
   Future<void> _toggleLike() async {
     if (_isOwner || _likeBusy) return;
@@ -254,7 +258,8 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
         } else {
           _liked = !wasLiked;
         }
-        final c = (res['likes_count'] as num?)?.toInt() ??
+        final c =
+            (res['likes_count'] as num?)?.toInt() ??
             (res['likes'] as num?)?.toInt();
         if (c != null) {
           _likesCount = c;
@@ -264,9 +269,9 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not update like: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not update like: $e')));
       }
     } finally {
       if (mounted) setState(() => _likeBusy = false);
@@ -319,7 +324,6 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
     }
   }
 
-  
   Future<void> _openReviewsPage() async {
     final result = await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
@@ -363,38 +367,41 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
     }
     Navigator.of(context)
         .push<bool>(
-      MaterialPageRoute<bool>(
-        builder: (_) => _WriteReviewScreen(
-          apiService: widget.apiService,
-          bookId: _book.id,
-        ),
-      ),
-    )
+          MaterialPageRoute<bool>(
+            builder: (_) => _WriteReviewScreen(
+              apiService: widget.apiService,
+              bookId: _book.id,
+            ),
+          ),
+        )
         .then((ok) async {
-      if (ok == true && mounted) {
-        setState(() => _hasMyReview = true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Review added')),
-        );
-        try {
-          final reviews = await widget.apiService.fetchBookReviews(_book.id);
-          if (mounted) setState(() => _reviews = reviews);
-        } catch (_) {}
-      }
-    });
+          if (ok == true && mounted) {
+            setState(() => _hasMyReview = true);
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('Review added')));
+            try {
+              final reviews = await widget.apiService.fetchBookReviews(
+                _book.id,
+              );
+              if (mounted) setState(() => _reviews = reviews);
+            } catch (_) {}
+          }
+        });
   }
 
-Future<void> _checkSavedAndReviewed() async {
+  Future<void> _checkSavedAndReviewed() async {
     try {
       final me = await widget.apiService.fetchMe();
-      final uid = (me['id'] as num?)?.toInt() ??
-          (me['user_id'] as num?)?.toInt();
+      final uid =
+          (me['id'] as num?)?.toInt() ?? (me['user_id'] as num?)?.toInt();
       if (mounted && uid != null) setState(() => _currentUserId = uid);
     } catch (_) {}
     try {
       final lib = await widget.apiService.fetchLibraryEntries();
       final saved = lib.any((e) {
-        final bid = (e['book_id'] as num?)?.toInt() ??
+        final bid =
+            (e['book_id'] as num?)?.toInt() ??
             ((e['book'] as Map?)?['id'] as num?)?.toInt() ??
             0;
         return bid == _book.id;
@@ -404,7 +411,9 @@ Future<void> _checkSavedAndReviewed() async {
     try {
       final reviews = await widget.apiService.fetchBookReviews(_book.id);
       // If current user review exists API may mark mine; else after post we set
-      final mine = reviews.any((r) => r['is_mine'] == true || r['mine'] == true);
+      final mine = reviews.any(
+        (r) => r['is_mine'] == true || r['mine'] == true,
+      );
       if (mounted && mine) setState(() => _hasMyReview = true);
     } catch (_) {}
   }
@@ -610,14 +619,11 @@ Future<void> _checkSavedAndReviewed() async {
     if (!mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => HashtagDetailScreen(
-          tag: tag,
-          apiService: widget.apiService,
-        ),
+        builder: (_) =>
+            HashtagDetailScreen(tag: tag, apiService: widget.apiService),
       ),
     );
   }
-
 
   Widget _statCell(String label, String value) {
     // IMPORTANT: do not return Expanded here — callers may wrap in GestureDetector.
@@ -655,7 +661,9 @@ Future<void> _checkSavedAndReviewed() async {
         ? 'No summary available.'
         : _book.description.trim();
     final needsExpand = summary.length > 180;
-    final authorName = _book.author.trim().isEmpty ? 'Author' : _book.author.trim();
+    final authorName = _book.author.trim().isEmpty
+        ? 'Author'
+        : _book.author.trim();
 
     return Scaffold(
       backgroundColor: bg,
@@ -689,9 +697,18 @@ Future<void> _checkSavedAndReviewed() async {
                       context: context,
                       position: const RelativeRect.fromLTRB(1000, 80, 16, 0),
                       items: const [
-                        PopupMenuItem(value: 'list', child: Text('Save to reading list')),
-                        PopupMenuItem(value: 'review', child: Text('Write a review')),
-                        PopupMenuItem(value: 'report', child: Text('Report story')),
+                        PopupMenuItem(
+                          value: 'list',
+                          child: Text('Save to reading list'),
+                        ),
+                        PopupMenuItem(
+                          value: 'review',
+                          child: Text('Write a review'),
+                        ),
+                        PopupMenuItem(
+                          value: 'report',
+                          child: Text('Report story'),
+                        ),
                       ],
                     );
                     if (!mounted) return;
@@ -704,7 +721,9 @@ Future<void> _checkSavedAndReviewed() async {
                         await widget.apiService.reportBook(_book.id);
                         if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Report submitted. Thank you.')),
+                          const SnackBar(
+                            content: Text('Report submitted. Thank you.'),
+                          ),
                         );
                       } catch (e) {
                         if (!mounted) return;
@@ -748,14 +767,19 @@ Future<void> _checkSavedAndReviewed() async {
                                       child: SizedBox(
                                         width: 28,
                                         height: 28,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
                                       ),
                                     ),
                                   );
                                 },
                                 errorBuilder: (_, __, ___) => ColoredBox(
                                   color: Colors.grey.shade300,
-                                  child: const Icon(Icons.broken_image, size: 40),
+                                  child: const Icon(
+                                    Icons.broken_image,
+                                    size: 40,
+                                  ),
                                 ),
                               ),
                       ),
@@ -796,7 +820,9 @@ Future<void> _checkSavedAndReviewed() async {
                     Expanded(
                       child: _statCell(
                         'Status',
-                        _book.statusText.isNotEmpty ? _book.statusText : 'Ongoing',
+                        _book.statusText.isNotEmpty
+                            ? _book.statusText
+                            : 'Ongoing',
                       ),
                     ),
                     Expanded(
@@ -806,7 +832,11 @@ Future<void> _checkSavedAndReviewed() async {
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.visibility_outlined, size: 16, color: muted),
+                              Icon(
+                                Icons.visibility_outlined,
+                                size: 16,
+                                color: muted,
+                              ),
                               const SizedBox(width: 4),
                               Text(
                                 '$_viewCount',
@@ -819,7 +849,10 @@ Future<void> _checkSavedAndReviewed() async {
                             ],
                           ),
                           const SizedBox(height: 2),
-                          Text('Views', style: TextStyle(fontSize: 12, color: muted)),
+                          Text(
+                            'Views',
+                            style: TextStyle(fontSize: 12, color: muted),
+                          ),
                         ],
                       ),
                     ),
@@ -851,13 +884,16 @@ Future<void> _checkSavedAndReviewed() async {
                           : TextOverflow.ellipsis,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         height: 1.45,
-                        color: isDark ? Colors.white70 : const Color(0xFF444444),
+                        color: isDark
+                            ? Colors.white70
+                            : const Color(0xFF444444),
                       ),
                     ),
                     if (needsExpand)
                       TextButton(
-                        onPressed: () =>
-                            setState(() => _summaryExpanded = !_summaryExpanded),
+                        onPressed: () => setState(
+                          () => _summaryExpanded = !_summaryExpanded,
+                        ),
                         style: TextButton.styleFrom(
                           foregroundColor: inkittGreen,
                           padding: EdgeInsets.zero,
@@ -916,8 +952,8 @@ Future<void> _checkSavedAndReviewed() async {
                           _isOwner
                               ? 'Reviews (${_reviews.length})'
                               : (_reviews.isEmpty
-                                  ? 'Review'
-                                  : 'Review (${_reviews.length})'),
+                                    ? 'Review'
+                                    : 'Review (${_reviews.length})'),
                           style: TextStyle(color: fg),
                         ),
                       ),
@@ -935,9 +971,14 @@ Future<void> _checkSavedAndReviewed() async {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Genres',
-                          style: TextStyle(
-                              fontWeight: FontWeight.w700, fontSize: 16, color: fg)),
+                      Text(
+                        'Genres',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                          color: fg,
+                        ),
+                      ),
                       const SizedBox(height: 8),
                       Wrap(
                         spacing: 8,
@@ -966,9 +1007,14 @@ Future<void> _checkSavedAndReviewed() async {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Tags',
-                          style: TextStyle(
-                              fontWeight: FontWeight.w700, fontSize: 16, color: fg)),
+                      Text(
+                        'Tags',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                          color: fg,
+                        ),
+                      ),
                       const SizedBox(height: 8),
                       Wrap(
                         spacing: 8,
@@ -1001,22 +1047,31 @@ Future<void> _checkSavedAndReviewed() async {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Author',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 16, color: fg)),
+                    Text(
+                      'Author',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                        color: fg,
+                      ),
+                    ),
                     const SizedBox(height: 10),
                     Row(
                       children: [
                         CircleAvatar(
                           radius: 22,
                           backgroundColor: Colors.grey.shade300,
-                          backgroundImage: (_authorPhotoUrl != null &&
+                          backgroundImage:
+                              (_authorPhotoUrl != null &&
                                   _authorPhotoUrl!.isNotEmpty)
                               ? NetworkImage(
-                                  widget.apiService.resolveAssetUrl(_authorPhotoUrl!),
+                                  widget.apiService.resolveAssetUrl(
+                                    _authorPhotoUrl!,
+                                  ),
                                 )
                               : null,
-                          child: (_authorPhotoUrl == null ||
+                          child:
+                              (_authorPhotoUrl == null ||
                                   _authorPhotoUrl!.isEmpty)
                               ? Text(
                                   authorName.isNotEmpty
@@ -1043,7 +1098,9 @@ Future<void> _checkSavedAndReviewed() async {
                               backgroundColor: inkittGreen,
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 18, vertical: 8),
+                                horizontal: 18,
+                                vertical: 8,
+                              ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(20),
                               ),
@@ -1064,7 +1121,10 @@ Future<void> _checkSavedAndReviewed() async {
                 child: Text(
                   'Chapters',
                   style: TextStyle(
-                      fontWeight: FontWeight.w700, fontSize: 16, color: fg),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    color: fg,
+                  ),
                 ),
               ),
             ),
@@ -1079,37 +1139,34 @@ Future<void> _checkSavedAndReviewed() async {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.all(20),
-                  child: Text('No chapters published yet.',
-                      style: TextStyle(color: muted)),
+                  child: Text(
+                    'No chapters published yet.',
+                    style: TextStyle(color: muted),
+                  ),
                 ),
               )
             else
               // ignore: prefer_const_constructors - dynamic list
               SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final chapter = _chapters[index];
-                    final rawTitle =
-                        (chapter['title'] as String? ?? '').trim();
-                    final number =
-                        (chapter['chapter_number'] as num?)?.toInt() ??
-                            index + 1;
-                    final label = rawTitle.isEmpty
-                        ? 'Chapter $number'
-                        : 'Chapter $number  $rawTitle';
-                    return ListTile(
-                      title: Text(
-                        label,
-                        style: TextStyle(
-                          color: inkittGreen,
-                          fontWeight: FontWeight.w600,
-                        ),
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  final chapter = _chapters[index];
+                  final rawTitle = (chapter['title'] as String? ?? '').trim();
+                  final number =
+                      (chapter['chapter_number'] as num?)?.toInt() ?? index + 1;
+                  final label = rawTitle.isEmpty
+                      ? 'Chapter $number'
+                      : 'Chapter $number  $rawTitle';
+                  return ListTile(
+                    title: Text(
+                      label,
+                      style: TextStyle(
+                        color: inkittGreen,
+                        fontWeight: FontWeight.w600,
                       ),
-                      onTap: () => _openChapter(chapter, index: index),
-                    );
-                  },
-                  childCount: _chapters.length,
-                ),
+                    ),
+                    onTap: () => _openChapter(chapter, index: index),
+                  );
+                }, childCount: _chapters.length),
               ),
 
             // More stories by this author
@@ -1138,7 +1195,9 @@ Future<void> _checkSavedAndReviewed() async {
                 child: _HorizontalBookRail(
                   title: 'Recommended for you',
                   books: () {
-                    final copy = List<Map<String, dynamic>>.from(_youMayAlsoLike);
+                    final copy = List<Map<String, dynamic>>.from(
+                      _youMayAlsoLike,
+                    );
                     copy.shuffle(Random());
                     return copy;
                   }(),
@@ -1185,7 +1244,6 @@ Future<void> _checkSavedAndReviewed() async {
     );
   }
 }
-
 
 class _TagBooksScreen extends StatelessWidget {
   const _TagBooksScreen({
@@ -1242,8 +1300,6 @@ class _TagBooksScreen extends StatelessWidget {
     );
   }
 }
-
-
 
 class _BookReviewsPage extends StatefulWidget {
   const _BookReviewsPage({
@@ -1333,7 +1389,10 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
                     padding: const EdgeInsets.only(bottom: 12),
                     child: Text(
                       "Authors can't write reviews on their own books. You can still read reviews below.",
-                      style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 13,
+                      ),
                       textAlign: TextAlign.center,
                     ),
                   )
@@ -1358,7 +1417,6 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
                                   ),
                                 ),
                               );
-      
 
                               if (posted == true && mounted) {
                                 // Leave reviews page immediately; parent refreshes counts
@@ -1366,7 +1424,9 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
                               }
                             },
                       child: Text(
-                        widget.hasMyReview ? 'You already reviewed' : 'Write a Review',
+                        widget.hasMyReview
+                            ? 'You already reviewed'
+                            : 'Write a Review',
                       ),
                     ),
                   ),
@@ -1413,8 +1473,9 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
   }
 
   Widget _reviewCard(Map<String, dynamic> r) {
-    final name = (r['user_name'] ?? r['display_name'] ?? r['username'] ?? 'Reader')
-        .toString();
+    final name =
+        (r['user_name'] ?? r['display_name'] ?? r['username'] ?? 'Reader')
+            .toString();
     final body = (r['comment'] ?? r['body'] ?? r['text'] ?? '').toString();
     final title = (r['title'] ?? '').toString();
     final rating = (r['rating'] as num?)?.toDouble() ?? 0;
@@ -1454,11 +1515,17 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                    Text(
+                      name,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
                     if (chaptersRead != null)
                       Text(
                         '$chaptersRead chapters read',
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
                       ),
                   ],
                 ),
@@ -1471,11 +1538,17 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
           ),
           if (title.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+            Text(
+              title,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+            ),
           ],
           if (body.isNotEmpty) ...[
             const SizedBox(height: 6),
-            Text('"$body"', style: TextStyle(color: Colors.grey.shade800, height: 1.4)),
+            Text(
+              '"$body"',
+              style: TextStyle(color: Colors.grey.shade800, height: 1.4),
+            ),
           ],
           const SizedBox(height: 10),
           Row(
@@ -1484,7 +1557,10 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Overall Rating', style: TextStyle(fontSize: 12)),
+                    const Text(
+                      'Overall Rating',
+                      style: TextStyle(fontSize: 12),
+                    ),
                     stars(rating),
                   ],
                 ),
@@ -1516,7 +1592,10 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Grammar & Punctuation', style: TextStyle(fontSize: 12)),
+                    const Text(
+                      'Grammar & Punctuation',
+                      style: TextStyle(fontSize: 12),
+                    ),
                     stars(rating),
                   ],
                 ),
@@ -1739,7 +1818,6 @@ class _WriteReviewScreenState extends State<_WriteReviewScreen> {
   }
 }
 
-
 class _HorizontalBookRail extends StatelessWidget {
   const _HorizontalBookRail({
     required this.title,
@@ -1764,7 +1842,11 @@ class _HorizontalBookRail extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Text(
               title,
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: fg),
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 17,
+                color: fg,
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -1780,8 +1862,11 @@ class _HorizontalBookRail extends StatelessWidget {
                 final id = (b['id'] as num?)?.toInt() ?? 0;
                 final title = (b['title'] ?? 'Story').toString();
                 final author = (b['author'] ?? '').toString();
-                final cover = (b['cover_path'] ?? b['cover_url'] ?? '').toString();
-                final url = cover.isNotEmpty ? apiService.resolveAssetUrl(cover) : '';
+                final cover = (b['cover_path'] ?? b['cover_url'] ?? '')
+                    .toString();
+                final url = cover.isNotEmpty
+                    ? apiService.resolveAssetUrl(cover)
+                    : '';
                 return GestureDetector(
                   onTap: () {
                     if (id <= 0) return;
@@ -1796,10 +1881,12 @@ class _HorizontalBookRail extends StatelessWidget {
                             description: (b['description'] ?? '').toString(),
                             statusText: (b['status_text'] ?? '').toString(),
                             rating: (b['rating'] as num?)?.toDouble() ?? 0,
-                            genre: (b['genre'] ?? b['primary_genre'] ?? '').toString(),
+                            genre: (b['genre'] ?? b['primary_genre'] ?? '')
+                                .toString(),
                             cta: 'Read now',
                             coverPath: cover,
-                            authorUserId: (b['author_user_id'] as num?)?.toInt() ??
+                            authorUserId:
+                                (b['author_user_id'] as num?)?.toInt() ??
                                 (b['user_id'] as num?)?.toInt(),
                           ),
                         ),

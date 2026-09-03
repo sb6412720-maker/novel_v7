@@ -377,7 +377,7 @@ def _ensure_auth_profile_columns() -> None:
     ]
     for _name, sql in cols:
         try:
-            execute_write(sql)
+            execute_write(sql, ())
         except Exception:
             pass
 
@@ -4596,7 +4596,7 @@ def _ensure_book_meta_columns() -> None:
         "ALTER TABLE books ADD COLUMN language VARCHAR(64) NULL",
     ):
         try:
-            execute_write(sql)
+            execute_write(sql, ())
         except Exception:
             pass
 
@@ -5443,7 +5443,7 @@ def create_book_review(
         "ALTER TABLE book_reviews ADD COLUMN tech_rating INT NULL",
     ):
         try:
-            execute_write(sql)
+            execute_write(sql, ())
         except Exception:
             pass
     stored_comment = body if not title else f"{title}\n\n{body}"
