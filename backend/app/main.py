@@ -2019,7 +2019,7 @@ def search_users(
 @app.get("/api/users/{user_id}")
 def get_user_profile(user_id: int):
     rows = fetch_all(
-        "SELECT id, email, display_name, photo_url, cover_url, bio, provider FROM app_users WHERE id=%s LIMIT 1",
+        "SELECT id, email, display_name, photo_url, cover_url, bio, provider, gender, birth_date, country, facebook_url, COALESCE(profile_complete,0) AS profile_complete, COALESCE(is_author,0) AS is_author FROM app_users WHERE id=%s LIMIT 1",
         (user_id,),
     )
     if not rows:
@@ -2063,7 +2063,10 @@ def get_user_profile(user_id: int):
         "bio": _row_get(u, "bio") or "",
         "gender": _row_get(u, "gender") or "",
         "birth_date": str(_row_get(u, "birth_date") or ""),
+        "country": _row_get(u, "country") or "",
+        "facebook_url": _row_get(u, "facebook_url") or "",
         "profile_complete": bool(int(_row_get(u, "profile_complete") or 0)),
+        "is_author": bool(int(_row_get(u, "is_author") or 0)),
         "provider": _row_get(u, "provider") or "",
         "following": following,
         "followers": followers,
@@ -5354,7 +5357,10 @@ def list_my_reviews(user: dict[str, Any] = Depends(require_user)):
 
 
 @app.get("/api/books/{book_id}/reviews")
-def list_book_reviews(book_id: int):
+def list_book_reviews(
+    book_id: int,
+    user: dict[str, Any] | None = Depends(optional_user),
+):
     try:
         rows = fetch_all(
             """
@@ -5380,6 +5386,7 @@ def list_book_reviews(book_id: int):
             """,
             (book_id,),
         )
+    viewer_id = int(user["user_id"]) if user else None
     items = []
     for row in rows or []:
         comment = str(_row_get(row, "comment") or "")
@@ -5401,6 +5408,7 @@ def list_book_reviews(book_id: int):
                 "created_at": _row_get(row, "created_at"),
                 "display_name": _row_get(row, "display_name") or "Reader",
                 "photo_url": _row_get(row, "photo_url") or "",
+                "is_mine": viewer_id is not None and int(_row_get(row, "user_id") or 0) == viewer_id,
             }
         )
     return {"items": items}

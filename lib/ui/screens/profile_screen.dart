@@ -32,6 +32,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   Map<String, dynamic>? _userProfile;
   bool _loadingProfile = true;
   bool _isFollowing = false;
+  bool _followBusy = false;
   bool _isOwnProfile = true;
 
   List<Map<String, dynamic>> _stories = const [];
@@ -166,7 +167,8 @@ class _ProfileScreenState extends State<ProfileScreen>
     return int.tryParse('$v') ?? 0;
   }
 
-  bool get _isAuthor => widget.profile.isAuthor;
+  bool get _isAuthor =>
+      (_userProfile?['is_author'] as bool?) ?? widget.profile.isAuthor;
 
   String get _displayName {
     final n = _s(_userProfile?['display_name']);
@@ -231,20 +233,24 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Future<void> _toggleFollow() async {
+    if (_followBusy) return;
     final id = widget.viewingUserId ?? widget.profile.id;
     if (id == null || _isOwnProfile) return;
     final wasFollowing = _isFollowing;
+    setState(() => _followBusy = true);
     try {
       final dynamic res = wasFollowing
           ? await widget.apiService.unfollowAuthor(id)
           : await widget.apiService.followAuthor(id);
       if (!mounted) return;
       int? followers;
+      bool? following;
       if (res is Map) {
         followers = (res['followers'] as num?)?.toInt();
+        following = res['following'] as bool?;
       }
       setState(() {
-        _isFollowing = !wasFollowing;
+        _isFollowing = following ?? !wasFollowing;
         if (_userProfile != null) {
           if (followers != null) {
             _userProfile = {..._userProfile!, 'followers': followers};
@@ -266,6 +272,8 @@ class _ProfileScreenState extends State<ProfileScreen>
           ? 'Sign in to follow authors'
           : 'Could not update follow';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    } finally {
+      if (mounted) setState(() => _followBusy = false);
     }
   }
 
@@ -941,6 +949,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   Widget _buildAboutTab() {
     final gender = _s(_userProfile?['gender']);
     final birth = _s(_userProfile?['birth_date']);
+    final country = _s(_userProfile?['country']);
     // shown in details below
 
     final lists = _readingLists;
@@ -948,7 +957,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
       children: [
-        if (gender.isNotEmpty || birth.isNotEmpty) ...[
+        if (gender.isNotEmpty || birth.isNotEmpty || country.isNotEmpty) ...[
           if (gender.isNotEmpty)
             ListTile(
               contentPadding: EdgeInsets.zero,
@@ -961,6 +970,13 @@ class _ProfileScreenState extends State<ProfileScreen>
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.cake_outlined, size: 20),
               title: Text(birth),
+              dense: true,
+            ),
+          if (country.isNotEmpty)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.public, size: 20),
+              title: Text(country),
               dense: true,
             ),
           const SizedBox(height: 8),
