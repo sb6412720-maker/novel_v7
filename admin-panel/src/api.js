@@ -348,3 +348,18 @@ export function listAdminReviews(limit = 100) {
 export function deleteAdminReview(id) {
   return request(`/api/admin/reviews/${id}`, { method: "DELETE" });
 }
+
+export function listChatConversations() {
+  return request("/api/admin/chat/conversations");
+}
+
+export function getChatConversation(userId) {
+  return request(`/api/admin/chat/conversations/${userId}`);
+}
+
+export function sendChatReply(userId, message) {
+  return request(`/api/admin/chat/conversations/${userId}`, {
+    method: "POST",
+    body: JSON.stringify({ message }),
+  });
+}

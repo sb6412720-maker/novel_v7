@@ -36,6 +36,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   Timer? _syncTimer;
   AuthSession? _session;
   bool _showLoginOverlay = false;
+
   /// Once true, never show complete-profile again this session (home already reached).
   bool _profileGatePassed = false;
 
@@ -69,21 +70,9 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
     }
   }
 
-  /// Background refresh — never set _bootstrap to null / empty loading shell.
-  Future<void> _softRefresh() async {
-    try {
-      final version = await _apiService.fetchContentVersion();
-      if (!mounted) return;
-      if (version.isNotEmpty && version != _contentVersion) {
-        await _loadBootstrap(showLoading: false);
-      }
-    } catch (_) {
-      // keep current screen data
-    }
-  }
-
   Future<void> _bootstrapApp() async {
-    // Restore token session first — login gate if none.
+    // Start disk loading immediately; it can run while remote auth wakes up.
+    final diskFuture = _apiService.loadDiskBootstrap();
     AuthSession? restored;
     try {
       restored = await _authService.restoreSession();
@@ -109,7 +98,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
     // Disk cache first for instant UI, then network refresh (same features).
     if (mounted) setState(() => _loading = true);
     try {
-      final disk = await _apiService.loadDiskBootstrap();
+      final disk = await diskFuture;
       if (disk != null &&
           mounted &&
           (disk.discoverBooks.isNotEmpty || disk.recentlyUpdated.isNotEmpty)) {
@@ -119,25 +108,14 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
         });
       }
     } catch (_) {}
-    // Session restore: NEVER show complete-profile (avoids form after home / on reopen).
-    // Complete-profile only runs once inside _continueLogin for brand-new accounts.
     if (mounted && restored != null) {
-      setState(() => _profileGatePassed = true);
-      if (!restored.isGuest) {
-        try {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setBool(_profileDoneKey(restored), true);
-          await prefs.setBool('profile_complete_local_done', true);
-          final em = restored.email.trim().toLowerCase();
-          if (em.isNotEmpty) {
-            await prefs.setBool('profile_complete_local_$em', true);
-          }
-        } catch (_) {}
-        // Best-effort DB heal — do not block UI
-        try {
-          await _apiService.updateMe({'profile_complete': true});
-        } catch (_) {}
+      if (restored.isGoogle) {
+        final needsProfile = await _needsCompleteProfile(restored);
+        if (needsProfile) {
+          await _showOnboardingBlocking(restored);
+        }
       }
+      if (mounted) setState(() => _profileGatePassed = true);
     }
 
     await _loadBootstrap(showLoading: _bootstrap == null);
@@ -210,7 +188,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       });
       // First-time users only: complete profile BEFORE Discover (cannot skip).
       // Never again from More / Profile.
-      if (!session.isGuest) {
+      if (session.isGoogle) {
         final needsProfile = await _needsCompleteProfile(session);
         if (!mounted) return;
         if (needsProfile) {
@@ -220,7 +198,9 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
           if (!mounted) return;
           if (still) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Please complete your profile to continue')),
+              const SnackBar(
+                content: Text('Please complete your profile to continue'),
+              ),
             );
             return;
           }
@@ -236,7 +216,8 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       if (!mounted) return;
       setState(() {
         _showLoginOverlay = false;
-        _profileGatePassed = true; // never show complete-profile again this session
+        _profileGatePassed =
+            true; // never show complete-profile again this session
       });
       // Persist "done" so Profile / More / next app open never re-open the form
       // after the user has already landed on home.
@@ -318,27 +299,14 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
     // again (not from More, Profile, or tab switches).
     if (_profileGatePassed) return false;
 
-    // Local flags — set after successful onboarding or after we heal DB
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      if (prefs.getBool(_profileDoneKey(session)) == true ||
-          prefs.getBool('profile_complete_local_done') == true) {
-        return false;
-      }
-      // Email-scoped flag (onboarding may have set this)
-      final em = (session.email).trim().toLowerCase();
-      if (em.isNotEmpty && prefs.getBool('profile_complete_local_$em') == true) {
-        return false;
-      }
-    } catch (_) {}
-
-    // DATABASE source of truth: profile_complete OR birth_date only.
-    // Google display_name alone must NOT skip onboarding (that was the bug).
+    // Database source of truth: Google display_name alone must not skip onboarding.
     try {
       final me = await _apiService.fetchMe();
       final done = _isProfileCompleteFlag(me['profile_complete']);
-      final hasBirth =
-          (me['birth_date'] ?? me['birthday'] ?? '').toString().trim().isNotEmpty;
+      final hasBirth = (me['birth_date'] ?? me['birthday'] ?? '')
+          .toString()
+          .trim()
+          .isNotEmpty;
 
       if (done || hasBirth) {
         // Heal DB flag if birth exists but flag missing
@@ -385,8 +353,9 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
             canPop: false,
             child: OnboardingProfileScreen(
               apiService: _apiService,
-              initialDisplayName:
-                  display.toLowerCase() == 'reader' ? '' : display,
+              initialDisplayName: display.toLowerCase() == 'reader'
+                  ? ''
+                  : display,
               initialPhotoUrl: photo,
               onDone: () {
                 if (Navigator.of(context).canPop()) {
@@ -421,11 +390,6 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       }
       unawaited(_loadBootstrap(showLoading: false));
     } catch (_) {}
-  }
-
-  Future<void> _maybeShowOnboarding(AuthSession session) async {
-    // Intentionally empty — complete profile only runs once in _continueLogin
-    // before Discover. Never from More / Profile / tab switches.
   }
 
   Future<void> _signOut() async {
@@ -574,7 +538,9 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
             if (_isGuestSession) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Guest can only read books. Sign in to use this feature.'),
+                  content: Text(
+                    'Guest can only read books. Sign in to use this feature.',
+                  ),
                 ),
               );
             }

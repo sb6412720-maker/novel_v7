@@ -2843,6 +2843,16 @@ def get_my_activity(user: dict[str, Any] = Depends(require_user)):
         _ensure_library_entries_table()
     except Exception:
         pass
+    try:
+        execute_write(
+            "CREATE TABLE IF NOT EXISTS book_shares (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, book_id INTEGER NOT NULL, created_at TEXT DEFAULT CURRENT_TIMESTAMP)",
+            (),
+        ) if _live_use_sqlite() else execute_write(
+            "CREATE TABLE IF NOT EXISTS book_shares (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, book_id INT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
+            (),
+        )
+    except Exception:
+        pass
 
     def push(typ: str, act_id: Any, title: str, message: str, book_id: Any = None, cover: Any = "", created_at: Any = None) -> None:
         items.append({
@@ -2874,6 +2884,23 @@ def get_my_activity(user: dict[str, Any] = Depends(require_user)):
                  created_at=_row_get(r, "created_at"))
     except Exception as exc:
         LOGGER.warning("my activity likes: %s", exc)
+
+    # Shares
+    try:
+        rows = fetch_all(
+            """
+            SELECT s.id AS act_id, s.book_id, s.created_at, b.title, b.cover_path
+            FROM book_shares s LEFT JOIN books b ON b.id=s.book_id
+            WHERE s.user_id=%s ORDER BY s.id DESC LIMIT 40
+            """,
+            (uid,),
+        ) or []
+        for r in rows:
+            push("share", _row_get(r, "act_id"), f"You shared {_row_get(r, 'title') or 'a story'}",
+                 "Share", _row_get(r, "book_id"), _row_get(r, "cover_path") or "",
+                 created_at=_row_get(r, "created_at"))
+    except Exception as exc:
+        LOGGER.warning("my activity shares: %s", exc)
 
     # Reviews
     try:
@@ -2984,6 +3011,20 @@ def get_my_activity(user: dict[str, Any] = Depends(require_user)):
     return {"items": items[:100]}
 
 
+@app.post("/api/books/{book_id}/share")
+def record_book_share(book_id: int, user: dict[str, Any] = Depends(require_user)):
+    if not fetch_all("SELECT id FROM books WHERE id=%s LIMIT 1", (book_id,)):
+        raise HTTPException(status_code=404, detail="Story not found")
+    try:
+        execute_write(
+            "INSERT INTO book_shares (user_id, book_id) VALUES (%s, %s)",
+            (int(user["user_id"]), book_id),
+        )
+    except Exception as exc:
+        LOGGER.warning("record share failed: %s", exc)
+    return {"ok": True}
+
+
 @app.get("/api/notifications/admin")
 def get_admin_notifications(user: dict[str, Any] = Depends(require_user)):
     """System / admin announcements for the in-app Admin notifications tab."""
@@ -3076,6 +3117,37 @@ def get_notifications(
             })
     except Exception as exc:
         LOGGER.warning("notifications likes: %s", exc)
+
+    try:
+        shares = fetch_all(
+            """
+            SELECT s.id, s.user_id, s.book_id, s.created_at, b.title, b.cover_path,
+                   COALESCE(u.display_name, 'Someone') AS actor_name,
+                   COALESCE(u.photo_url, '') AS actor_photo
+            FROM book_shares s JOIN books b ON b.id=s.book_id
+            LEFT JOIN app_users u ON u.id=s.user_id
+            WHERE s.user_id != %s AND (b.user_id=%s OR LOWER(COALESCE(b.author,'')) = LOWER((SELECT COALESCE(display_name,'') FROM app_users WHERE id=%s LIMIT 1)))
+            ORDER BY s.id DESC LIMIT 25
+            """,
+            (uid, uid, uid),
+        )
+        for row in shares or []:
+            actor = _row_get(row, "actor_name") or "Someone"
+            title = _row_get(row, "title") or "your story"
+            items.append({
+                "id": f"share-{_row_get(row, 'id')}",
+                "tab": "Story",
+                "type": "share",
+                "title": f"{actor} shared {title}",
+                "message": f'{actor} shared your book "{title}"',
+                "created_at": _serialize_db_datetime(_row_get(row, "created_at")),
+                "actor_name": actor,
+                "actor_photo": _row_get(row, "actor_photo") or "",
+                "book_id": _row_get(row, "book_id"),
+                "cover_path": _normalize_cover_path(_row_get(row, "cover_path") or ""),
+            })
+    except Exception as exc:
+        LOGGER.warning("notifications shares: %s", exc)
 
     try:
         comments = fetch_all(
@@ -3463,10 +3535,58 @@ def create_chat_message(
     message = payload.message.strip()
     if not message:
         raise HTTPException(status_code=400, detail="Message cannot be empty")
-    sender = (payload.sender or "user").strip() or "user"
     row_id, _ = execute_write(
         "INSERT INTO chat_messages (user_id, sender, message) VALUES (%s, %s, %s)",
-        (user["user_id"], sender, message),
+        (user["user_id"], "user", message),
+    )
+    return {"ok": True, "id": row_id}
+
+
+@app.get("/api/admin/chat/conversations")
+def admin_chat_conversations(_: dict[str, Any] = Depends(require_admin)):
+    rows = fetch_all(
+        """
+        SELECT u.id AS user_id, u.display_name, u.email,
+               COUNT(cm.id) AS message_count,
+               MAX(cm.created_at) AS last_message_at
+        FROM chat_messages cm
+        JOIN app_users u ON u.id = cm.user_id
+        GROUP BY u.id, u.display_name, u.email
+        ORDER BY last_message_at DESC, u.id DESC
+        LIMIT 500
+        """
+    )
+    return {"items": rows}
+
+
+@app.get("/api/admin/chat/conversations/{user_id}")
+def admin_chat_messages(user_id: int, _: dict[str, Any] = Depends(require_admin)):
+    rows = fetch_all(
+        """
+        SELECT id, user_id, sender, message, created_at
+        FROM chat_messages
+        WHERE user_id=%s
+        ORDER BY created_at ASC, id ASC
+        """,
+        (user_id,),
+    )
+    return {"items": rows}
+
+
+@app.post("/api/admin/chat/conversations/{user_id}")
+def admin_send_chat_message(
+    user_id: int,
+    payload: ChatMessageCreateRequest,
+    _: dict[str, Any] = Depends(require_admin),
+):
+    message = payload.message.strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
+    if not fetch_all("SELECT id FROM app_users WHERE id=%s LIMIT 1", (user_id,)):
+        raise HTTPException(status_code=404, detail="User not found")
+    row_id, _ = execute_write(
+        "INSERT INTO chat_messages (user_id, sender, message) VALUES (%s, %s, %s)",
+        (user_id, "admin", message),
     )
     return {"ok": True, "id": row_id}
 

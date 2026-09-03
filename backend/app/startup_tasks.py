@@ -148,6 +148,37 @@ def _ensure_mysql_extra_tables(connection) -> int:
             """,
         ),
         (
+            "support_requests",
+            """
+            CREATE TABLE IF NOT EXISTS support_requests (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                email VARCHAR(255) NOT NULL,
+                first_name VARCHAR(120) NOT NULL,
+                issue VARCHAR(120) NOT NULL,
+                subject VARCHAR(255) NOT NULL,
+                description TEXT NOT NULL,
+                device_type VARCHAR(120) NOT NULL DEFAULT '',
+                attachment_path VARCHAR(255) NULL,
+                status VARCHAR(40) NOT NULL DEFAULT 'open',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """,
+        ),
+        (
+            "book_shares",
+            """
+            CREATE TABLE IF NOT EXISTS book_shares (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                book_id INT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_share_user (user_id),
+                INDEX idx_share_book (book_id)
+            )
+            """,
+        ),
+        (
             "wall_posts",
             """
             CREATE TABLE IF NOT EXISTS wall_posts (
@@ -206,6 +237,7 @@ def _ensure_mysql_extra_tables(connection) -> int:
 
         # Column patches on existing tables
         column_patches = [
+            ("categories", "image_path", "ALTER TABLE categories ADD COLUMN image_path VARCHAR(255) NOT NULL DEFAULT ''"),
             ("app_users", "cover_url", "ALTER TABLE app_users ADD COLUMN cover_url TEXT NULL"),
             ("app_users", "bio", "ALTER TABLE app_users ADD COLUMN bio TEXT NULL"),
             ("author_follows", "user_id", "ALTER TABLE author_follows ADD COLUMN user_id INT NULL"),
@@ -467,7 +499,14 @@ def run_startup_tasks() -> dict[str, Any]:
         book_count = 0
 
     if book_count > 0:
-        # Schema is already there. Only apply route/auth patches (in-memory, fast).
+        # Keep Vercel cold starts lightweight. The extra-table/column repair below
+        # covers the live API contract; full seed migrations remain on the empty-DB
+        # path or can be explicitly requested for maintenance jobs.
+        if _os.getenv("RUN_FULL_STARTUP_MIGRATIONS", "").strip().lower() in ("1", "true", "yes"):
+            try:
+                result["migrations"] = run_startup_migrations()
+            except Exception as migration_exc:
+                LOGGER.warning("fast_path migrations skipped: %s", migration_exc)
         try:
             _apply_runtime_patches()
             result["patches_applied"] = True

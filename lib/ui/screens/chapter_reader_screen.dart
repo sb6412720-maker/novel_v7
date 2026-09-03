@@ -73,7 +73,6 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
   bool _showThemePanel = false;
   final Set<String> _selectedReactions = {};
   final Map<String, int> _reactionCounts = {};
-  bool _reactionsLoading = false;
   bool _liked = false;
   int _likeCount = 0;
   final ScrollController _scrollController = ScrollController();
@@ -174,15 +173,18 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
         _scrollController.jumpTo(estimated);
       }
       if (attempts < 12) {
-        Future<void>.delayed(Duration(milliseconds: 80 + attempts * 40), tryScroll);
+        Future<void>.delayed(
+          Duration(milliseconds: 80 + attempts * 40),
+          tryScroll,
+        );
       }
     }
+
     WidgetsBinding.instance.addPostFrameCallback((_) => tryScroll());
     Future<void>.delayed(const Duration(milliseconds: 200), tryScroll);
     Future<void>.delayed(const Duration(milliseconds: 500), tryScroll);
     Future<void>.delayed(const Duration(milliseconds: 900), tryScroll);
   }
-
 
   Future<void> _markLibraryProgress({bool completed = false}) async {
     final bookId = widget.bookId;
@@ -281,7 +283,8 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
       final map = Map<String, dynamic>.from((jsonDecode(raw) as Map?) ?? {});
       final now = DateTime.now();
       // Monday=1 ... use weekday name
-      final dayKey = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      final dayKey =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
       final prev = (map[dayKey] as num?)?.toInt() ?? 0;
       map[dayKey] = prev + _readSeconds;
       // Keep last 60 days
@@ -322,8 +325,8 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
         _chapterIndex = idx >= 0
             ? idx
             : (widget.initialChapterIndex < list.length
-                ? widget.initialChapterIndex
-                : 0);
+                  ? widget.initialChapterIndex
+                  : 0);
         _applyChapter(_chapters[_chapterIndex], resumeParagraph: true);
       });
       // Restore paragraph after content paints
@@ -335,7 +338,10 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     } catch (_) {}
   }
 
-  void _applyChapter(Map<String, dynamic> chapter, {bool resumeParagraph = false}) {
+  void _applyChapter(
+    Map<String, dynamic> chapter, {
+    bool resumeParagraph = false,
+  }) {
     _chapterTitle = chapter['title'] as String? ?? 'Untitled';
     _chapterContent = chapter['content'] as String? ?? '';
     _chapterNumber =
@@ -388,7 +394,6 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     } catch (_) {}
   }
 
-
   BookDetailModel _storyDetailBook() {
     return BookDetailModel(
       id: widget.bookId ?? 0,
@@ -429,9 +434,9 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     if (_chapterIndex >= _chapters.length - 1) {
       // Finished last chapter → mark completed (drops from Ongoing) + story detail
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Story completed')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Story completed')));
       }
       await _goBackToStoryDetail(completed: true);
       return;
@@ -622,6 +627,9 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
         'Read free on our app.';
     try {
       await Share.share(text, subject: widget.title);
+      if (widget.bookId != null) {
+        unawaited(widget.apiService.recordBookShare(widget.bookId!));
+      }
     } catch (_) {
       await Clipboard.setData(ClipboardData(text: text));
       if (!mounted) return;
@@ -1130,31 +1138,6 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     );
   }
 
-  /// Split chapter content roughly in half for mid-chapter ad placement.
-  // ignore: unused_element
-
-  List<String> _contentParts() {
-    final text = _chapterContent.trim();
-    if (text.isEmpty) return ['', ''];
-    final mid = text.length ~/ 2;
-    final searchStart = (mid - 200).clamp(0, text.length);
-    final searchEnd = (mid + 200).clamp(0, text.length);
-    final window = text.substring(searchStart, searchEnd);
-    final paraBreak = window.indexOf('\n\n');
-    if (paraBreak >= 0) {
-      final splitAt = searchStart + paraBreak;
-      return [
-        text.substring(0, splitAt).trim(),
-        text.substring(splitAt).trim(),
-      ];
-    }
-    final space = text.lastIndexOf(' ', mid);
-    if (space > 0) {
-      return [text.substring(0, space).trim(), text.substring(space).trim()];
-    }
-    return [text, ''];
-  }
-
   @override
   Widget build(BuildContext context) {
     final total = _chapters.isEmpty ? 1 : _chapters.length;
@@ -1172,306 +1155,307 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
         unawaited(_goBackToStoryDetail(completed: false));
       },
       child: Scaffold(
-      backgroundColor: _bg,
-      appBar: AppBar(
-          // reading timer
-
         backgroundColor: _bg,
-        foregroundColor: _fg,
-        elevation: 0,
-        centerTitle: true,
-        title: Text(pageLabel, style: TextStyle(color: _muted, fontSize: 14)),
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: _fg),
-          onPressed: () => unawaited(_goBackToStoryDetail(completed: false)),
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.info_outline, color: _muted),
-            onPressed: () {
-              showDialog<void>(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: Text(widget.title),
-                  content: Text(
-                    'By ${widget.author}\n\nChapter $_chapterNumber: $_chapterTitle',
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      child: const Text('Close'),
-                    ),
-                  ],
-                ),
-              );
-            },
+        appBar: AppBar(
+          // reading timer
+          backgroundColor: _bg,
+          foregroundColor: _fg,
+          elevation: 0,
+          centerTitle: true,
+          title: Text(pageLabel, style: TextStyle(color: _muted, fontSize: 14)),
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back, color: _fg),
+            onPressed: () => unawaited(_goBackToStoryDetail(completed: false)),
           ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView(
-              controller: _scrollController,
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-              children: [
-                // Chapter cover (book cover at start of every chapter)
-                if (coverUrl != null) ...[
-                  const SizedBox(height: 8),
-                  Center(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        coverUrl,
-                        width: 140,
-                        height: 200,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => Container(
+          actions: [
+            IconButton(
+              icon: Icon(Icons.info_outline, color: _muted),
+              onPressed: () {
+                showDialog<void>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: Text(widget.title),
+                    content: Text(
+                      'By ${widget.author}\n\nChapter $_chapterNumber: $_chapterTitle',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('Close'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+        body: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                controller: _scrollController,
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                children: [
+                  // Chapter cover (book cover at start of every chapter)
+                  if (coverUrl != null) ...[
+                    const SizedBox(height: 8),
+                    Center(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          coverUrl,
                           width: 140,
                           height: 200,
-                          color: Colors.grey.shade200,
-                          child: const Icon(Icons.menu_book, size: 48),
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => Container(
+                            width: 140,
+                            height: 200,
+                            color: Colors.grey.shade200,
+                            child: const Icon(Icons.menu_book, size: 48),
+                          ),
                         ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  Center(
+                    child: Text(
+                      widget.title,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: _fg,
+                        fontSize: _fontSize + 2,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Center(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircleAvatar(
+                          radius: 14,
+                          backgroundColor: Colors.grey.shade300,
+                          backgroundImage:
+                              (_authorPhotoUrl != null &&
+                                  _authorPhotoUrl!.isNotEmpty)
+                              ? NetworkImage(
+                                  widget.apiService.resolveAssetUrl(
+                                    _authorPhotoUrl!,
+                                  ),
+                                )
+                              : null,
+                          child:
+                              (_authorPhotoUrl == null ||
+                                  _authorPhotoUrl!.isEmpty)
+                              ? Text(
+                                  widget.author.isNotEmpty
+                                      ? widget.author[0].toUpperCase()
+                                      : 'A',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.black54,
+                                  ),
+                                )
+                              : null,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'By ${widget.author}',
+                          style: TextStyle(
+                            color: _muted,
+                            fontSize: _fontSize - 2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Center(
+                    child: Text(
+                      '〜〜〜〜〜〜〜〜',
+                      style: TextStyle(color: _muted, letterSpacing: 2),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _chapterTitle.toUpperCase().contains('CHAPTER') ||
+                            _chapterTitle.toUpperCase().contains('PROLOGUE')
+                        ? _chapterTitle
+                        : 'CHAPTER $_chapterNumber: $_chapterTitle',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: _fg,
+                      fontSize: _fontSize + 1,
+                      fontWeight: FontWeight.w700,
+                      height: 1.3,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  // Paragraphs with inline comment bubbles (Inkitt-style)
+                  if (_paragraphs().isEmpty)
+                    Text(
+                      'This chapter has not been written yet.',
+                      style: TextStyle(
+                        color: _fg,
+                        fontSize: _fontSize,
+                        height: 1.75,
+                      ),
+                    )
+                  else ...[
+                    for (var i = 0; i < _paragraphs().length; i++) ...[
+                      _buildParagraphBlock(_paragraphs()[i], i),
+                      if (i == _paragraphs().length ~/ 2 &&
+                          _paragraphs().length > 2)
+                        _buildAdBanner(
+                          label: 'Discover more stories you\'ll love',
+                        ),
+                    ],
+                  ],
+                  const SizedBox(height: 24),
+                  // Ad near Next Chapter button
+                  if (hasNext)
+                    _buildAdBanner(label: 'Continue reading more free stories'),
+                  if (hasNext)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: ElevatedButton(
+                          onPressed: _goNext,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF6C3CE1),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: const Text(
+                            'Next Chapter',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+                  Center(
+                    child: Text(
+                      'Let ${widget.author} know what you thought about this chapter!',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: _muted,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ),
                   const SizedBox(height: 16),
-                ],
-                Center(
-                  child: Text(
-                    widget.title,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: _fg,
-                      fontSize: _fontSize + 2,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Center(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircleAvatar(
-                        radius: 14,
-                        backgroundColor: Colors.grey.shade300,
-                        backgroundImage:
-                            (_authorPhotoUrl != null &&
-                                _authorPhotoUrl!.isNotEmpty)
-                            ? NetworkImage(
-                                widget.apiService.resolveAssetUrl(
-                                  _authorPhotoUrl!,
-                                ),
-                              )
-                            : null,
-                        child:
-                            (_authorPhotoUrl == null ||
-                                _authorPhotoUrl!.isEmpty)
-                            ? Text(
-                                widget.author.isNotEmpty
-                                    ? widget.author[0].toUpperCase()
-                                    : 'A',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.black54,
-                                ),
-                              )
-                            : null,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'By ${widget.author}',
-                        style: TextStyle(
-                          color: _muted,
-                          fontSize: _fontSize - 2,
+                  // Inkitt-style reaction grid (3 columns, compact)
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _reactionOptions.length,
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          mainAxisSpacing: 14,
+                          crossAxisSpacing: 8,
+                          childAspectRatio: 0.92,
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Center(
-                  child: Text(
-                    '〜〜〜〜〜〜〜〜',
-                    style: TextStyle(color: _muted, letterSpacing: 2),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  _chapterTitle.toUpperCase().contains('CHAPTER') ||
-                          _chapterTitle.toUpperCase().contains('PROLOGUE')
-                      ? _chapterTitle
-                      : 'CHAPTER $_chapterNumber: $_chapterTitle',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: _fg,
-                    fontSize: _fontSize + 1,
-                    fontWeight: FontWeight.w700,
-                    height: 1.3,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                // Paragraphs with inline comment bubbles (Inkitt-style)
-                if (_paragraphs().isEmpty)
-                  Text(
-                    'This chapter has not been written yet.',
-                    style: TextStyle(
-                      color: _fg,
-                      fontSize: _fontSize,
-                      height: 1.75,
-                    ),
-                  )
-                else ...[
-                  for (var i = 0; i < _paragraphs().length; i++) ...[
-                    _buildParagraphBlock(_paragraphs()[i], i),
-                    if (i == _paragraphs().length ~/ 2 &&
-                        _paragraphs().length > 2)
-                      _buildAdBanner(
-                        label: 'Discover more stories you\'ll love',
-                      ),
-                  ],
-                ],
-                const SizedBox(height: 24),
-                // Ad near Next Chapter button
-                if (hasNext)
-                  _buildAdBanner(label: 'Continue reading more free stories'),
-                if (hasNext)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton(
-                        onPressed: _goNext,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF6C3CE1),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: const Text(
-                          'Next Chapter',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                const SizedBox(height: 16),
-                Center(
-                  child: Text(
-                    'Let ${widget.author} know what you thought about this chapter!',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: _muted,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // Inkitt-style reaction grid (3 columns, compact)
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _reactionOptions.length,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    mainAxisSpacing: 14,
-                    crossAxisSpacing: 8,
-                    childAspectRatio: 0.92,
-                  ),
-                  itemBuilder: (context, index) {
-                    final opt = _reactionOptions[index];
-                    final emoji = opt[0];
-                    final label = opt[1];
-                    final selected = _selectedReactions.contains(label);
-                    return GestureDetector(
-                      onTap: () => _toggleReaction(label),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 52,
-                            height: 52,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: selected
-                                  ? const Color(0xFFEDE9FE)
-                                  : (_theme == _ReaderTheme.nightowl
-                                        ? Colors.white12
-                                        : const Color(0xFFF3F4F6)),
-                              shape: BoxShape.circle,
-                              border: selected
-                                  ? Border.all(
-                                      color: const Color(0xFF6C3CE1),
-                                      width: 2,
-                                    )
-                                  : Border.all(
-                                      color: _theme == _ReaderTheme.nightowl
-                                          ? Colors.white24
-                                          : const Color(0xFFE5E7EB),
-                                    ),
+                    itemBuilder: (context, index) {
+                      final opt = _reactionOptions[index];
+                      final emoji = opt[0];
+                      final label = opt[1];
+                      final selected = _selectedReactions.contains(label);
+                      return GestureDetector(
+                        onTap: () => _toggleReaction(label),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 52,
+                              height: 52,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: selected
+                                    ? const Color(0xFFEDE9FE)
+                                    : (_theme == _ReaderTheme.nightowl
+                                          ? Colors.white12
+                                          : const Color(0xFFF3F4F6)),
+                                shape: BoxShape.circle,
+                                border: selected
+                                    ? Border.all(
+                                        color: const Color(0xFF6C3CE1),
+                                        width: 2,
+                                      )
+                                    : Border.all(
+                                        color: _theme == _ReaderTheme.nightowl
+                                            ? Colors.white24
+                                            : const Color(0xFFE5E7EB),
+                                      ),
+                              ),
+                              child: Text(
+                                emoji,
+                                style: const TextStyle(fontSize: 24),
+                              ),
                             ),
-                            child: Text(
-                              emoji,
-                              style: const TextStyle(fontSize: 24),
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            label,
-                            textAlign: TextAlign.center,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: selected
-                                  ? const Color(0xFF6C3CE1)
-                                  : _muted,
-                              fontSize: 11,
-                              fontWeight: selected
-                                  ? FontWeight.w600
-                                  : FontWeight.w400,
-                            ),
-                          ),
-                          if ((_reactionCounts[label] ?? 0) > 0)
+                            const SizedBox(height: 6),
                             Text(
-                              '${_reactionCounts[label]}',
+                              label,
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                fontSize: 10,
                                 color: selected
                                     ? const Color(0xFF6C3CE1)
                                     : _muted,
+                                fontSize: 11,
+                                fontWeight: selected
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
                               ),
                             ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-                if (_selectedReactions.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Center(
-                    child: Text(
-                      '${_selectedReactions.length} reaction${_selectedReactions.length == 1 ? '' : 's'} selected',
-                      style: TextStyle(color: _muted, fontSize: 12),
-                    ),
+                            if ((_reactionCounts[label] ?? 0) > 0)
+                              Text(
+                                '${_reactionCounts[label]}',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: selected
+                                      ? const Color(0xFF6C3CE1)
+                                      : _muted,
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
+                  if (_selectedReactions.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Center(
+                      child: Text(
+                        '${_selectedReactions.length} reaction${_selectedReactions.length == 1 ? '' : 's'} selected',
+                        style: TextStyle(color: _muted, fontSize: 12),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 40),
                 ],
-                const SizedBox(height: 40),
-              ],
+              ),
             ),
-          ),
-          if (_showThemePanel) _buildThemePanel(),
-          _buildBottomBar(),
-        ],
+            if (_showThemePanel) _buildThemePanel(),
+            _buildBottomBar(),
+          ],
+        ),
       ),
-    ));
+    );
   }
 
   Widget _buildThemePanel() {
@@ -1658,7 +1642,6 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
   Future<void> _loadReactions() async {
     final bookId = widget.bookId;
     if (bookId == null) return;
-    setState(() => _reactionsLoading = true);
     try {
       final data = await widget.apiService.fetchChapterReactions(
         bookId: bookId,
@@ -1686,11 +1669,8 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
         _selectedReactions
           ..clear()
           ..addAll(mine);
-        _reactionsLoading = false;
       });
-    } catch (_) {
-      if (mounted) setState(() => _reactionsLoading = false);
-    }
+    } catch (_) {}
   }
 
   Future<void> _toggleReaction(String label) async {

@@ -34,7 +34,9 @@ class ApiService {
       final decoded = jsonDecode(raw);
       if (decoded is! Map) return null;
       final boot = AppBootstrap.fromMap(Map<String, dynamic>.from(decoded));
-      if (boot.discoverBooks.isEmpty && boot.recentlyUpdated.isEmpty) return null;
+      if (boot.discoverBooks.isEmpty && boot.recentlyUpdated.isEmpty) {
+        return null;
+      }
       _cachedBootstrap = boot;
       return boot;
     } catch (_) {
@@ -55,8 +57,7 @@ class ApiService {
 
   /// Production backend (Vercel). Override anytime with:
   ///   --dart-define=API_BASE_URL=https://other-host.example
-  static const String _productionApiBaseUrl =
-      'https://novel-v7.vercel.app';
+  static const String _productionApiBaseUrl = 'https://novel-v7.vercel.app';
 
   static const String _overrideApiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
@@ -293,7 +294,10 @@ class ApiService {
 
   /// Raises on 401/403 so AuthService can force logout after ban/suspend.
   Future<Map<String, dynamic>> fetchMeStrict() async {
-    final response = await _get('/api/me', timeout: const Duration(seconds: 90));
+    final response = await _get(
+      '/api/me',
+      timeout: const Duration(seconds: 90),
+    );
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as Map<String, dynamic>;
     }
@@ -322,9 +326,7 @@ class ApiService {
     request.files.add(
       http.MultipartFile.fromBytes('file', bytes, filename: filename),
     );
-    final streamed = await request.send().timeout(
-      const Duration(seconds: 45),
-    );
+    final streamed = await request.send().timeout(const Duration(seconds: 45));
     final response = await http.Response.fromStream(streamed);
     if (response.statusCode == 401) {
       throw Exception('Sign in required to upload a cover image');
@@ -352,9 +354,7 @@ class ApiService {
     request.files.add(
       http.MultipartFile.fromBytes('file', bytes, filename: filename),
     );
-    final streamed = await request.send().timeout(
-      const Duration(seconds: 45),
-    );
+    final streamed = await request.send().timeout(const Duration(seconds: 45));
     final response = await http.Response.fromStream(streamed);
     if (response.statusCode == 401) {
       throw Exception('Sign in required to upload a profile image');
@@ -399,8 +399,6 @@ class ApiService {
     return const <String, dynamic>{};
   }
 
-  
-  
   /// Admin / system announcements (notifications table via bootstrap or dedicated endpoint).
   Future<List<Map<String, dynamic>>> fetchAdminNotifications() async {
     try {
@@ -432,12 +430,10 @@ class ApiService {
               .map((e) => Map<String, dynamic>.from(e))
               .toList();
           // Prefer admin/system tabs
-          final admin = items
-              .where((e) {
-                final t = '${e['tab'] ?? ''} ${e['type'] ?? ''}'.toLowerCase();
-                return t.contains('admin') || t.contains('system');
-              })
-              .toList();
+          final admin = items.where((e) {
+            final t = '${e['tab'] ?? ''} ${e['type'] ?? ''}'.toLowerCase();
+            return t.contains('admin') || t.contains('system');
+          }).toList();
           return admin.isNotEmpty ? admin : items;
         }
       }
@@ -499,7 +495,10 @@ class ApiService {
 
   Future<Map<String, dynamic>> fetchUserPreferences() async {
     try {
-      final response = await _get('/api/me/preferences', timeout: const Duration(seconds: 12));
+      final response = await _get(
+        '/api/me/preferences',
+        timeout: const Duration(seconds: 12),
+      );
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body);
         if (body is Map<String, dynamic>) return body;
@@ -522,7 +521,10 @@ class ApiService {
 
   Future<Map<String, dynamic>> fetchReadingStats() async {
     try {
-      final response = await _get('/api/me/reading-stats', timeout: const Duration(seconds: 12));
+      final response = await _get(
+        '/api/me/reading-stats',
+        timeout: const Duration(seconds: 12),
+      );
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body);
         if (body is Map<String, dynamic>) return body;
@@ -533,7 +535,6 @@ class ApiService {
     }
     return {};
   }
-
 
   Future<Map<String, dynamic>> verifyGoogleSignIn({
     String? idToken,
@@ -635,14 +636,10 @@ class ApiService {
     required String token,
     String? email,
   }) async {
-    final response = await _post(
-      '/api/auth/verify-email',
-      {
-        'token': token,
-        if (email != null && email.isNotEmpty) 'email': email,
-      },
-      timeout: const Duration(seconds: 30),
-    );
+    final response = await _post('/api/auth/verify-email', {
+      'token': token,
+      if (email != null && email.isNotEmpty) 'email': email,
+    }, timeout: const Duration(seconds: 30));
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception(_authErrorBody(response));
     }
@@ -650,11 +647,9 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> resendVerification(String email) async {
-    final response = await _post(
-      '/api/auth/resend-verification',
-      {'email': email},
-      timeout: const Duration(seconds: 45),
-    );
+    final response = await _post('/api/auth/resend-verification', {
+      'email': email,
+    }, timeout: const Duration(seconds: 45));
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception(_authErrorBody(response));
     }
@@ -662,13 +657,9 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> verifyGuestSignIn({String? deviceId}) async {
-    final response = await _post(
-      '/api/auth/guest',
-      <String, dynamic>{
-        if (deviceId != null && deviceId.isNotEmpty) 'device_id': deviceId,
-      },
-      timeout: const Duration(seconds: 45),
-    );
+    final response = await _post('/api/auth/guest', <String, dynamic>{
+      if (deviceId != null && deviceId.isNotEmpty) 'device_id': deviceId,
+    }, timeout: const Duration(seconds: 45));
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception(_authErrorBody(response));
     }
@@ -749,7 +740,10 @@ class ApiService {
 
   Future<List<Map<String, dynamic>>> fetchLibraryEntries() async {
     try {
-      final response = await _get('/api/library', timeout: const Duration(seconds: 90));
+      final response = await _get(
+        '/api/library',
+        timeout: const Duration(seconds: 90),
+      );
       if (response.statusCode != 200) return const <Map<String, dynamic>>[];
       final payload = jsonDecode(response.body) as Map<String, dynamic>;
       return List<Map<String, dynamic>>.from(payload['items'] as List<dynamic>);
@@ -770,13 +764,20 @@ class ApiService {
   }
 
   Future<void> sendChatMessage(String message) async {
-    final response = await _post(
-      '/api/chat/messages',
-      {'message': message, 'sender': 'user'},
-      timeout: const Duration(seconds: 10),
-    );
+    final response = await _post('/api/chat/messages', {
+      'message': message,
+      'sender': 'user',
+    }, timeout: const Duration(seconds: 10));
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('Unable to send message');
+    }
+  }
+
+  Future<void> recordBookShare(int bookId) async {
+    if (bookId <= 0) return;
+    final response = await _post('/api/books/$bookId/share', const {});
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Unable to record share');
     }
   }
 
@@ -804,21 +805,21 @@ class ApiService {
     }
   }
 
-  
   /// Update signed-in user profile (onboarding + settings).
   Future<void> linkEmailPassword({
     required String email,
     required String password,
   }) async {
-    final response = await _post(
-      '/api/me/link-email',
-      {'email': email, 'password': password},
-      timeout: const Duration(seconds: 30),
-    );
+    final response = await _post('/api/me/link-email', {
+      'email': email,
+      'password': password,
+    }, timeout: const Duration(seconds: 30));
     _ensureSuccessResponse(response);
   }
 
-  Future<Map<String, dynamic>> updateMyProfile(Map<String, dynamic> payload) async {
+  Future<Map<String, dynamic>> updateMyProfile(
+    Map<String, dynamic> payload,
+  ) async {
     final response = await _put(
       '/api/me',
       payload,
@@ -869,7 +870,9 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> createReadingList(Map<String, dynamic> payload) async {
+  Future<Map<String, dynamic>> createReadingList(
+    Map<String, dynamic> payload,
+  ) async {
     final response = await _post(
       '/api/reading-lists',
       payload,
@@ -930,7 +933,9 @@ class ApiService {
         timeout: const Duration(seconds: 60),
       );
       if (response.statusCode == 401 || response.statusCode == 403) {
-        debugPrint('fetchWriterStories: auth required (${response.statusCode})');
+        debugPrint(
+          'fetchWriterStories: auth required (${response.statusCode})',
+        );
         return const <Map<String, dynamic>>[];
       }
       if (response.statusCode != 200) {
@@ -1036,10 +1041,7 @@ class ApiService {
   }) async {
     final response = await _post(
       '/api/books/$bookId/chapters/$chapterNumber/comments',
-      {
-        'body': body,
-        'paragraph_index': ?paragraphIndex,
-      },
+      {'body': body, 'paragraph_index': ?paragraphIndex},
       timeout: const Duration(seconds: 45),
     );
     _ensureSuccessResponse(response);
@@ -1127,7 +1129,6 @@ class ApiService {
     }
   }
 
-
   Future<List<Map<String, dynamic>>> fetchUserActivity(int userId) async {
     try {
       final response = await _get('/api/users/$userId/activity');
@@ -1139,13 +1140,18 @@ class ApiService {
     }
   }
 
-  Future<void> postUserWall(int userId, String body, {String? imagePath}) async {
+  Future<void> postUserWall(
+    int userId,
+    String body, {
+    String? imagePath,
+  }) async {
     final response = await _post('/api/users/$userId/wall', {
       'body': body,
       if (imagePath != null && imagePath.isNotEmpty) 'image_path': imagePath,
     });
     _ensureSuccessResponse(response);
   }
+
   Future<Map<String, dynamic>> likeWallPost(int postId) async {
     final response = await _post('/api/wall/$postId/like', {});
     final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -1158,7 +1164,6 @@ class ApiService {
   Future<void> commentWallPost(int postId, String body) async {
     await _post('/api/wall/$postId/comment', {'body': body});
   }
-
 
   Future<Map<String, dynamic>> fetchBookLike(int bookId) async {
     try {
@@ -1257,11 +1262,9 @@ class ApiService {
 
   /// Create a genre so it appears in the shared dropdown for everyone.
   Future<String> createGenre(String name) async {
-    final response = await _post(
-      '/api/genres',
-      {'name': name.trim()},
-      timeout: const Duration(seconds: 60),
-    );
+    final response = await _post('/api/genres', {
+      'name': name.trim(),
+    }, timeout: const Duration(seconds: 60));
     _ensureSuccessResponse(response);
     try {
       final body = jsonDecode(response.body) as Map<String, dynamic>;
@@ -1282,12 +1285,13 @@ class ApiService {
   }
 
   /// Report a story. After 3 unique reporters, it surfaces in Admin → Reports.
-  Future<Map<String, dynamic>> reportBook(int bookId, {String reason = ''}) async {
-    final response = await _post(
-      '/api/books/$bookId/report',
-      {'reason': reason},
-      timeout: const Duration(seconds: 45),
-    );
+  Future<Map<String, dynamic>> reportBook(
+    int bookId, {
+    String reason = '',
+  }) async {
+    final response = await _post('/api/books/$bookId/report', {
+      'reason': reason,
+    }, timeout: const Duration(seconds: 45));
     _ensureSuccessResponse(response);
     try {
       return jsonDecode(response.body) as Map<String, dynamic>;
@@ -1346,7 +1350,6 @@ class ApiService {
     }
   }
 
-
   Future<Map<String, dynamic>> followTag(String tagName) async {
     final encoded = Uri.encodeComponent(tagName.trim().replaceFirst('#', ''));
     final response = await _post(
@@ -1399,20 +1402,24 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> setTagNotify(String tagName, {required bool notify}) async {
+  Future<Map<String, dynamic>> setTagNotify(
+    String tagName, {
+    required bool notify,
+  }) async {
     final encoded = Uri.encodeComponent(tagName.trim().replaceFirst('#', ''));
-    final response = await _post(
-      '/api/tags/$encoded/notify',
-      {'notify': notify},
-      timeout: const Duration(seconds: 30),
-    );
+    final response = await _post('/api/tags/$encoded/notify', {
+      'notify': notify,
+    }, timeout: const Duration(seconds: 30));
     _ensureSuccessResponse(response);
     return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
   }
 
   Future<List<Map<String, dynamic>>> fetchFollowedTags() async {
     try {
-      final response = await _get('/api/me/followed-tags', timeout: const Duration(seconds: 30));
+      final response = await _get(
+        '/api/me/followed-tags',
+        timeout: const Duration(seconds: 30),
+      );
       if (response.statusCode != 200) return const [];
       final payload = jsonDecode(response.body);
       if (payload is Map && payload['items'] is List) {
@@ -1464,7 +1471,6 @@ class ApiService {
     }
   }
 
-  
   Future<Map<String, dynamic>?> fetchWriterStory(int id) async {
     try {
       final response = await _get('/api/write/stories/$id');
@@ -1513,7 +1519,8 @@ class ApiService {
     _ensureSuccessResponse(response);
     try {
       final body = jsonDecode(response.body) as Map<String, dynamic>;
-      final id = (body['id'] as num?)?.toInt() ??
+      final id =
+          (body['id'] as num?)?.toInt() ??
           (body['story_id'] as num?)?.toInt() ??
           0;
       return id;

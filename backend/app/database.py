@@ -999,6 +999,15 @@ def _run_startup_migrations_sqlite(connection) -> dict[str, int]:
         cursor.execute("ALTER TABLE library_entries ADD COLUMN user_id INTEGER")
         result["columns_added"] += 1
 
+    for column, definition in (
+        ("last_chapter_number", "INTEGER DEFAULT 1"),
+        ("last_paragraph_index", "INTEGER DEFAULT 0"),
+        ("chapters_read", "INTEGER DEFAULT 0"),
+    ):
+        if not _sqlite_column_exists(cursor, "library_entries", column):
+            cursor.execute(f"ALTER TABLE library_entries ADD COLUMN {column} {definition}")
+            result["columns_added"] += 1
+
     if not _sqlite_column_exists(cursor, "books", "user_id"):
         cursor.execute("ALTER TABLE books ADD COLUMN user_id INTEGER")
         result["columns_added"] += 1
@@ -1145,6 +1154,19 @@ def _run_startup_migrations_sqlite(connection) -> dict[str, int]:
                 message TEXT NOT NULL,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE CASCADE
+            )
+            """
+        )
+        result["tables_added"] += 1
+
+    if not _sqlite_table_exists(cursor, "book_shares"):
+        cursor.execute(
+            """
+            CREATE TABLE book_shares (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                book_id INTEGER NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
             """
         )
@@ -1921,7 +1943,8 @@ def get_connection():
     )
 
     last_exc = None
-    for attempt in range(3):
+    retries = max(1, int(os.getenv("MYSQL_CONNECT_RETRIES", "1")))
+    for attempt in range(retries):
         try:
             try:
                 conn = mysql_connector.connect(
@@ -1934,8 +1957,9 @@ def get_connection():
             return conn
         except Exception as exc:
             last_exc = exc
-            import time as _t
-            _t.sleep(0.4 * (attempt + 1))
+            if attempt + 1 < retries:
+                import time as _t
+                _t.sleep(0.4 * (attempt + 1))
     raise last_exc
 
 def force_seed_if_empty() -> dict[str, int]:

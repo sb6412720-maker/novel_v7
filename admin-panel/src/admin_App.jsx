@@ -41,6 +41,9 @@ import {
   createAdminChapter,
   listAdminChapters,
   getAdminStats,
+  listChatConversations,
+  getChatConversation,
+  sendChatReply,
 } from "./api";
 import { AuthorsPage, UsersPage, ReviewsPage } from "./moderation_pages";
 
@@ -55,6 +58,7 @@ const NAV = [
   { id: "revenue", label: "Revenue", icon: "$" },
   { id: "moderation", label: "Content Moderation", icon: "◎" },
   { id: "announcements", label: "Announcements", icon: "◎" },
+  { id: "chat", label: "Live Chat", icon: "▰" },
   { id: "settings", label: "Settings", icon: "⚙" },
 ];
 
@@ -620,6 +624,7 @@ export default function App() {
               }}
             />
           )}
+          {page === "chat" && <AdminChatPage />}
           {page === "settings" && (
             <SettingsPage
               categories={categories}
@@ -701,6 +706,105 @@ export default function App() {
         <div className={`toast ${error ? "err" : "ok"}`}>{error || success}</div>
       )}
     </div>
+  );
+}
+
+function AdminChatPage() {
+  const [conversations, setConversations] = useState([]);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [draft, setDraft] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  async function loadConversations() {
+    try {
+      const data = await listChatConversations();
+      const items = asArray(data.items);
+      setConversations(items);
+      if (!selectedUser && items[0]) setSelectedUser(items[0]);
+    } catch (e) {
+      setError(String(e.message || e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadMessages(user) {
+    if (!user) return;
+    try {
+      const data = await getChatConversation(user.user_id);
+      setMessages(asArray(data.items));
+    } catch (e) {
+      setError(String(e.message || e));
+    }
+  }
+
+  useEffect(() => {
+    loadConversations();
+  }, []);
+
+  useEffect(() => {
+    loadMessages(selectedUser);
+  }, [selectedUser]);
+
+  async function reply(e) {
+    e.preventDefault();
+    const message = draft.trim();
+    if (!message || !selectedUser) return;
+    try {
+      await sendChatReply(selectedUser.user_id, message);
+      setDraft("");
+      await loadMessages(selectedUser);
+      await loadConversations();
+    } catch (err) {
+      setError(String(err.message || err));
+    }
+  }
+
+  return (
+    <section className="page-section">
+      <div className="page-heading">
+        <div><h2>Live Chat</h2><p>Reply to readers from the app.</p></div>
+        <button type="button" className="btn btn-sm" onClick={loadConversations}>Refresh</button>
+      </div>
+      {error && <div className="login-error">{error}</div>}
+      <div className="chat-layout">
+        <div className="panel chat-list">
+          <div className="panel-header"><h3>Conversations</h3><span>{conversations.length}</span></div>
+          {loading && <div className="empty">Loading conversations…</div>}
+          {!loading && conversations.length === 0 && <div className="empty">No reader messages yet.</div>}
+          {conversations.map((conversation) => (
+            <button
+              type="button"
+              className={`chat-user ${selectedUser?.user_id === conversation.user_id ? "active" : ""}`}
+              key={conversation.user_id}
+              onClick={() => setSelectedUser(conversation)}
+            >
+              <strong>{conversation.display_name || conversation.email || `User #${conversation.user_id}`}</strong>
+              <span>{conversation.message_count} messages</span>
+              <small>{conversation.email}</small>
+            </button>
+          ))}
+        </div>
+        <div className="panel chat-thread">
+          <div className="panel-header"><h3>{selectedUser?.display_name || "Select a conversation"}</h3></div>
+          <div className="chat-messages">
+            {messages.map((message) => (
+              <div className={`chat-bubble ${message.sender === "admin" ? "admin" : "reader"}`} key={message.id}>
+                <span>{message.message}</span>
+                <small>{message.sender === "admin" ? "Admin" : "Reader"}</small>
+              </div>
+            ))}
+            {!messages.length && selectedUser && <div className="empty">No messages in this conversation.</div>}
+          </div>
+          <form className="chat-compose" onSubmit={reply}>
+            <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Write a reply…" disabled={!selectedUser} />
+            <button type="submit" className="btn" disabled={!selectedUser || !draft.trim()}>Send</button>
+          </form>
+        </div>
+      </div>
+    </section>
   );
 }
 
