@@ -391,10 +391,12 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
   }
 
   Future<void> _checkSavedAndReviewed() async {
+    int? viewerId;
     try {
       final me = await widget.apiService.fetchMe();
       final uid =
           (me['id'] as num?)?.toInt() ?? (me['user_id'] as num?)?.toInt();
+      viewerId = uid;
       if (mounted && uid != null) setState(() => _currentUserId = uid);
     } catch (_) {}
     try {
@@ -410,12 +412,20 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
     } catch (_) {}
     try {
       final reviews = await widget.apiService.fetchBookReviews(_book.id);
-      // If current user review exists API may mark mine; else after post we set
+      // Support both the new is_mine flag and older deployments that only
+      // return the review author's user_id.
       final mine = reviews.any(
-        (r) => r['is_mine'] == true || r['mine'] == true,
+        (r) =>
+            _asTruthy(r['is_mine'] ?? r['mine']) ||
+            (viewerId != null && (r['user_id'] as num?)?.toInt() == viewerId),
       );
       if (mounted && mine) setState(() => _hasMyReview = true);
     } catch (_) {}
+  }
+
+  bool _asTruthy(dynamic value) {
+    if (value == true || value == 1 || value == '1') return true;
+    return value?.toString().toLowerCase() == 'true';
   }
 
   Future<void> _openReadingListPicker() async {

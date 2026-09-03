@@ -12,6 +12,7 @@ from .database import (
 from . import mysql_compat
 
 LOGGER = logging.getLogger(__name__)
+_FULL_STARTUP_MIGRATIONS_DONE = False
 
 DEFAULT_TAGS = [
     "Romance",
@@ -461,6 +462,7 @@ def run_startup_tasks() -> dict[str, Any]:
     Inkitt seed never runs unless ENABLE_INKITT_SEED=1.
     """
     import os as _os
+    global _FULL_STARTUP_MIGRATIONS_DONE
 
     result: dict[str, Any] = {
         "initialized": False,
@@ -502,9 +504,14 @@ def run_startup_tasks() -> dict[str, Any]:
         # Keep Vercel cold starts lightweight. The extra-table/column repair below
         # covers the live API contract; full seed migrations remain on the empty-DB
         # path or can be explicitly requested for maintenance jobs.
-        if _os.getenv("RUN_FULL_STARTUP_MIGRATIONS", "").strip().lower() in ("1", "true", "yes"):
+        auto_migrate = _os.getenv("AUTO_RUN_DB_MIGRATIONS", "true").strip().lower() in ("1", "true", "yes")
+        if auto_migrate and not _FULL_STARTUP_MIGRATIONS_DONE:
             try:
                 result["migrations"] = run_startup_migrations()
+                from .database import force_seed_if_empty
+
+                result["force_seed"] = force_seed_if_empty()
+                _FULL_STARTUP_MIGRATIONS_DONE = True
             except Exception as migration_exc:
                 LOGGER.warning("fast_path migrations skipped: %s", migration_exc)
         try:

@@ -234,8 +234,10 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Future<void> _toggleFollow() async {
     if (_followBusy) return;
-    final id = widget.viewingUserId ?? widget.profile.id;
-    if (id == null || _isOwnProfile) return;
+    final id = _asInt(
+      _userProfile?['id'] ?? widget.viewingUserId ?? widget.profile.id,
+    );
+    if (id <= 0 || _isOwnProfile) return;
     final wasFollowing = _isFollowing;
     setState(() => _followBusy = true);
     try {
@@ -253,12 +255,17 @@ class _ProfileScreenState extends State<ProfileScreen>
         _isFollowing = following ?? !wasFollowing;
         if (_userProfile != null) {
           if (followers != null) {
-            _userProfile = {..._userProfile!, 'followers': followers};
+            _userProfile = {
+              ..._userProfile!,
+              'followers': followers,
+              'following': following ?? !wasFollowing,
+            };
           } else {
             final cur = _asInt(_userProfile!['followers']);
             _userProfile = {
               ..._userProfile!,
               'followers': _isFollowing ? cur + 1 : (cur > 0 ? cur - 1 : 0),
+              'following': _isFollowing,
             };
           }
         }
