@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../../data/models/app_bootstrap.dart';
@@ -165,22 +166,66 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
           });
         }
       } catch (_) {}
-      // More Stories by Author + You May Also Like (loaded above via aid)
-      // Related by first tag or genre
+      // You May Also Like + Recommended: tag → genre → search → bootstrap cache
       try {
         List<Map<String, dynamic>> related = [];
+        Future<void> addFrom(List<Map<String, dynamic>> src) async {
+          for (final b in src) {
+            final id = (b['id'] as num?)?.toInt() ?? 0;
+            if (id <= 0 || id == _book.id) continue;
+            if (related.any((x) => (x['id'] as num?)?.toInt() == id)) continue;
+            related.add(b);
+            if (related.length >= 12) break;
+          }
+        }
+
         if (_tags.isNotEmpty) {
-          related = await widget.apiService.fetchBooksByTag(_tags.first);
+          try {
+            await addFrom(await widget.apiService.fetchBooksByTag(_tags.first));
+          } catch (_) {}
         }
-        if (related.isEmpty && _book.genre.isNotEmpty) {
-          // fallback: search by genre via bootstrap-style or tag
-          related = await widget.apiService.fetchBooksByTag(_book.genre);
+        if (related.length < 8 && _book.genre.isNotEmpty) {
+          try {
+            await addFrom(await widget.apiService.fetchBooksByTag(_book.genre));
+          } catch (_) {}
+          try {
+            await addFrom(await widget.apiService.searchStories(query: _book.genre));
+          } catch (_) {}
         }
-        related = related
-            .where((b) => (b['id'] as num?)?.toInt() != _book.id)
-            .take(12)
-            .toList();
-        if (mounted) setState(() => _youMayAlsoLike = related);
+        if (related.length < 8) {
+          try {
+            final boot = await widget.apiService.loadDiskBootstrap();
+            if (boot != null) {
+              final maps = <Map<String, dynamic>>[];
+              for (final b in [
+                ...boot.discoverBooks,
+                ...boot.recentlyUpdated,
+              ]) {
+                maps.add({
+                  'id': b.id,
+                  'title': b.title,
+                  'author': b.author,
+                  'cover_path': b.coverPath,
+                  'description': b.description,
+                  'genre': b.primaryGenre,
+                  'rating': b.rating,
+                  'status_text': b.statusText,
+                });
+              }
+              await addFrom(maps);
+            }
+          } catch (_) {}
+        }
+        if (related.length < 6) {
+          try {
+            // Popular / broad search fallback so sections are rarely empty
+            await addFrom(await widget.apiService.searchStories(
+              query: _book.title.split(' ').first,
+            ));
+          } catch (_) {}
+        }
+
+        if (mounted) setState(() => _youMayAlsoLike = related.take(12).toList());
       } catch (_) {}
     } catch (e) {
       if (mounted) {
@@ -327,12 +372,14 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
     )
         .then((ok) async {
       if (ok == true && mounted) {
+        setState(() => _hasMyReview = true);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Review added')),
         );
-        setState(() => _hasMyReview = true);
-        final reviews = await widget.apiService.fetchBookReviews(_book.id);
-        if (mounted) setState(() => _reviews = reviews);
+        try {
+          final reviews = await widget.apiService.fetchBookReviews(_book.id);
+          if (mounted) setState(() => _reviews = reviews);
+        } catch (_) {}
       }
     });
   }
@@ -776,22 +823,6 @@ Future<void> _checkSavedAndReviewed() async {
                         ],
                       ),
                     ),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: _openReviewsPage,
-                        behavior: HitTestBehavior.opaque,
-                        child: _statCell(
-                          'Reviews',
-                          _reviews.isNotEmpty
-                              ? (_book.rating > 0
-                                  ? '★ ${_book.rating.toStringAsFixed(1)} · ${_reviews.length}'
-                                  : '${_reviews.length}')
-                              : (_book.rating > 0
-                                  ? '★ ${_book.rating.toStringAsFixed(1)}'
-                                  : '0'),
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -882,7 +913,11 @@ Future<void> _checkSavedAndReviewed() async {
                           color: _hasMyReview ? const Color(0xFFF9A825) : fg,
                         ),
                         label: Text(
-                          _isOwner ? 'Reviews' : 'Review',
+                          _isOwner
+                              ? 'Reviews (${_reviews.length})'
+                              : (_reviews.isEmpty
+                                  ? 'Review'
+                                  : 'Review (${_reviews.length})'),
                           style: TextStyle(color: fg),
                         ),
                       ),
@@ -1087,7 +1122,7 @@ Future<void> _checkSavedAndReviewed() async {
                 ),
               ),
 
-            // You may also like
+            // You may also like — always show when we have any related pool
             if (_youMayAlsoLike.isNotEmpty)
               SliverToBoxAdapter(
                 child: _HorizontalBookRail(
@@ -1097,12 +1132,24 @@ Future<void> _checkSavedAndReviewed() async {
                 ),
               ),
 
-            // Recommended for you (same pool shuffled / genre fallback)
-            if (_youMayAlsoLike.isNotEmpty)
+            // Recommended for you — different order of the related pool
+            if (_youMayAlsoLike.length >= 2)
               SliverToBoxAdapter(
                 child: _HorizontalBookRail(
                   title: 'Recommended for you',
-                  books: List<Map<String, dynamic>>.from(_youMayAlsoLike.reversed),
+                  books: () {
+                    final copy = List<Map<String, dynamic>>.from(_youMayAlsoLike);
+                    copy.shuffle(Random());
+                    return copy;
+                  }(),
+                  apiService: widget.apiService,
+                ),
+              )
+            else if (_youMayAlsoLike.isNotEmpty)
+              SliverToBoxAdapter(
+                child: _HorizontalBookRail(
+                  title: 'Recommended for you',
+                  books: _youMayAlsoLike,
                   apiService: widget.apiService,
                 ),
               ),
@@ -1313,11 +1360,9 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
                               );
       
 
-                              if (posted == true) {
-                                await widget.onReviewPosted();
-                                if (mounted) {
-                                  Navigator.of(context).pop(true); // back to story detail
-                                }
+                              if (posted == true && mounted) {
+                                // Leave reviews page immediately; parent refreshes counts
+                                Navigator.of(context).pop(true);
                               }
                             },
                       child: Text(
