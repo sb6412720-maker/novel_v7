@@ -1903,14 +1903,27 @@ def get_me(user: dict[str, Any] = Depends(require_user)):
         pass
     try:
         rows = fetch_all(
-            "SELECT id, email, display_name, photo_url, cover_url, bio, provider, gender, birth_date, COALESCE(profile_complete,0) AS profile_complete, COALESCE(is_author,0) AS is_author FROM app_users WHERE id=%s LIMIT 1",
+            """SELECT id, email, display_name, photo_url, cover_url, bio, provider,
+                      gender, birth_date, country, facebook_url,
+                      COALESCE(profile_complete,0) AS profile_complete,
+                      COALESCE(is_author,0) AS is_author
+               FROM app_users WHERE id=%s LIMIT 1""",
             (user["user_id"],),
         )
     except Exception:
-        rows = fetch_all(
-            "SELECT id, email, display_name, photo_url, cover_url, bio, provider, gender, birth_date, COALESCE(profile_complete,0) AS profile_complete FROM app_users WHERE id=%s LIMIT 1",
-            (user["user_id"],),
-        )
+        try:
+            rows = fetch_all(
+                """SELECT id, email, display_name, photo_url, cover_url, bio, provider,
+                          gender, birth_date, country, facebook_url,
+                          COALESCE(profile_complete,0) AS profile_complete
+                   FROM app_users WHERE id=%s LIMIT 1""",
+                (user["user_id"],),
+            )
+        except Exception:
+            rows = fetch_all(
+                "SELECT id, email, display_name, photo_url, cover_url, bio, provider, gender, birth_date, COALESCE(profile_complete,0) AS profile_complete FROM app_users WHERE id=%s LIMIT 1",
+                (user["user_id"],),
+            )
     if not rows:
         raise HTTPException(status_code=404, detail="User not found")
     u = rows[0]
@@ -5308,9 +5321,131 @@ def list_my_followed_tags(user: dict[str, Any] = Depends(require_user)):
 
 
 
+
+@app.get("/api/me/followers")
+def list_my_followers(user: dict[str, Any] = Depends(require_user)):
+    """People who follow the current user."""
+    _ensure_author_follows_table()
+    uid = int(user["user_id"])
+    try:
+        rows = fetch_all(
+            """
+            SELECT u.id, u.display_name, u.photo_url, u.bio
+            FROM author_follows f
+            JOIN app_users u ON u.id = f.user_id
+            WHERE f.author_id=%s
+            ORDER BY f.id DESC LIMIT 100
+            """,
+            (uid,),
+        ) or []
+    except Exception as exc:
+        LOGGER.warning("list_my_followers: %s", exc)
+        rows = []
+    return {
+        "items": [
+            {
+                "id": _row_get(r, "id"),
+                "display_name": _row_get(r, "display_name") or "Reader",
+                "photo_url": _row_get(r, "photo_url") or "",
+                "bio": _row_get(r, "bio") or "",
+            }
+            for r in rows
+        ]
+    }
+
+
+@app.get("/api/me/following")
+def list_my_following(user: dict[str, Any] = Depends(require_user)):
+    """Authors the current user follows."""
+    _ensure_author_follows_table()
+    uid = int(user["user_id"])
+    try:
+        rows = fetch_all(
+            """
+            SELECT u.id, u.display_name, u.photo_url, u.bio
+            FROM author_follows f
+            JOIN app_users u ON u.id = f.author_id
+            WHERE f.user_id=%s
+            ORDER BY f.id DESC LIMIT 100
+            """,
+            (uid,),
+        ) or []
+    except Exception as exc:
+        LOGGER.warning("list_my_following: %s", exc)
+        rows = []
+    return {
+        "items": [
+            {
+                "id": _row_get(r, "id"),
+                "display_name": _row_get(r, "display_name") or "Reader",
+                "photo_url": _row_get(r, "photo_url") or "",
+                "bio": _row_get(r, "bio") or "",
+            }
+            for r in rows
+        ]
+    }
+
+
+@app.get("/api/users/{user_id}/followers")
+def list_user_followers(user_id: int):
+    _ensure_author_follows_table()
+    try:
+        rows = fetch_all(
+            """
+            SELECT u.id, u.display_name, u.photo_url, u.bio
+            FROM author_follows f
+            JOIN app_users u ON u.id = f.user_id
+            WHERE f.author_id=%s
+            ORDER BY f.id DESC LIMIT 100
+            """,
+            (user_id,),
+        ) or []
+    except Exception:
+        rows = []
+    return {
+        "items": [
+            {
+                "id": _row_get(r, "id"),
+                "display_name": _row_get(r, "display_name") or "Reader",
+                "photo_url": _row_get(r, "photo_url") or "",
+                "bio": _row_get(r, "bio") or "",
+            }
+            for r in rows
+        ]
+    }
+
+
+@app.get("/api/users/{user_id}/following")
+def list_user_following(user_id: int):
+    _ensure_author_follows_table()
+    try:
+        rows = fetch_all(
+            """
+            SELECT u.id, u.display_name, u.photo_url, u.bio
+            FROM author_follows f
+            JOIN app_users u ON u.id = f.author_id
+            WHERE f.user_id=%s
+            ORDER BY f.id DESC LIMIT 100
+            """,
+            (user_id,),
+        ) or []
+    except Exception:
+        rows = []
+    return {
+        "items": [
+            {
+                "id": _row_get(r, "id"),
+                "display_name": _row_get(r, "display_name") or "Reader",
+                "photo_url": _row_get(r, "photo_url") or "",
+                "bio": _row_get(r, "bio") or "",
+            }
+            for r in rows
+        ]
+    }
+
 @app.get("/api/me/reviews")
 def list_my_reviews(user: dict[str, Any] = Depends(require_user)):
-    """Reviews left ON this author's stories (Profile > Reviews tab)."""
+    """Reviews this user WROTE on stories (Profile > Reviews tab)."""
     try:
         rows = fetch_all(
             """
@@ -5320,14 +5455,14 @@ def list_my_reviews(user: dict[str, Any] = Depends(require_user)):
             FROM book_reviews r
             JOIN books b ON b.id = r.book_id
             LEFT JOIN app_users u ON u.id = r.user_id
-            WHERE b.user_id = %s
-            ORDER BY r.created_at DESC
+            WHERE r.user_id = %s
+            ORDER BY r.id DESC
             LIMIT 100
             """,
             (user["user_id"],),
         )
     except Exception as exc:
-        LOGGER.warning("list_my_reviews (received) failed: %s", exc)
+        LOGGER.warning("list_my_reviews (written) failed: %s", exc)
         rows = []
     return {
         "items": [

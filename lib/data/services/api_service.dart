@@ -1194,6 +1194,58 @@ class ApiService {
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
+  Future<List<Map<String, dynamic>>> fetchMyFollowers() async {
+    try {
+      final response = await _get('/api/me/followers', timeout: const Duration(seconds: 30));
+      if (response.statusCode != 200) return const [];
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final items = body['items'];
+      if (items is! List) return const [];
+      return items.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchMyFollowing() async {
+    try {
+      final response = await _get('/api/me/following', timeout: const Duration(seconds: 30));
+      if (response.statusCode != 200) return const [];
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final items = body['items'];
+      if (items is! List) return const [];
+      return items.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchUserFollowers(int userId) async {
+    try {
+      final response = await _get('/api/users/$userId/followers', timeout: const Duration(seconds: 30));
+      if (response.statusCode != 200) return const [];
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final items = body['items'];
+      if (items is! List) return const [];
+      return items.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchUserFollowingList(int userId) async {
+    try {
+      final response = await _get('/api/users/$userId/following', timeout: const Duration(seconds: 30));
+      if (response.statusCode != 200) return const [];
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final items = body['items'];
+      if (items is! List) return const [];
+      return items.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
   Future<Map<String, dynamic>> followAuthor(int authorId) async {
     final response = await _post(
       '/api/authors/$authorId/follow',

@@ -312,14 +312,24 @@ def _ensure_mysql_extra_tables(connection) -> int:
             except Exception as le:
                 LOGGER.warning("library col %s: %s", col, le)
 
-        # app_users.profile_complete for one-time onboarding
-        try:
-            cursor.execute("SHOW COLUMNS FROM app_users LIKE 'profile_complete'")
-            if not cursor.fetchone():
-                cursor.execute("ALTER TABLE app_users ADD COLUMN profile_complete TINYINT(1) NOT NULL DEFAULT 0")
-                added += 1
-        except Exception as pe:
-            LOGGER.warning("profile_complete col: %s", pe)
+        # app_users profile fields for complete-profile + display
+        for col, ddl in [
+            ("profile_complete", "ALTER TABLE app_users ADD COLUMN profile_complete TINYINT(1) NOT NULL DEFAULT 0"),
+            ("gender", "ALTER TABLE app_users ADD COLUMN gender VARCHAR(32) NULL"),
+            ("birth_date", "ALTER TABLE app_users ADD COLUMN birth_date VARCHAR(32) NULL"),
+            ("country", "ALTER TABLE app_users ADD COLUMN country VARCHAR(64) NULL"),
+            ("facebook_url", "ALTER TABLE app_users ADD COLUMN facebook_url VARCHAR(255) NULL"),
+            ("bio", "ALTER TABLE app_users ADD COLUMN bio TEXT NULL"),
+            ("photo_url", "ALTER TABLE app_users ADD COLUMN photo_url VARCHAR(512) NULL"),
+            ("cover_url", "ALTER TABLE app_users ADD COLUMN cover_url VARCHAR(512) NULL"),
+        ]:
+            try:
+                cursor.execute(f"SHOW COLUMNS FROM app_users LIKE '{col}'")
+                if not cursor.fetchone():
+                    cursor.execute(ddl)
+                    added += 1
+            except Exception as pe:
+                LOGGER.warning("app_users col %s: %s", col, pe)
 
         connection.commit()
     except Exception as exc:

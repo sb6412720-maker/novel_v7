@@ -858,18 +858,26 @@ class _ProfileScreenState extends State<ProfileScreen>
             ),
           ),
           const SizedBox(height: 14),
-          // Following | Followers
+          // Following | Followers (tappable)
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _countCol('$_following', 'Following'),
+              InkWell(
+                onTap: () => _openPeopleList(following: true),
+                borderRadius: BorderRadius.circular(8),
+                child: _countCol('$_following', 'Following'),
+              ),
               Container(
                 width: 1,
                 height: 28,
                 color: border,
                 margin: const EdgeInsets.symmetric(horizontal: 20),
               ),
-              _countCol('$_followers', 'Followers'),
+              InkWell(
+                onTap: () => _openPeopleList(following: false),
+                borderRadius: BorderRadius.circular(8),
+                child: _countCol('$_followers', 'Followers'),
+              ),
             ],
           ),
           const SizedBox(height: 14),
@@ -2094,10 +2102,16 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Widget _buildReviewsTab() {
     if (_reviews.isEmpty) {
-      return const Center(
-        child: Text(
-          'No reviews on your stories yet',
-          style: TextStyle(color: muted),
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            _isOwnProfile
+                ? 'You have not reviewed any stories yet. Open a story and tap Review.'
+                : 'No reviews yet.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: muted),
+          ),
         ),
       );
     }
