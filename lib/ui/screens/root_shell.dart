@@ -119,31 +119,25 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
         });
       }
     } catch (_) {}
-    // Profile gate BEFORE bootstrap/home so form never appears "after home".
-    if (mounted && restored != null && !restored.isGuest) {
-      final needs = await _needsCompleteProfile(restored);
-      if (!mounted) return;
-      if (needs) {
-        // Still loading shell — show form before Discover is interactive
-        await _showOnboardingBlocking(restored);
-        if (!mounted) return;
+    // Session restore: NEVER show complete-profile (avoids form after home / on reopen).
+    // Complete-profile only runs once inside _continueLogin for brand-new accounts.
+    if (mounted && restored != null) {
+      setState(() => _profileGatePassed = true);
+      if (!restored.isGuest) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool(_profileDoneKey(restored), true);
+          await prefs.setBool('profile_complete_local_done', true);
+          final em = restored.email.trim().toLowerCase();
+          if (em.isNotEmpty) {
+            await prefs.setBool('profile_complete_local_$em', true);
+          }
+        } catch (_) {}
+        // Best-effort DB heal — do not block UI
+        try {
+          await _apiService.updateMe({'profile_complete': true});
+        } catch (_) {}
       }
-      setState(() => _profileGatePassed = true);
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool(_profileDoneKey(restored), true);
-        await prefs.setBool('profile_complete_local_done', true);
-        final em = restored.email.trim().toLowerCase();
-        if (em.isNotEmpty) {
-          await prefs.setBool('profile_complete_local_$em', true);
-        }
-      } catch (_) {}
-      // Heal DB so Vercel/Aiven keep profile_complete=1
-      try {
-        await _apiService.updateMe({'profile_complete': true});
-      } catch (_) {}
-    } else if (mounted && restored != null) {
-      setState(() => _profileGatePassed = true);
     }
 
     await _loadBootstrap(showLoading: _bootstrap == null);
