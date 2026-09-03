@@ -2859,7 +2859,8 @@ def get_my_activity(user: dict[str, Any] = Depends(require_user)):
     try:
         rows = fetch_all(
             """
-            SELECT bl.id AS act_id, bl.book_id, b.title, b.cover_path
+            SELECT bl.id AS act_id, bl.book_id, b.title, b.cover_path,
+                   bl.created_at AS created_at
             FROM book_likes bl
             LEFT JOIN books b ON b.id = bl.book_id
             WHERE bl.user_id=%s
@@ -2869,7 +2870,8 @@ def get_my_activity(user: dict[str, Any] = Depends(require_user)):
         ) or []
         for r in rows:
             push("like", _row_get(r, "act_id"), f"You liked {_row_get(r,'title') or 'a story'}", "Like",
-                 _row_get(r, "book_id"), _row_get(r, "cover_path") or "")
+                 _row_get(r, "book_id"), _row_get(r, "cover_path") or "",
+                 created_at=_row_get(r, "created_at"))
     except Exception as exc:
         LOGGER.warning("my activity likes: %s", exc)
 
@@ -3467,6 +3469,49 @@ def create_chat_message(
         (user["user_id"], sender, message),
     )
     return {"ok": True, "id": row_id}
+
+
+
+@app.post("/api/admin/purge-user")
+def admin_purge_user(payload: dict[str, Any], admin: dict[str, Any] = Depends(require_admin)):
+    """Delete all data for an email (Aiven console alternative). Body: {"email": "..."}"""
+    email = str(payload.get("email") or "").strip().lower()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="email required")
+    rows = fetch_all("SELECT id FROM app_users WHERE LOWER(email)=%s LIMIT 1", (email,))
+    if not rows:
+        return {"ok": True, "deleted": False, "reason": "user not found"}
+    uid = int(_row_get(rows[0], "id") or 0)
+    if not uid:
+        return {"ok": True, "deleted": False}
+    tables = [
+        ("book_likes", "user_id"),
+        ("book_reviews", "user_id"),
+        ("author_follows", "user_id"),
+        ("chapter_comments", "user_id"),
+        ("library_entries", "user_id"),
+        ("chat_messages", "user_id"),
+        ("wall_posts", "user_id"),
+        ("support_requests", "user_id"),
+    ]
+    deleted = {}
+    for table, col in tables:
+        try:
+            _, n = execute_write(f"DELETE FROM {table} WHERE {col}=%s", (uid,))
+            deleted[table] = n
+        except Exception as exc:
+            deleted[table] = str(exc)
+    try:
+        # Unfollow this user as author
+        execute_write("DELETE FROM author_follows WHERE author_id=%s", (uid,))
+    except Exception:
+        pass
+    try:
+        _, n = execute_write("DELETE FROM app_users WHERE id=%s", (uid,))
+        deleted["app_users"] = n
+    except Exception as exc:
+        deleted["app_users"] = str(exc)
+    return {"ok": True, "deleted": True, "user_id": uid, "details": deleted}
 
 
 @app.get("/api/admin/chat/{target_user_id}")
@@ -5263,9 +5308,7 @@ def create_book_review(
         raise HTTPException(status_code=400, detail="Rating must be between 1 and 5")
     title = (payload.title or "").strip()
     body = (payload.comment or "").strip()
-    # Require ~20 words like Inkitt UI
-    if len(body.split()) < 20 and len(body) < 80:
-        raise HTTPException(status_code=400, detail="Review must be at least 20 words")
+    # Any length allowed (rating is required; comment optional/short OK)
     plot = int(payload.plot_rating or payload.rating)
     style = int(payload.style_rating or payload.rating)
     tech = int(payload.tech_rating or payload.rating)

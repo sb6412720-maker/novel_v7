@@ -1063,6 +1063,36 @@ Future<void> _checkSavedAndReviewed() async {
                 ),
               ),
 
+            // More stories by this author
+            if (_authorStories.isNotEmpty)
+              SliverToBoxAdapter(
+                child: _HorizontalBookRail(
+                  title: 'More stories by author',
+                  books: _authorStories,
+                  apiService: widget.apiService,
+                ),
+              ),
+
+            // You may also like
+            if (_youMayAlsoLike.isNotEmpty)
+              SliverToBoxAdapter(
+                child: _HorizontalBookRail(
+                  title: 'You may also like',
+                  books: _youMayAlsoLike,
+                  apiService: widget.apiService,
+                ),
+              ),
+
+            // Recommended for you (same pool shuffled / genre fallback)
+            if (_youMayAlsoLike.isNotEmpty)
+              SliverToBoxAdapter(
+                child: _HorizontalBookRail(
+                  title: 'Recommended for you',
+                  books: List<Map<String, dynamic>>.from(_youMayAlsoLike.reversed),
+                  apiService: widget.apiService,
+                ),
+              ),
+
             const SliverToBoxAdapter(child: SizedBox(height: 100)),
           ],
         ),
@@ -1643,6 +1673,122 @@ class _WriteReviewScreenState extends State<_WriteReviewScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+
+class _HorizontalBookRail extends StatelessWidget {
+  const _HorizontalBookRail({
+    required this.title,
+    required this.books,
+    required this.apiService,
+  });
+
+  final String title;
+  final List<Map<String, dynamic>> books;
+  final ApiService apiService;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final fg = isDark ? Colors.white : const Color(0xFF1A1A1A);
+    return Padding(
+      padding: const EdgeInsets.only(top: 20, bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Text(
+              title,
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: fg),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 200,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              itemCount: books.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (context, i) {
+                final b = books[i];
+                final id = (b['id'] as num?)?.toInt() ?? 0;
+                final title = (b['title'] ?? 'Story').toString();
+                final author = (b['author'] ?? '').toString();
+                final cover = (b['cover_path'] ?? b['cover_url'] ?? '').toString();
+                final url = cover.isNotEmpty ? apiService.resolveAssetUrl(cover) : '';
+                return GestureDetector(
+                  onTap: () {
+                    if (id <= 0) return;
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => StoryDetailScreen(
+                          apiService: apiService,
+                          book: BookDetailModel(
+                            id: id,
+                            title: title,
+                            author: author,
+                            description: (b['description'] ?? '').toString(),
+                            statusText: (b['status_text'] ?? '').toString(),
+                            rating: (b['rating'] as num?)?.toDouble() ?? 0,
+                            genre: (b['genre'] ?? b['primary_genre'] ?? '').toString(),
+                            cta: 'Read now',
+                            coverPath: cover,
+                            authorUserId: (b['author_user_id'] as num?)?.toInt() ??
+                                (b['user_id'] as num?)?.toInt(),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                  child: SizedBox(
+                    width: 110,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: url.isNotEmpty
+                              ? Image.network(
+                                  url,
+                                  width: 110,
+                                  height: 150,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Container(
+                                    width: 110,
+                                    height: 150,
+                                    color: const Color(0xFFEDE9FE),
+                                  ),
+                                )
+                              : Container(
+                                  width: 110,
+                                  height: 150,
+                                  color: const Color(0xFFEDE9FE),
+                                ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: fg,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

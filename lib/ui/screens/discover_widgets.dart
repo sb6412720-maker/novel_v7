@@ -35,24 +35,29 @@ class _ExpandableDescriptionState extends State<_ExpandableDescription> {
           ),
         ),
         if (needsToggle)
-          TextButton(
-            onPressed: () {
-              if (widget.onReadMore != null) {
-                widget.onReadMore!();
-                return;
-              }
-              setState(() => _expanded = !_expanded);
-            },
-            style: TextButton.styleFrom(
-              padding: EdgeInsets.zero,
-              minimumSize: const Size(0, 32),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            child: Text(
-              _expanded ? 'Show less' : 'Read more',
-              style: const TextStyle(
-                color: AppTheme.brand,
-                fontWeight: FontWeight.w600,
+          Padding(
+            padding: const EdgeInsets.only(top: 4, bottom: 8),
+            child: TextButton(
+              onPressed: () {
+                if (widget.onReadMore != null) {
+                  widget.onReadMore!();
+                  return;
+                }
+                setState(() => _expanded = !_expanded);
+              },
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                minimumSize: const Size(64, 40),
+                tapTargetSize: MaterialTapTargetSize.padded,
+                alignment: Alignment.centerLeft,
+              ),
+              child: Text(
+                _expanded ? 'Show less' : 'Read more',
+                style: const TextStyle(
+                  color: AppTheme.brand,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
               ),
             ),
           ),
@@ -91,7 +96,7 @@ class _ExploreStoriesSectionState extends State<_ExploreStoriesSection> {
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(viewportFraction: 0.34, initialPage: 0);
+    _pageController = PageController(viewportFraction: 0.42, initialPage: 0);
   }
 
   @override
@@ -181,10 +186,10 @@ class _ExploreStoriesSectionState extends State<_ExploreStoriesSection> {
         ),
         const SizedBox(height: 8),
         SizedBox(
-          height: 210,
+          height: 248,
           child: PageView.builder(
             controller: _pageController,
-            padEnds: false,
+            padEnds: true,
             itemCount: _validBooks.length + 1,
             onPageChanged: (index) {
               if (index >= _validBooks.length) return;
@@ -197,11 +202,11 @@ class _ExploreStoriesSectionState extends State<_ExploreStoriesSection> {
               final item = _validBooks[index];
               final isActive = index == _activeIndex;
               return AnimatedScale(
-                scale: isActive ? 1.0 : 0.92,
+                scale: isActive ? 1.12 : 0.86,
                 duration: const Duration(milliseconds: 220),
                 curve: Curves.easeOutCubic,
                 child: AnimatedOpacity(
-                  opacity: isActive ? 1.0 : 0.35,
+                  opacity: isActive ? 1.0 : 0.55,
                   duration: const Duration(milliseconds: 220),
                   child: GestureDetector(
                     onTap: () {
@@ -218,7 +223,7 @@ class _ExploreStoriesSectionState extends State<_ExploreStoriesSection> {
                     child: Center(
                       child: _StoryCard(
                         book: item,
-                        width: isActive ? 120 : 108,
+                        width: isActive ? 148 : 118,
                         apiService: widget.apiService,
                       ),
                     ),
@@ -266,7 +271,7 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
   void initState() {
     super.initState();
     // Match the first Discover slider format (no leading blank gap)
-    _pageController = PageController(viewportFraction: 0.34, initialPage: 0);
+    _pageController = PageController(viewportFraction: 0.42, initialPage: 0);
   }
 
   @override
@@ -334,7 +339,7 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
             controller: _pageController,
             // Same as first slider — no large leading blank space
             // Extra trailing page so the LAST book can fully slide into view
-            padEnds: false,
+            padEnds: true,
             itemCount: valid.length + 1,
             onPageChanged: (index) {
               if (index >= valid.length) return;
@@ -347,11 +352,11 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
               final item = valid[index];
               final isActive = index == _activeIndex;
               return AnimatedScale(
-                scale: isActive ? 1.0 : 0.92,
+                scale: isActive ? 1.12 : 0.86,
                 duration: const Duration(milliseconds: 220),
                 curve: Curves.easeOutCubic,
                 child: AnimatedOpacity(
-                  opacity: isActive ? 1.0 : 0.35,
+                  opacity: isActive ? 1.0 : 0.55,
                   duration: const Duration(milliseconds: 220),
                   child: GestureDetector(
                     onTap: () {
@@ -385,7 +390,7 @@ class _DynamicStoryRailState extends State<_DynamicStoryRail> {
                     child: Center(
                       child: _StoryCard(
                         book: item,
-                        width: isActive ? 120 : 108,
+                        width: isActive ? 148 : 118,
                         apiService: widget.apiService,
                       ),
                     ),
@@ -2820,7 +2825,7 @@ class _HomeRecommendedRailState extends State<_HomeRecommendedRail> {
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(viewportFraction: 0.34, initialPage: 0);
+    _pageController = PageController(viewportFraction: 0.42, initialPage: 0);
   }
 
   @override
@@ -2872,14 +2877,14 @@ class _HomeRecommendedRailState extends State<_HomeRecommendedRail> {
           height: 172,
           child: PageView.builder(
             controller: _pageController,
-            padEnds: false,
+            padEnds: true,
             itemCount: valid.length,
             onPageChanged: (i) => setState(() => _activeIndex = i),
             itemBuilder: (context, index) {
               final item = valid[index];
               final isActive = index == _activeIndex;
               return AnimatedScale(
-                scale: isActive ? 1.0 : 0.92,
+                scale: isActive ? 1.12 : 0.86,
                 duration: const Duration(milliseconds: 220),
                 curve: Curves.easeOutCubic,
                 child: AnimatedOpacity(
@@ -2901,7 +2906,7 @@ class _HomeRecommendedRailState extends State<_HomeRecommendedRail> {
                       child: _StoryCard(
                         book: item,
                         // width <= 140 → compact cover-only
-                        width: isActive ? 120 : 108,
+                        width: isActive ? 148 : 118,
                         apiService: widget.apiService,
                       ),
                     ),

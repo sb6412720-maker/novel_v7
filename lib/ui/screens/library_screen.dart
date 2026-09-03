@@ -811,10 +811,10 @@ class _EntriesList extends StatelessWidget {
                                         Expanded(
                                           child: Text(
                                             e.chapters > 0
-                                                ? 'Chapter ${e.lastChapterNumber} of ${e.chapters}'
+                                                ? 'Ch. ${e.lastChapterNumber} of ${e.chapters} · para ${e.lastParagraphIndex + 1}'
                                                 : (e.updatedText.isNotEmpty
                                                     ? e.updatedText
-                                                    : 'Ch. ${e.lastChapterNumber}'),
+                                                    : 'Ch. ${e.lastChapterNumber} · para ${e.lastParagraphIndex + 1}'),
                                             style: TextStyle(
                                               fontSize: 11,
                                               color: muted,

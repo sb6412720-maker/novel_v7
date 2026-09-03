@@ -119,49 +119,34 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
         });
       }
     } catch (_) {}
-    await _loadBootstrap(showLoading: _bootstrap == null);
-
-    // First-time users only: complete profile BEFORE home (login → form → home).
-    // Never again after home is reached or DB/local says complete.
+    // Profile gate BEFORE bootstrap/home so form never appears "after home".
     if (mounted && restored != null && !restored.isGuest) {
       final needs = await _needsCompleteProfile(restored);
       if (!mounted) return;
       if (needs) {
+        // Still loading shell — show form before Discover is interactive
         await _showOnboardingBlocking(restored);
         if (!mounted) return;
-        final still = await _needsCompleteProfile(restored);
-        if (!mounted) return;
-        if (still) {
-          setState(() {
-            _session = null;
-            _showLoginOverlay = true;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Please complete your profile to continue')),
-          );
-          return;
-        }
       }
-      if (mounted) {
-        setState(() => _profileGatePassed = true);
-        try {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setBool(_profileDoneKey(restored), true);
-          await prefs.setBool('profile_complete_local_done', true);
-          final em = restored.email.trim().toLowerCase();
-          if (em.isNotEmpty) {
-            await prefs.setBool('profile_complete_local_$em', true);
-          }
-        } catch (_) {}
-      }
-    } else if (mounted && restored != null) {
       setState(() => _profileGatePassed = true);
       try {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool(_profileDoneKey(restored), true);
         await prefs.setBool('profile_complete_local_done', true);
+        final em = restored.email.trim().toLowerCase();
+        if (em.isNotEmpty) {
+          await prefs.setBool('profile_complete_local_$em', true);
+        }
       } catch (_) {}
+      // Heal DB so Vercel/Aiven keep profile_complete=1
+      try {
+        await _apiService.updateMe({'profile_complete': true});
+      } catch (_) {}
+    } else if (mounted && restored != null) {
+      setState(() => _profileGatePassed = true);
     }
+
+    await _loadBootstrap(showLoading: _bootstrap == null);
   }
 
   Future<void> _loadBootstrap({bool showLoading = true}) async {
@@ -387,6 +372,8 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   }
 
   Future<void> _showOnboardingBlocking(AuthSession session) async {
+    // Absolute guard: never after home / gate
+    if (_profileGatePassed) return;
     try {
       final me = await _apiService.fetchMe();
       final name = (me['display_name'] ?? '').toString().trim();
