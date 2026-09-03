@@ -113,6 +113,9 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
         final needsProfile = await _needsCompleteProfile(restored);
         if (needsProfile) {
           await _showOnboardingBlocking(restored);
+          // A completed gate must remain closed for the rest of this app run,
+          // even if a later bootstrap request is slow or unavailable.
+          if (mounted) setState(() => _profileGatePassed = true);
         }
       }
       if (mounted) setState(() => _profileGatePassed = true);
@@ -221,19 +224,6 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       });
       // Persist "done" so Profile / More / next app open never re-open the form
       // after the user has already landed on home.
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool(_profileDoneKey(session), true);
-        await prefs.setBool('profile_complete_local_done', true);
-        final em = session.email.trim().toLowerCase();
-        if (em.isNotEmpty) {
-          await prefs.setBool('profile_complete_local_$em', true);
-        }
-      } catch (_) {}
-      // Best-effort DB heal (Aiven may have missing column until startup runs)
-      try {
-        await _apiService.updateMe({'profile_complete': true});
-      } catch (_) {}
       await _loadBootstrap();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

@@ -52,7 +52,11 @@ class AppTheme {
       ),
       useMaterial3: true,
       scaffoldBackgroundColor: surface,
-      colorScheme: const ColorScheme.light(primary: brand, secondary: accent, surface: surface),
+      colorScheme: const ColorScheme.light(
+        primary: brand,
+        secondary: accent,
+        surface: surface,
+      ),
       textTheme: textTheme,
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.white,
@@ -102,9 +106,9 @@ class AppTheme {
     const darkInk = Color(0xFFFFFFFF);
     const darkMuted = Color(0xFFB0B0B0);
     const darkSurface = Color(0xFF000000);
-    const darkCard = Color(0xFF0A0A0A);
+    const darkCard = Color(0xFF000000);
     const darkBorder = Color(0xFFFFFFFF);
-    const darkField = Color(0xFF111111);
+    const darkField = Color(0xFF000000);
 
     final textTheme = TextTheme(
       headlineLarge: TextStyle(
@@ -198,7 +202,7 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: darkField,
+          backgroundColor: brand,
           foregroundColor: darkInk,
           elevation: 0,
           shape: whiteBorderBtn,
@@ -207,14 +211,14 @@ class AppTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: darkField,
+          backgroundColor: brand,
           foregroundColor: darkInk,
           shape: whiteBorderBtn,
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          backgroundColor: darkField,
+          backgroundColor: darkSurface,
           foregroundColor: darkInk,
           side: const BorderSide(color: darkBorder),
         ),
@@ -289,9 +293,7 @@ class AppTheme {
         checkColor: WidgetStateProperty.all(darkInk),
         side: const BorderSide(color: darkBorder),
       ),
-      radioTheme: RadioThemeData(
-        fillColor: WidgetStateProperty.all(brand),
-      ),
+      radioTheme: RadioThemeData(fillColor: WidgetStateProperty.all(brand)),
       progressIndicatorTheme: const ProgressIndicatorThemeData(
         color: brand,
         circularTrackColor: darkField,
@@ -332,6 +334,4 @@ class AppTheme {
       ),
     );
   }
-
-
 }

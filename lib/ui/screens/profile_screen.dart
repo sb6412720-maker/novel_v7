@@ -64,17 +64,9 @@ class _ProfileScreenState extends State<ProfileScreen>
   Future<void> _loadAll() async {
     setState(() => _loadingProfile = true);
     try {
-      Map<String, dynamic> me = {};
-      try {
-        me = await widget.apiService.fetchMeStrict();
-      } catch (_) {
-        try {
-          await Future<void>.delayed(const Duration(seconds: 2));
-          me = await widget.apiService.fetchMe();
-        } catch (_) {
-          me = {};
-        }
-      }
+      // Render the known session identity even if a secondary profile request
+      // is slow on a free-tier database.
+      Map<String, dynamic> me = await widget.apiService.fetchMe();
       final meId = _asInt(me['id'] ?? me['user_id']);
       final viewId = widget.viewingUserId;
       _isOwnProfile = viewId == null || (meId != 0 && viewId == meId);
@@ -162,16 +154,18 @@ class _ProfileScreenState extends State<ProfileScreen>
           try {
             final notes = await widget.apiService.fetchNotifications();
             activity = notes
-                .map((n) => {
-                      'type': n['type'] ?? 'system',
-                      'title': n['title'] ?? n['message'] ?? '',
-                      'message': n['message'] ?? '',
-                      'actor_name': n['actor_name'] ?? '',
-                      'actor_photo': n['actor_photo'] ?? '',
-                      'cover_path': n['cover_path'] ?? '',
-                      'book_id': n['book_id'],
-                      'created_at': n['created_at'] ?? '',
-                    })
+                .map(
+                  (n) => {
+                    'type': n['type'] ?? 'system',
+                    'title': n['title'] ?? n['message'] ?? '',
+                    'message': n['message'] ?? '',
+                    'actor_name': n['actor_name'] ?? '',
+                    'actor_photo': n['actor_photo'] ?? '',
+                    'cover_path': n['cover_path'] ?? '',
+                    'book_id': n['book_id'],
+                    'created_at': n['created_at'] ?? '',
+                  },
+                )
                 .toList();
           } catch (_) {}
         }
@@ -238,12 +232,6 @@ class _ProfileScreenState extends State<ProfileScreen>
       _asInt(_userProfile?['following'] ?? widget.profile.following);
   int get _followers =>
       _asInt(_userProfile?['followers'] ?? widget.profile.followers);
-  int get _chaptersRead =>
-      _asInt(_userProfile?['chapters_read'] ?? widget.profile.chaptersRead);
-  int get _karma =>
-      _asInt(_userProfile?['social_karma'] ?? widget.profile.socialKarma);
-  int get _streak =>
-      _asInt(_userProfile?['day_streak'] ?? widget.profile.dayStreak);
 
   String get _avatarUrl {
     final p = _s(
@@ -671,8 +659,9 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: _loadingProfile
           ? const Center(child: CircularProgressIndicator(color: brand))
           : NestedScrollView(
@@ -683,7 +672,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                   SliverAppBar(
                     expandedHeight: 200,
                     pinned: true,
-                    backgroundColor: const Color(0xFF3B2A6B),
+                    backgroundColor: isDark
+                        ? Colors.black
+                        : const Color(0xFF3B2A6B),
                     leading: IconButton(
                       icon: const Icon(Icons.arrow_back, color: Colors.white),
                       onPressed: () => Navigator.of(context).maybePop(),
@@ -841,11 +832,11 @@ class _ProfileScreenState extends State<ProfileScreen>
             children: [
               Text(
                 _displayName,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.4,
-                  color: Color(0xFF1A1A1A),
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
               // Pen badge for authors (no green check)
@@ -874,10 +865,10 @@ class _ProfileScreenState extends State<ProfileScreen>
             child: Text(
               _bio,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 14,
                 height: 1.35,
-                color: Color(0xFF4A4A4A),
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
           ),
@@ -1005,7 +996,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         const SizedBox(height: 12),
         Text(
           'About $_displayName',
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w800,
             letterSpacing: -0.3,
@@ -1014,10 +1005,10 @@ class _ProfileScreenState extends State<ProfileScreen>
         const SizedBox(height: 8),
         Text(
           _aboutLong,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 14,
             height: 1.45,
-            color: Color(0xFF3A3A3A),
+            color: Theme.of(context).colorScheme.onSurface,
           ),
         ),
         if (_facebookUrl.isNotEmpty) ...[
@@ -1035,7 +1026,11 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.facebook, color: Color(0xFF1877F2), size: 24),
+                  const Icon(
+                    Icons.facebook,
+                    color: Color(0xFF1877F2),
+                    size: 24,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -1048,7 +1043,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const Icon(Icons.open_in_new, size: 16, color: Color(0xFF1877F2)),
+                  const Icon(
+                    Icons.open_in_new,
+                    size: 16,
+                    color: Color(0xFF1877F2),
+                  ),
                 ],
               ),
             ),
@@ -2423,7 +2422,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                       width: 48,
                       height: 64,
                       color: const Color(0xFFEDE9FE),
-                      child: Icon(icon, color: const Color(0xFF6C3CE1), size: 20),
+                      child: Icon(
+                        icon,
+                        color: const Color(0xFF6C3CE1),
+                        size: 20,
+                      ),
                     ),
                   ),
                 );
@@ -2435,11 +2438,23 @@ class _ProfileScreenState extends State<ProfileScreen>
               }
 
               return ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
                 leading: leading,
-                title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                title: Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
                 subtitle: Text(
-                  [if (message.isNotEmpty) message, if (when.isNotEmpty) when].join(' · '),
+                  [
+                    if (message.isNotEmpty) message,
+                    if (when.isNotEmpty) when,
+                  ].join(' · '),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -2455,7 +2470,12 @@ class _ProfileScreenState extends State<ProfileScreen>
                               apiService: widget.apiService,
                               book: BookDetailModel(
                                 id: bookId,
-                                title: title.replaceFirst(RegExp(r'^You (liked|reviewed|commented on|saved|shared)\s+'), ''),
+                                title: title.replaceFirst(
+                                  RegExp(
+                                    r'^You (liked|reviewed|commented on|saved|shared)\s+',
+                                  ),
+                                  '',
+                                ),
                                 author: '',
                                 description: message,
                                 statusText: '',
@@ -2929,7 +2949,6 @@ class _ReadingListCollage extends StatelessWidget {
     );
   }
 }
-
 
 class _ProfileStatChip extends StatelessWidget {
   const _ProfileStatChip({
