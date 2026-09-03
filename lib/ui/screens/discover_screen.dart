@@ -400,23 +400,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
               apiService: widget.apiService,
             ),
             const SizedBox(height: 22),
-            // Continue Reading
-            _ContinueReadingSection(
-              entries: widget.data.libraryEntries,
-              apiService: widget.apiService,
-              onBrowse: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => ExploreScreen(
-                      topics: widget.data.exploreTopics,
-                      apiService: widget.apiService,
-                    ),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 22),
-            // Recommended For You
+            // Recommended For You (above Continue Reading)
             _HomeSectionHeader(
               title: 'Recommended For You',
               onSeeAll: recommended.isEmpty
@@ -437,6 +421,22 @@ class _DiscoverScreenState extends State<DiscoverScreen>
             _HomeRecommendedRail(
               books: recommended,
               apiService: widget.apiService,
+            ),
+            const SizedBox(height: 22),
+            // Continue Reading (below Recommended)
+            _ContinueReadingSection(
+              entries: widget.data.libraryEntries,
+              apiService: widget.apiService,
+              onBrowse: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ExploreScreen(
+                      topics: widget.data.exploreTopics,
+                      apiService: widget.apiService,
+                    ),
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 22),
             // Top Genres

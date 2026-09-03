@@ -276,8 +276,8 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
 
   
   Future<void> _openReviewsPage() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
+    final result = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
         builder: (_) => _BookReviewsPage(
           book: _book,
           apiService: widget.apiService,
@@ -291,6 +291,16 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
         ),
       ),
     );
+    // Always refresh counts when returning from reviews page
+    try {
+      final reviews = await widget.apiService.fetchBookReviews(_book.id);
+      if (mounted) {
+        setState(() {
+          _reviews = reviews;
+          if (result == true) _hasMyReview = true;
+        });
+      }
+    } catch (_) {}
   }
 
   void _onWriteReviewPressed() {
@@ -772,9 +782,13 @@ Future<void> _checkSavedAndReviewed() async {
                         behavior: HitTestBehavior.opaque,
                         child: _statCell(
                           'Reviews',
-                          _book.rating > 0
-                              ? '★ ${_book.rating.toStringAsFixed(1)}'
-                              : '${_reviews.length}',
+                          _reviews.isNotEmpty
+                              ? (_book.rating > 0
+                                  ? '★ ${_book.rating.toStringAsFixed(1)} · ${_reviews.length}'
+                                  : '${_reviews.length}')
+                              : (_book.rating > 0
+                                  ? '★ ${_book.rating.toStringAsFixed(1)}'
+                                  : '0'),
                         ),
                       ),
                     ),
@@ -1301,7 +1315,9 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
 
                               if (posted == true) {
                                 await widget.onReviewPosted();
-                                await _load();
+                                if (mounted) {
+                                  Navigator.of(context).pop(true); // back to story detail
+                                }
                               }
                             },
                       child: Text(

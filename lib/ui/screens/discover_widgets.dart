@@ -1193,14 +1193,15 @@ class _ContinueReadingSectionState extends State<_ContinueReadingSection> {
 
   List<LibraryEntryModel> _filterOngoing(List<LibraryEntryModel> list) {
     return list.where((e) {
+      if (e.book.id <= 0) return false;
       final st = e.readingStatus.toLowerCase().trim();
-      if (st.contains('complete') || st.contains('finished') || st.contains('done')) {
+      // Only hide clearly finished books
+      if (st == 'completed' || st == 'finished' || st == 'done') return false;
+      if (e.progressFraction >= 0.99) return false;
+      if (e.chapters > 0 && e.chaptersRead > 0 && e.chaptersRead >= e.chapters) {
         return false;
       }
-      // Fully read by progress or chapter count
-      if (e.progressFraction >= 0.98) return false;
-      if (e.chapters > 0 && e.chaptersRead >= e.chapters) return false;
-      return e.book.id > 0;
+      return true;
     }).toList();
   }
 
@@ -1382,7 +1383,23 @@ class _ContinueReadingSectionState extends State<_ContinueReadingSection> {
         const SizedBox(height: 12),
         SizedBox(
           height: 120,
-          child: ListView(
+          child: books.isEmpty
+              ? Container(
+                  width: double.infinity,
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Text(
+                    _loading
+                        ? 'Loading your reading progress…'
+                        : 'Start reading a story — it will show up here so you can continue later.',
+                    style: TextStyle(
+                      color: isDark ? Colors.white54 : Colors.black54,
+                      fontSize: 13.5,
+                      height: 1.35,
+                    ),
+                  ),
+                )
+              : ListView(
             scrollDirection: Axis.horizontal,
             children: [
               for (final entry in books)

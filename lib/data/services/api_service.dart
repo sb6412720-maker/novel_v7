@@ -749,7 +749,7 @@ class ApiService {
 
   Future<List<Map<String, dynamic>>> fetchLibraryEntries() async {
     try {
-      final response = await _get('/api/library');
+      final response = await _get('/api/library', timeout: const Duration(seconds: 90));
       if (response.statusCode != 200) return const <Map<String, dynamic>>[];
       final payload = jsonDecode(response.body) as Map<String, dynamic>;
       return List<Map<String, dynamic>>.from(payload['items'] as List<dynamic>);
@@ -836,7 +836,7 @@ class ApiService {
     final response = await _post(
       '/api/library',
       payload,
-      timeout: const Duration(seconds: 45),
+      timeout: const Duration(seconds: 90),
     );
     _ensureSuccessResponse(response);
   }
