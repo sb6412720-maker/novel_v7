@@ -57,6 +57,7 @@ enum _ReaderTheme { white, eggshell, nightowl }
 class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
   int _readSeconds = 0;
   Timer? _readTimer;
+  Timer? _progressTimer;
 
   late int _chapterIndex;
   late List<Map<String, dynamic>> _chapters;
@@ -132,6 +133,11 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
       if (mounted) _scrollToParagraph(_lastParagraphIndex);
     });
     _scrollController.addListener(_updateVisibleParagraphFromScroll);
+    // Persist progress every 8s while reading so Library Ongoing + resume work
+    _progressTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      if (!mounted) return;
+      unawaited(_markLibraryProgress(completed: false));
+    });
   }
 
   void _scrollToParagraph(int index) {
@@ -292,6 +298,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
   @override
   void dispose() {
     _readTimer?.cancel();
+    _progressTimer?.cancel();
     unawaited(_persistReadTime());
 
     // Persist exact stop position as ongoing read (unless already completed)

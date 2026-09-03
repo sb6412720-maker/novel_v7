@@ -36,6 +36,8 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   Timer? _syncTimer;
   AuthSession? _session;
   bool _showLoginOverlay = false;
+  /// Once true, never show complete-profile again this session (home already reached).
+  bool _profileGatePassed = false;
 
   bool get _isAuthenticated => _session != null && !_session!.isGuest;
   bool get _isGuestSession => _session != null && _session!.isGuest;
@@ -119,8 +121,8 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
     } catch (_) {}
     await _loadBootstrap(showLoading: _bootstrap == null);
 
-    // First-time users only: complete profile before using the app.
-    // DB profile_complete is source of truth — never re-ask once set.
+    // First-time users only: complete profile BEFORE home (login → form → home).
+    // Never again after home is reached or DB/local says complete.
     if (mounted && restored != null && !restored.isGuest) {
       final needs = await _needsCompleteProfile(restored);
       if (!mounted) return;
@@ -137,8 +139,12 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Please complete your profile to continue')),
           );
+          return;
         }
       }
+      if (mounted) setState(() => _profileGatePassed = true);
+    } else if (mounted && restored != null) {
+      setState(() => _profileGatePassed = true);
     }
   }
 
@@ -235,6 +241,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       if (!mounted) return;
       setState(() {
         _showLoginOverlay = false;
+        _profileGatePassed = true; // never show complete-profile again this session
       });
       await _loadBootstrap();
       if (!mounted) return;
@@ -294,12 +301,24 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
 
   Future<bool> _needsCompleteProfile(AuthSession session) async {
     if (session.isGuest) return false;
+    // After user has already entered the app this session, never re-ask.
+    if (_profileGatePassed) return false;
+    // Local flags first — fast path after first successful onboarding
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(_profileDoneKey(session)) == true ||
+          prefs.getBool('profile_complete_local_done') == true) {
+        return false;
+      }
+    } catch (_) {}
     // DATABASE is source of truth via GET /api/me → app_users.profile_complete
     try {
       final me = await _apiService.fetchMe();
       final done = _isProfileCompleteFlag(me['profile_complete']);
       final hasBirth =
           (me['birth_date'] ?? me['birthday'] ?? '').toString().trim().isNotEmpty;
+      final hasName = (me['display_name'] ?? '').toString().trim().isNotEmpty &&
+          (me['display_name'] ?? '').toString().trim().toLowerCase() != 'reader';
       // DB says complete
       if (done) {
         try {
@@ -309,29 +328,21 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
         } catch (_) {}
         return false;
       }
-      // Already has birth_date in DB from earlier onboarding but flag missing — heal DB
-      if (hasBirth) {
+      // Already has birth_date or meaningful name in DB — heal flag, do not re-ask
+      if (hasBirth || hasName) {
         try {
           await _apiService.updateMe({'profile_complete': true});
-          final me2 = await _apiService.fetchMe();
-          if (_isProfileCompleteFlag(me2['profile_complete']) || hasBirth) {
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.setBool(_profileDoneKey(session), true);
-            await prefs.setBool('profile_complete_local_done', true);
-            return false;
-          }
         } catch (_) {}
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool(_profileDoneKey(session), true);
+          await prefs.setBool('profile_complete_local_done', true);
+        } catch (_) {}
+        return false;
       }
-      return true; // must show complete-profile
+      return true; // must show complete-profile (first time only)
     } catch (_) {
-      // If /api/me fails, use local only as last resort (avoid login loop)
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        if (prefs.getBool(_profileDoneKey(session)) == true ||
-            prefs.getBool('profile_complete_local_done') == true) {
-          return false;
-        }
-      } catch (_) {}
+      // Network failure: do NOT force onboarding (avoids loop after home)
       return false;
     }
   }
@@ -394,6 +405,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       _session = null;
       _selectedIndex = 1;
       _showLoginOverlay = true;
+      _profileGatePassed = false;
     });
     await _loadBootstrap();
   }

@@ -49,8 +49,23 @@ class _LibraryScreenState extends State<LibraryScreen>
     return false;
   }
 
-  /// Ongoing = started (opened chapters) but not completed.
-  bool _isOngoing(LibraryEntryModel e) => !_isCompleted(e);
+  /// Ongoing = started (opened chapters / scrolled) but not fully completed.
+  bool _isOngoing(LibraryEntryModel e) {
+    if (_isCompleted(e)) return false;
+    // Must have real progress: chapters read, or paragraph position, or "Reading" status
+    if (e.chaptersRead > 0) return true;
+    if (e.lastParagraphIndex > 0) return true;
+    if (e.lastChapterNumber > 1) return true;
+    final s = e.readingStatus.toLowerCase().trim();
+    if (s == 'reading' || s == 'ongoing' || s == 'in progress' || s.contains('read')) {
+      return true;
+    }
+    // Any library entry with updated text from reader counts as ongoing
+    if (e.updatedText.toLowerCase().contains('ch.') || e.updatedText.toLowerCase().contains('para')) {
+      return true;
+    }
+    return true; // keep entry visible in Ongoing until marked Completed
+  }
 
   @override
   void initState() {

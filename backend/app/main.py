@@ -2820,6 +2820,10 @@ def get_my_activity(user: dict[str, Any] = Depends(require_user)):
         _ensure_author_follows_table()
     except Exception:
         pass
+    try:
+        _ensure_library_entries_table()
+    except Exception:
+        pass
 
     def push(typ: str, act_id: Any, title: str, message: str, book_id: Any = None, cover: Any = "", created_at: Any = None) -> None:
         items.append({

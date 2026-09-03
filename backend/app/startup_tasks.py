@@ -121,6 +121,57 @@ def _ensure_mysql_extra_tables(connection) -> int:
             """,
         ),
         (
+            "chapter_comments",
+            """
+            CREATE TABLE IF NOT EXISTS chapter_comments (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                chapter_id INT NULL,
+                book_id INT NULL,
+                user_id INT NOT NULL,
+                body TEXT NOT NULL,
+                paragraph_index INT DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """,
+        ),
+        (
+            "chat_messages",
+            """
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                sender VARCHAR(32) NOT NULL DEFAULT 'user',
+                message TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_chat_user (user_id)
+            )
+            """,
+        ),
+        (
+            "wall_posts",
+            """
+            CREATE TABLE IF NOT EXISTS wall_posts (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                target_user_id INT NOT NULL,
+                body TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """,
+        ),
+        (
+            "reading_list_items",
+            """
+            CREATE TABLE IF NOT EXISTS reading_list_items (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                reading_list_id INT NOT NULL,
+                book_id INT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_rli (reading_list_id, book_id)
+            )
+            """,
+        ),
+        (
             "genres",
             """
             CREATE TABLE IF NOT EXISTS genres (
@@ -212,6 +263,30 @@ def _ensure_mysql_extra_tables(connection) -> int:
                 LOGGER.info("Migrated books.section_name ENUM -> VARCHAR(64)")
         except Exception as sec_exc:
             LOGGER.warning("section_name migration skipped: %s", sec_exc)
+
+        
+        # Library progress columns for Continue Reading / resume paragraph
+        for col, ddl in [
+            ("last_chapter_number", "ALTER TABLE library_entries ADD COLUMN last_chapter_number INT DEFAULT 1"),
+            ("last_paragraph_index", "ALTER TABLE library_entries ADD COLUMN last_paragraph_index INT DEFAULT 0"),
+            ("chapters_read", "ALTER TABLE library_entries ADD COLUMN chapters_read INT DEFAULT 0"),
+        ]:
+            try:
+                cursor.execute(f"SHOW COLUMNS FROM library_entries LIKE '{col}'")
+                if not cursor.fetchone():
+                    cursor.execute(ddl)
+                    added += 1
+            except Exception as le:
+                LOGGER.warning("library col %s: %s", col, le)
+
+        # app_users.profile_complete for one-time onboarding
+        try:
+            cursor.execute("SHOW COLUMNS FROM app_users LIKE 'profile_complete'")
+            if not cursor.fetchone():
+                cursor.execute("ALTER TABLE app_users ADD COLUMN profile_complete TINYINT(1) NOT NULL DEFAULT 0")
+                added += 1
+        except Exception as pe:
+            LOGGER.warning("profile_complete col: %s", pe)
 
         connection.commit()
     except Exception as exc:

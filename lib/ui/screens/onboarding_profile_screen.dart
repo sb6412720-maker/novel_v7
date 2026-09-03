@@ -194,6 +194,11 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
         final prefs = await SharedPreferences.getInstance();
         // Mark complete locally immediately (survives API flakiness)
         await prefs.setBool('profile_complete_local_done', true);
+        // Also store email-scoped key when possible
+        final em = _emailCtrl.text.trim();
+        if (em.contains('@')) {
+          await prefs.setBool('profile_complete_local_$em', true);
+        }
       } catch (_) {}
       await widget.apiService.updateMyProfile({
         'display_name': name,

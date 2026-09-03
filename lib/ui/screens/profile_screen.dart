@@ -897,38 +897,6 @@ class _ProfileScreenState extends State<ProfileScreen>
             ],
           ),
           const SizedBox(height: 14),
-          // Reading stats strip (UI)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _ProfileStatChip(
-                    icon: Icons.menu_book_outlined,
-                    value: '$_chaptersRead',
-                    label: 'Chapters',
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _ProfileStatChip(
-                    icon: Icons.local_fire_department_outlined,
-                    value: '$_streak',
-                    label: 'Day streak',
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _ProfileStatChip(
-                    icon: Icons.auto_awesome_outlined,
-                    value: '$_karma',
-                    label: 'Karma',
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
           // Follow / Edit button — solid green Follow (video), outlined otherwise
           if (_isOwnProfile)
             OutlinedButton(
