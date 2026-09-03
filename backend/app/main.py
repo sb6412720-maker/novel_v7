@@ -1410,6 +1410,10 @@ def _find_user_id_by_email(email: str) -> int | None:
 
 @app.post("/api/auth/google")
 def authenticate_google(payload: GoogleAuthRequest):
+    try:
+        _ensure_profile_extra_columns()
+    except Exception as exc:
+        LOGGER.warning("google auth ensure profile cols: %s", exc)
     google_user = _verify_google_payload(payload)
     email = (google_user.get("email") or "").strip().lower()
     if not email:
@@ -1472,20 +1476,35 @@ def authenticate_google(payload: GoogleAuthRequest):
     pc = 0
     try:
         prow = fetch_all(
-            "SELECT COALESCE(profile_complete,0) AS pc, display_name, birth_date FROM app_users WHERE id=%s LIMIT 1",
+            """
+            SELECT COALESCE(profile_complete,0) AS pc,
+                   display_name, birth_date, gender, bio
+            FROM app_users WHERE id=%s LIMIT 1
+            """,
             (user_id,),
         )
         if prow:
-            pc = int(_row_get(prow[0], "pc") or 0)
-            # Heuristic: if user already has birth_date, treat as complete
-            if not pc and (_row_get(prow[0], "birth_date") or ""):
+            row = prow[0]
+            pc = int(_row_get(row, "pc") or 0)
+            has_birth = bool(str(_row_get(row, "birth_date") or "").strip())
+            has_gender = bool(str(_row_get(row, "gender") or "").strip())
+            # Only birth/gender mean real onboarding was done — not Google display_name
+            if not pc and (has_birth or has_gender):
                 pc = 1
                 try:
-                    execute_write("UPDATE app_users SET profile_complete=1 WHERE id=%s", (user_id,))
+                    execute_write(
+                        "UPDATE app_users SET profile_complete=1 WHERE id=%s",
+                        (user_id,),
+                    )
                 except Exception:
                     pass
     except Exception as exc:
         LOGGER.warning("google auth profile_complete read: %s", exc)
+        # Column may be missing on Aiven until startup ALTER runs — create it
+        try:
+            _ensure_profile_extra_columns()
+        except Exception:
+            pass
     return {
         "id": user_id,
         "email": google_user["email"],

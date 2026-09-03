@@ -142,9 +142,25 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
           return;
         }
       }
-      if (mounted) setState(() => _profileGatePassed = true);
+      if (mounted) {
+        setState(() => _profileGatePassed = true);
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool(_profileDoneKey(restored), true);
+          await prefs.setBool('profile_complete_local_done', true);
+          final em = restored.email.trim().toLowerCase();
+          if (em.isNotEmpty) {
+            await prefs.setBool('profile_complete_local_$em', true);
+          }
+        } catch (_) {}
+      }
     } else if (mounted && restored != null) {
       setState(() => _profileGatePassed = true);
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool(_profileDoneKey(restored), true);
+        await prefs.setBool('profile_complete_local_done', true);
+      } catch (_) {}
     }
   }
 
@@ -243,6 +259,21 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
         _showLoginOverlay = false;
         _profileGatePassed = true; // never show complete-profile again this session
       });
+      // Persist "done" so Profile / More / next app open never re-open the form
+      // after the user has already landed on home.
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool(_profileDoneKey(session), true);
+        await prefs.setBool('profile_complete_local_done', true);
+        final em = session.email.trim().toLowerCase();
+        if (em.isNotEmpty) {
+          await prefs.setBool('profile_complete_local_$em', true);
+        }
+      } catch (_) {}
+      // Best-effort DB heal (Aiven may have missing column until startup runs)
+      try {
+        await _apiService.updateMe({'profile_complete': true});
+      } catch (_) {}
       await _loadBootstrap();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -295,54 +326,62 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   }
 
   String _profileDoneKey(AuthSession session) {
-    final id = session.id?.toString() ?? session.email ?? 'unknown';
+    // Prefer stable email so key does not change when server id arrives later
+    final em = session.email.trim().toLowerCase();
+    if (em.isNotEmpty) return 'profile_complete_local_$em';
+    final id = session.id?.toString() ?? 'unknown';
     return 'profile_complete_local_$id';
   }
 
   Future<bool> _needsCompleteProfile(AuthSession session) async {
     if (session.isGuest) return false;
-    // After user has already entered the app this session, never re-ask.
+    // CRITICAL: once user has reached home this session, NEVER show complete-profile
+    // again (not from More, Profile, or tab switches).
     if (_profileGatePassed) return false;
-    // Local flags first — fast path after first successful onboarding
+
+    // Local flags — set after successful onboarding or after we heal DB
     try {
       final prefs = await SharedPreferences.getInstance();
       if (prefs.getBool(_profileDoneKey(session)) == true ||
           prefs.getBool('profile_complete_local_done') == true) {
         return false;
       }
+      // Email-scoped flag (onboarding may have set this)
+      final em = (session.email).trim().toLowerCase();
+      if (em.isNotEmpty && prefs.getBool('profile_complete_local_$em') == true) {
+        return false;
+      }
     } catch (_) {}
-    // DATABASE is source of truth via GET /api/me → app_users.profile_complete
+
+    // DATABASE source of truth: profile_complete OR birth_date only.
+    // Google display_name alone must NOT skip onboarding (that was the bug).
     try {
       final me = await _apiService.fetchMe();
       final done = _isProfileCompleteFlag(me['profile_complete']);
       final hasBirth =
           (me['birth_date'] ?? me['birthday'] ?? '').toString().trim().isNotEmpty;
-      final hasName = (me['display_name'] ?? '').toString().trim().isNotEmpty &&
-          (me['display_name'] ?? '').toString().trim().toLowerCase() != 'reader';
-      // DB says complete
-      if (done) {
+
+      if (done || hasBirth) {
+        // Heal DB flag if birth exists but flag missing
+        if (!done && hasBirth) {
+          try {
+            await _apiService.updateMe({'profile_complete': true});
+          } catch (_) {}
+        }
         try {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setBool(_profileDoneKey(session), true);
           await prefs.setBool('profile_complete_local_done', true);
+          final em = (session.email).trim().toLowerCase();
+          if (em.isNotEmpty) {
+            await prefs.setBool('profile_complete_local_$em', true);
+          }
         } catch (_) {}
         return false;
       }
-      // Already has birth_date or meaningful name in DB — heal flag, do not re-ask
-      if (hasBirth || hasName) {
-        try {
-          await _apiService.updateMe({'profile_complete': true});
-        } catch (_) {}
-        try {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setBool(_profileDoneKey(session), true);
-          await prefs.setBool('profile_complete_local_done', true);
-        } catch (_) {}
-        return false;
-      }
-      return true; // must show complete-profile (first time only)
+      return true; // first-time: show complete-profile BEFORE home only
     } catch (_) {
-      // Network failure: do NOT force onboarding (avoids loop after home)
+      // Network / Vercel cold start failure: do not force onboarding loop
       return false;
     }
   }
@@ -381,10 +420,20 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool(_profileDoneKey(session), true);
         await prefs.setBool('profile_complete_local_done', true);
+        final em = (session.email).trim().toLowerCase();
+        if (em.isNotEmpty) {
+          await prefs.setBool('profile_complete_local_$em', true);
+        }
       } catch (_) {}
-      try {
-        await _apiService.updateMe({'profile_complete': true});
-      } catch (_) {}
+      // Force DB flag several ways (Vercel/Aiven can drop one request)
+      for (var i = 0; i < 2; i++) {
+        try {
+          await _apiService.updateMe({'profile_complete': true});
+          break;
+        } catch (_) {
+          await Future<void>.delayed(const Duration(milliseconds: 400));
+        }
+      }
       final refreshed = await _authService.refreshSessionFromServer();
       if (mounted && refreshed != null) {
         setState(() => _session = refreshed);
