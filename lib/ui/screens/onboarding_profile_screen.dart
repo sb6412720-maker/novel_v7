@@ -217,16 +217,6 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
       if (uploadedPhoto != null) _photoUrl = uploadedPhoto;
       if (uploadedCover != null) _coverUrl = uploadedCover;
 
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        // Mark complete locally immediately (survives API flakiness)
-        await prefs.setBool('profile_complete_local_done', true);
-        // Also store email-scoped key when possible
-        final em = _emailCtrl.text.trim();
-        if (em.contains('@')) {
-          await prefs.setBool('profile_complete_local_$em', true);
-        }
-      } catch (_) {}
       await widget.apiService.updateMyProfile({
         'display_name': name,
         if (username.isNotEmpty) 'username': username,
@@ -241,20 +231,22 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
         if (_photoUrl.isNotEmpty) 'photo_url': _photoUrl,
         if (_coverUrl.isNotEmpty) 'cover_url': _coverUrl,
       });
-      // Force DB flag again (source of truth = app_users.profile_complete)
-      try {
-        await widget.apiService.updateMe({'profile_complete': true});
-      } catch (_) {}
       final em = _emailCtrl.text.trim();
       if (password.length >= 6 && (username.isNotEmpty || em.contains('@'))) {
-        try {
-          await widget.apiService.linkEmailPassword(
-            email: em,
-            username: username,
-            password: password,
-          );
-        } catch (_) {}
+        await widget.apiService.linkEmailPassword(
+          email: em,
+          username: username,
+          password: password,
+        );
       }
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('profile_complete_local_done', true);
+        final normalizedEmail = em.toLowerCase();
+        if (normalizedEmail.contains('@')) {
+          await prefs.setBool('profile_complete_local_$normalizedEmail', true);
+        }
+      } catch (_) {}
       if (!mounted) return;
       widget.onDone();
     } catch (e) {

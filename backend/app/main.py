@@ -2034,7 +2034,7 @@ def search_users(
 @app.get("/api/users/{user_id}")
 def get_user_profile(user_id: int):
     rows = fetch_all(
-        "SELECT id, email, display_name, photo_url, cover_url, bio, provider, gender, birth_date, country, facebook_url, COALESCE(profile_complete,0) AS profile_complete, COALESCE(is_author,0) AS is_author FROM app_users WHERE id=%s LIMIT 1",
+        "SELECT id, email, username, display_name, photo_url, cover_url, bio, provider, gender, birth_date, country, facebook_url, COALESCE(profile_complete,0) AS profile_complete, COALESCE(is_author,0) AS is_author FROM app_users WHERE id=%s LIMIT 1",
         (user_id,),
     )
     if not rows:
@@ -2066,7 +2066,7 @@ def get_user_profile(user_id: int):
     followers = _count_followers(user_id)
     following = _count_following(user_id)
     display_name = _row_get(u, "display_name") or (_row_get(u, "email") or "Reader").split("@")[0]
-    username = "@" + display_name.lower().replace(" ", "")
+    username = _row_get(u, "username") or ("@" + display_name.lower().replace(" ", ""))
     return {
         "id": _row_get(u, "id"),
         "email": _row_get(u, "email") or "",
@@ -2164,7 +2164,7 @@ def update_me(
     try:
         rows = fetch_all(
             """
-            SELECT id, email, display_name, photo_url, cover_url, bio, provider,
+            SELECT id, email, username, display_name, photo_url, cover_url, bio, provider,
                    gender, birth_date, country, facebook_url,
                    COALESCE(profile_complete,0) AS profile_complete
             FROM app_users WHERE id=%s LIMIT 1
@@ -2173,7 +2173,7 @@ def update_me(
         )
     except Exception:
         rows = fetch_all(
-            "SELECT id, email, display_name, photo_url, cover_url, bio, provider, COALESCE(profile_complete,0) AS profile_complete FROM app_users WHERE id=%s LIMIT 1",
+            "SELECT id, email, username, display_name, photo_url, cover_url, bio, provider, COALESCE(profile_complete,0) AS profile_complete FROM app_users WHERE id=%s LIMIT 1",
             (uid,),
         )
     u = rows[0] if rows else {}

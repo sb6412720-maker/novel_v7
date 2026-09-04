@@ -162,6 +162,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   String _s(dynamic v) => v == null ? '' : '$v'.trim();
   int _asInt(dynamic v) {
     if (v is int) return v;
+    if (v is num) return v.toInt();
     return int.tryParse('$v') ?? 0;
   }
 
