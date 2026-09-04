@@ -207,6 +207,32 @@ class _ProfileScreenState extends State<ProfileScreen>
   int get _followers =>
       _asInt(_userProfile?['followers'] ?? widget.profile.followers);
 
+  Future<void> _openPeopleList({required bool following}) async {
+    final profileId = _asInt(
+      _userProfile?['id'] ?? widget.viewingUserId ?? widget.profile.id,
+    );
+    if (profileId <= 0 && !_isOwnProfile) return;
+
+    final people = _isOwnProfile
+        ? (following
+              ? await widget.apiService.fetchMyFollowing()
+              : await widget.apiService.fetchMyFollowers())
+        : (following
+              ? await widget.apiService.fetchUserFollowingList(profileId)
+              : await widget.apiService.fetchUserFollowers(profileId));
+    if (!mounted) return;
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _PeopleListScreen(
+          title: following ? 'Following' : 'Followers',
+          people: people,
+          apiService: widget.apiService,
+        ),
+      ),
+    );
+  }
+
   String get _avatarUrl {
     final p = _s(
       _userProfile?['avatar_url'] ??
@@ -2564,6 +2590,105 @@ class _ReadingListCollage extends StatelessWidget {
       width: double.infinity,
       height: double.infinity,
       errorBuilder: (_, _, _) => Container(color: const Color(0xFFE8EEF5)),
+    );
+  }
+}
+
+class _PeopleListScreen extends StatelessWidget {
+  const _PeopleListScreen({
+    required this.title,
+    required this.people,
+    required this.apiService,
+  });
+
+  final String title;
+  final List<Map<String, dynamic>> people;
+  final ApiService apiService;
+
+  int _userId(Map<String, dynamic> person) {
+    final value = person['id'] ?? person['user_id'];
+    if (value is num) return value.toInt();
+    return int.tryParse('$value') ?? 0;
+  }
+
+  void _openProfile(BuildContext context, Map<String, dynamic> person) {
+    final id = _userId(person);
+    if (id <= 0) return;
+    final name = (person['display_name'] ?? person['username'] ?? 'Reader')
+        .toString();
+    final photo = (person['photo_url'] ?? person['avatar_url'] ?? '')
+        .toString();
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ProfileScreen(
+          profile: ProfileModel(
+            id: id,
+            displayName: name,
+            username: (person['username'] ?? name).toString(),
+            photoUrl: photo,
+            coverUrl: '',
+            following: 0,
+            followers: 0,
+            blocked: 0,
+            chaptersRead: 0,
+            socialKarma: 0,
+            dayStreak: 0,
+            readingLists: const [],
+          ),
+          apiService: apiService,
+          achievements: const [],
+          viewingUserId: id,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final emptyLabel = title.toLowerCase();
+    return Scaffold(
+      appBar: AppBar(title: Text(title)),
+      body: people.isEmpty
+          ? Center(child: Text('No $emptyLabel yet'))
+          : ListView.separated(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: people.length,
+              separatorBuilder: (_, _) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final person = people[index];
+                final name =
+                    (person['display_name'] ?? person['username'] ?? 'Reader')
+                        .toString();
+                final username = (person['username'] ?? '').toString();
+                final bio = (person['bio'] ?? '').toString();
+                final photo =
+                    (person['photo_url'] ?? person['avatar_url'] ?? '')
+                        .toString();
+                final photoUrl = photo.isEmpty
+                    ? ''
+                    : apiService.resolveAssetUrl(photo);
+                return ListTile(
+                  onTap: () => _openProfile(context, person),
+                  leading: CircleAvatar(
+                    backgroundImage: photoUrl.isNotEmpty
+                        ? NetworkImage(photoUrl)
+                        : null,
+                    child: photoUrl.isEmpty
+                        ? Text(name.isEmpty ? '?' : name[0].toUpperCase())
+                        : null,
+                  ),
+                  title: Text(name),
+                  subtitle: Text(
+                    username.isNotEmpty
+                        ? (username.startsWith('@') ? username : '@$username')
+                        : (bio.isNotEmpty ? bio : 'Reader'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                );
+              },
+            ),
     );
   }
 }
