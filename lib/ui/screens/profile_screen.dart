@@ -115,6 +115,10 @@ class _ProfileScreenState extends State<ProfileScreen>
         }
       }
 
+      // Show identity and live counts before slower profile tabs finish loading.
+      if (!mounted) return;
+      setState(() => _loadingProfile = false);
+
       // Always load from backend — never use bootstrap fake lists/stories
       List stories = const [];
       List wall = const [];
