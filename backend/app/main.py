@@ -2112,12 +2112,16 @@ def update_me(
         except Exception as exc:
             LOGGER.warning("ensure username column: %s", exc)
 
-    # Apply fields one-by-one so a missing optional column cannot wipe profile_complete
+    # Apply fields one-by-one, but never report success after a failed write.
     def _set(col: str, val: Any) -> None:
         try:
             execute_write(f"UPDATE app_users SET {col}=%s WHERE id=%s", (val, uid))
         except Exception as exc:
             LOGGER.warning("update_me set %s failed: %s", col, exc)
+            raise HTTPException(
+                status_code=503,
+                detail=f"Could not save profile field: {col}",
+            ) from exc
 
     if payload.display_name is not None:
         _set("display_name", payload.display_name.strip() or "Reader")
@@ -2346,9 +2350,10 @@ async def upload_support_attachment(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="Unsupported attachment format")
 
     filename = f"support-{uuid4().hex}{extension}"
-    target_path = UPLOAD_ROOT / filename
-    target_path.write_bytes(await file.read())
-    return {"path": _public_image_path(filename), "filename": filename}
+    content = await file.read()
+    # Store bytes in durable media storage; Vercel's local filesystem is ephemeral.
+    path = _store_media_bytes(content, filename, "image/jpeg")
+    return {"path": path, "filename": filename}
 
 
 _BOOTSTRAP_CACHE: dict[str, Any] | None = None
@@ -6134,6 +6139,8 @@ def unlike_book(book_id: int, user: dict[str, Any] = Depends(require_user)):
 @app.post("/api/authors/{author_id}/follow")
 def follow_author(author_id: int, user: dict[str, Any] = Depends(require_user)):
     _ensure_author_follows_table()
+    if not fetch_all("SELECT id FROM app_users WHERE id=%s LIMIT 1", (author_id,)):
+        raise HTTPException(status_code=404, detail="Author not found")
     if user["user_id"] == author_id:
         # Soft no-op: self-follow is not an error (avoids red errors in the app)
         return {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../data/models/app_bootstrap.dart';
@@ -37,6 +38,16 @@ class _HashtagDetailScreenState extends State<HashtagDetailScreen>
   }
 
   String get _displayTag => '#$_tagName';
+
+  String _coverPath(Map<String, dynamic> book) {
+    return (book['cover_path'] ??
+            book['cover_url'] ??
+            book['cover'] ??
+            book['image_url'] ??
+            '')
+        .toString()
+        .trim();
+  }
 
   @override
   void initState() {
@@ -95,28 +106,40 @@ class _HashtagDetailScreenState extends State<HashtagDetailScreen>
     final list = List<Map<String, dynamic>>.from(_books);
     switch (_tabs.index) {
       case 1: // Recent — reverse id order approx
-        list.sort((a, b) => ((b['id'] as num?)?.toInt() ?? 0)
-            .compareTo((a['id'] as num?)?.toInt() ?? 0));
+        list.sort(
+          (a, b) => ((b['id'] as num?)?.toInt() ?? 0).compareTo(
+            (a['id'] as num?)?.toInt() ?? 0,
+          ),
+        );
         break;
       case 2: // Trending — views
-        list.sort((a, b) => ((b['view_count'] as num?)?.toInt() ?? 0)
-            .compareTo((a['view_count'] as num?)?.toInt() ?? 0));
+        list.sort(
+          (a, b) => ((b['view_count'] as num?)?.toInt() ?? 0).compareTo(
+            (a['view_count'] as num?)?.toInt() ?? 0,
+          ),
+        );
         break;
       case 3: // Most liked
-        list.sort((a, b) => ((b['likes_count'] as num?)?.toInt() ??
-                (b['rating'] as num?)?.toDouble() ??
-                0)
-            .compareTo((a['likes_count'] as num?)?.toInt() ??
-                (a['rating'] as num?)?.toDouble() ??
-                0));
+        list.sort(
+          (a, b) =>
+              ((b['likes_count'] as num?)?.toInt() ??
+                      (b['rating'] as num?)?.toDouble() ??
+                      0)
+                  .compareTo(
+                    (a['likes_count'] as num?)?.toInt() ??
+                        (a['rating'] as num?)?.toDouble() ??
+                        0,
+                  ),
+        );
         break;
       default: // Top — rating then views
         list.sort((a, b) {
           final ra = (a['rating'] as num?)?.toDouble() ?? 0;
           final rb = (b['rating'] as num?)?.toDouble() ?? 0;
           if (rb != ra) return rb.compareTo(ra);
-          return ((b['view_count'] as num?)?.toInt() ?? 0)
-              .compareTo((a['view_count'] as num?)?.toInt() ?? 0);
+          return ((b['view_count'] as num?)?.toInt() ?? 0).compareTo(
+            (a['view_count'] as num?)?.toInt() ?? 0,
+          );
         });
     }
     return list;
@@ -145,7 +168,6 @@ class _HashtagDetailScreenState extends State<HashtagDetailScreen>
     );
   }
 
-
   Future<void> _toggleFollow() async {
     if (_followBusy) return;
     setState(() => _followBusy = true);
@@ -170,9 +192,9 @@ class _HashtagDetailScreenState extends State<HashtagDetailScreen>
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not update follow: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not update follow: $e')));
     } finally {
       if (mounted) setState(() => _followBusy = false);
     }
@@ -183,8 +205,7 @@ class _HashtagDetailScreenState extends State<HashtagDetailScreen>
     setState(() => _followBusy = true);
     try {
       final next = !_notify;
-      final res =
-          await widget.apiService.setTagNotify(_tagName, notify: next);
+      final res = await widget.apiService.setTagNotify(_tagName, notify: next);
       if (!mounted) return;
       setState(() {
         _notify = (res['notify'] as bool?) ?? next;
@@ -211,7 +232,9 @@ class _HashtagDetailScreenState extends State<HashtagDetailScreen>
       backgroundColor: isDark ? const Color(0xFF121212) : Colors.white,
       body: SafeArea(
         child: _loading
-            ? const Center(child: CircularProgressIndicator(color: AppTheme.brand))
+            ? const Center(
+                child: CircularProgressIndicator(color: AppTheme.brand),
+              )
             : RefreshIndicator(
                 color: AppTheme.brand,
                 onRefresh: _load,
@@ -223,7 +246,9 @@ class _HashtagDetailScreenState extends State<HashtagDetailScreen>
                       pinned: true,
                       delegate: _HashtagTabDelegate(
                         child: Container(
-                          color: isDark ? const Color(0xFF121212) : Colors.white,
+                          color: isDark
+                              ? const Color(0xFF121212)
+                              : Colors.white,
                           child: TabBar(
                             controller: _tabs,
                             isScrollable: true,
@@ -254,11 +279,10 @@ class _HashtagDetailScreenState extends State<HashtagDetailScreen>
   }
 
   Widget _header(bool isDark) {
-    final cover = _books.isNotEmpty
-        ? (_books.first['cover_path'] ?? '').toString()
-        : '';
-    final coverUrl =
-        cover.isEmpty ? null : widget.apiService.resolveAssetUrl(cover);
+    final cover = _books.isNotEmpty ? _coverPath(_books.first) : '';
+    final coverUrl = cover.isEmpty
+        ? null
+        : widget.apiService.resolveAssetUrl(cover);
     final count = _books.length;
 
     return Padding(
@@ -273,8 +297,29 @@ class _HashtagDetailScreenState extends State<HashtagDetailScreen>
                 onPressed: () => Navigator.of(context).maybePop(),
               ),
               const Spacer(),
-              IconButton(icon: const Icon(Icons.ios_share_outlined), onPressed: () {}),
-              IconButton(icon: const Icon(Icons.more_horiz), onPressed: () {}),
+              IconButton(
+                icon: const Icon(Icons.ios_share_outlined),
+                onPressed: () => Share.share(
+                  'Explore $_displayTag on Wingsaga.',
+                  subject: _displayTag,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.more_horiz),
+                onPressed: () => showModalBottomSheet<void>(
+                  context: context,
+                  builder: (ctx) => SafeArea(
+                    child: ListTile(
+                      leading: const Icon(Icons.refresh),
+                      title: const Text('Refresh hashtag'),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _load();
+                      },
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
           Padding(
@@ -326,13 +371,17 @@ class _HashtagDetailScreenState extends State<HashtagDetailScreen>
                                   ? AppTheme.brand
                                   : Colors.white,
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 10),
+                                horizontal: 16,
+                                vertical: 10,
+                              ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(24),
                               ),
                             ),
                             icon: Icon(
-                              _following ? Icons.favorite : Icons.favorite_border,
+                              _following
+                                  ? Icons.favorite
+                                  : Icons.favorite_border,
                               size: 18,
                             ),
                             label: Text(_following ? 'Following' : 'Follow'),
@@ -351,7 +400,9 @@ class _HashtagDetailScreenState extends State<HashtagDetailScreen>
                                   ? const Color(0xFFF3F0FF)
                                   : null,
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 10),
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(24),
                               ),
@@ -428,7 +479,7 @@ class _HashtagDetailScreenState extends State<HashtagDetailScreen>
             separatorBuilder: (_, __) => const SizedBox(width: 12),
             itemBuilder: (context, i) {
               final m = books[i];
-              final cover = (m['cover_path'] ?? '').toString();
+              final cover = _coverPath(m);
               final url = cover.isEmpty
                   ? null
                   : widget.apiService.resolveAssetUrl(cover);
@@ -449,10 +500,14 @@ class _HashtagDetailScreenState extends State<HashtagDetailScreen>
                                 color: const Color(0xFFF3F0FF),
                                 child: url == null
                                     ? const Icon(Icons.menu_book)
-                                    : Image.network(url, fit: BoxFit.cover,
-                                        width: 120, height: double.infinity,
+                                    : Image.network(
+                                        url,
+                                        fit: BoxFit.cover,
+                                        width: 120,
+                                        height: double.infinity,
                                         errorBuilder: (_, __, ___) =>
-                                            const Icon(Icons.menu_book)),
+                                            const Icon(Icons.menu_book),
+                                      ),
                               ),
                             ),
                             Positioned(
@@ -460,7 +515,9 @@ class _HashtagDetailScreenState extends State<HashtagDetailScreen>
                               top: 8,
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 3),
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
                                 decoration: BoxDecoration(
                                   color: AppTheme.brand,
                                   borderRadius: BorderRadius.circular(8),
@@ -484,14 +541,18 @@ class _HashtagDetailScreenState extends State<HashtagDetailScreen>
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 12),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
                       ),
                       Text(
                         'by ${(m['author'] ?? '').toString()}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                            fontSize: 11, color: Colors.grey.shade600),
+                          fontSize: 11,
+                          color: Colors.grey.shade600,
+                        ),
                       ),
                     ],
                   ),
@@ -505,7 +566,9 @@ class _HashtagDetailScreenState extends State<HashtagDetailScreen>
   }
 
   List<Widget> _topStoriesSection(
-      List<Map<String, dynamic>> books, bool isDark) {
+    List<Map<String, dynamic>> books,
+    bool isDark,
+  ) {
     return [
       SliverToBoxAdapter(
         child: Padding(
@@ -526,119 +589,146 @@ class _HashtagDetailScreenState extends State<HashtagDetailScreen>
         ),
       ),
       SliverList(
-        delegate: SliverChildBuilderDelegate(
-          (context, i) {
-            final m = books[i];
-            final cover = (m['cover_path'] ?? '').toString();
-            final url = cover.isEmpty
-                ? null
-                : widget.apiService.resolveAssetUrl(cover);
-            final title = (m['title'] ?? 'Story').toString();
-            final author = (m['author'] ?? '').toString();
-            final desc = (m['description'] ?? '').toString();
-            final status = (m['status_text'] ?? '').toString();
-            final genre = (m['genre'] ?? m['primary_genre'] ?? _tagName).toString();
-            final views = (m['view_count'] as num?)?.toInt() ?? 0;
-            final rating = (m['rating'] as num?)?.toDouble() ?? 0;
-            return InkWell(
-              onTap: () => _openBook(m),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 28,
-                      height: 28,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF3F0FF),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '${i + 1}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          color: AppTheme.brand,
-                        ),
+        delegate: SliverChildBuilderDelegate((context, i) {
+          final m = books[i];
+          final cover = _coverPath(m);
+          final url = cover.isEmpty
+              ? null
+              : widget.apiService.resolveAssetUrl(cover);
+          final title = (m['title'] ?? 'Story').toString();
+          final author = (m['author'] ?? '').toString();
+          final desc = (m['description'] ?? '').toString();
+          final status = (m['status_text'] ?? '').toString();
+          final genre = (m['genre'] ?? m['primary_genre'] ?? _tagName)
+              .toString();
+          final views = (m['view_count'] as num?)?.toInt() ?? 0;
+          final rating = (m['rating'] as num?)?.toDouble() ?? 0;
+          return InkWell(
+            onTap: () => _openBook(m),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF3F0FF),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${i + 1}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.brand,
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        width: 56,
-                        height: 72,
-                        color: const Color(0xFFF3F0FF),
-                        child: url == null
-                            ? const Icon(Icons.menu_book, size: 20)
-                            : Image.network(url, fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) =>
-                                    const Icon(Icons.menu_book, size: 20)),
-                      ),
+                  ),
+                  const SizedBox(width: 10),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      width: 56,
+                      height: 72,
+                      color: const Color(0xFFF3F0FF),
+                      child: url == null
+                          ? const Icon(Icons.menu_book, size: 20)
+                          : Image.network(
+                              url,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) =>
+                                  const Icon(Icons.menu_book, size: 20),
+                            ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w800, fontSize: 14)),
-                          Text('by $author',
-                              style: TextStyle(
-                                  fontSize: 12, color: Colors.grey.shade600)),
-                          if (desc.isNotEmpty)
-                            Text(desc,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey.shade700,
-                                    height: 1.25)),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              if (genre.isNotEmpty)
-                                _chip(genre, const Color(0xFFFCE7F3),
-                                    const Color(0xFFBE185D)),
-                              if (status.isNotEmpty) ...[
-                                const SizedBox(width: 6),
-                                _chip(
-                                  status,
-                                  const Color(0xFFD1FAE5),
-                                  const Color(0xFF047857),
-                                ),
-                              ],
-                              const Spacer(),
-                              Icon(Icons.visibility_outlined,
-                                  size: 14, color: Colors.grey.shade500),
-                              const SizedBox(width: 3),
-                              Text('$views',
-                                  style: TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.grey.shade600)),
-                              const SizedBox(width: 8),
-                              const Icon(Icons.star_rounded,
-                                  size: 14, color: Color(0xFFF3C623)),
-                              Text(rating.toStringAsFixed(1),
-                                  style: TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.grey.shade600)),
-                            ],
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
                           ),
-                        ],
-                      ),
+                        ),
+                        Text(
+                          'by $author',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                        if (desc.isNotEmpty)
+                          Text(
+                            desc,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade700,
+                              height: 1.25,
+                            ),
+                          ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            if (genre.isNotEmpty)
+                              _chip(
+                                genre,
+                                const Color(0xFFFCE7F3),
+                                const Color(0xFFBE185D),
+                              ),
+                            if (status.isNotEmpty) ...[
+                              const SizedBox(width: 6),
+                              _chip(
+                                status,
+                                const Color(0xFFD1FAE5),
+                                const Color(0xFF047857),
+                              ),
+                            ],
+                            const Spacer(),
+                            Icon(
+                              Icons.visibility_outlined,
+                              size: 14,
+                              color: Colors.grey.shade500,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              '$views',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Icon(
+                              Icons.star_rounded,
+                              size: 14,
+                              color: Color(0xFFF3C623),
+                            ),
+                            Text(
+                              rating.toStringAsFixed(1),
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            );
-          },
-          childCount: books.length,
-        ),
+            ),
+          );
+        }, childCount: books.length),
       ),
     ];
   }
@@ -650,9 +740,10 @@ class _HashtagDetailScreenState extends State<HashtagDetailScreen>
         color: bg,
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Text(label,
-          style: TextStyle(
-              fontSize: 10, fontWeight: FontWeight.w700, color: fg)),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: fg),
+      ),
     );
   }
 
@@ -692,8 +783,10 @@ class _HashtagDetailScreenState extends State<HashtagDetailScreen>
                 },
                 borderRadius: BorderRadius.circular(14),
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: isDark
                         ? const Color(0xFF1E1E1E)
@@ -708,12 +801,16 @@ class _HashtagDetailScreenState extends State<HashtagDetailScreen>
                       Text(
                         name.startsWith('#') ? name : '#$name',
                         style: const TextStyle(
-                            fontWeight: FontWeight.w800, fontSize: 13),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                        ),
                       ),
                       Text(
                         '$count stories',
                         style: TextStyle(
-                            fontSize: 11, color: Colors.grey.shade600),
+                          fontSize: 11,
+                          color: Colors.grey.shade600,
+                        ),
                       ),
                     ],
                   ),
@@ -739,7 +836,10 @@ class _HashtagTabDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   Widget build(
-      BuildContext context, double shrinkOffset, bool overlapsContent) {
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
     return child;
   }
 

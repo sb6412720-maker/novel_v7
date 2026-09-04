@@ -288,6 +288,10 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
     // CRITICAL: once user has reached home this session, NEVER show complete-profile
     // again (not from More, Profile, or tab switches).
     if (_profileGatePassed) return false;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(_profileDoneKey(session)) == true) return false;
+    } catch (_) {}
 
     // Database source of truth: Google display_name alone must not skip onboarding.
     try {

@@ -1157,6 +1157,7 @@ class ApiService {
 
   Future<Map<String, dynamic>> likeWallPost(int postId) async {
     final response = await _post('/api/wall/$postId/like', {});
+    _ensureSuccessResponse(response);
     final data = jsonDecode(response.body) as Map<String, dynamic>;
     return {
       'likes': (data['likes'] as num?)?.toInt() ?? 0,
@@ -1165,7 +1166,8 @@ class ApiService {
   }
 
   Future<void> commentWallPost(int postId, String body) async {
-    await _post('/api/wall/$postId/comment', {'body': body});
+    final response = await _post('/api/wall/$postId/comment', {'body': body});
+    _ensureSuccessResponse(response);
   }
 
   Future<Map<String, dynamic>> fetchBookLike(int bookId) async {

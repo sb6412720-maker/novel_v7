@@ -956,7 +956,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                         onPressed: _openReviewsPage,
                         icon: Icon(
                           _hasMyReview ? Icons.star : Icons.star_border,
-                          color: _hasMyReview ? const Color(0xFFF9A825) : fg,
+                          color: _hasMyReview ? inkittGreen : fg,
                         ),
                         label: Text(
                           _isOwner
@@ -1228,11 +1228,13 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
         ),
       ),
       bottomNavigationBar: SafeArea(
+        top: false,
+        minimum: const EdgeInsets.only(bottom: 8),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
           child: SizedBox(
             width: double.infinity,
-            height: 48,
+            height: 52,
             child: ElevatedButton(
               onPressed: _readNow,
               style: ElevatedButton.styleFrom(
@@ -1716,6 +1718,21 @@ class _WriteReviewScreenState extends State<_WriteReviewScreen> {
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
+      try {
+        final reviews = await widget.apiService.fetchBookReviews(widget.bookId);
+        final me = await widget.apiService.fetchMe();
+        final userId =
+            (me['id'] as num?)?.toInt() ?? (me['user_id'] as num?)?.toInt();
+        final saved = reviews.any(
+          (review) =>
+              userId != null &&
+              ((review['user_id'] as num?)?.toInt() == userId),
+        );
+        if (saved && mounted) {
+          Navigator.of(context).pop(true);
+          return;
+        }
+      } catch (_) {}
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Failed to post review: $e')));
