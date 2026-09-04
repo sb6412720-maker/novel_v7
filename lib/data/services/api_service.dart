@@ -807,11 +807,14 @@ class ApiService {
 
   /// Update signed-in user profile (onboarding + settings).
   Future<void> linkEmailPassword({
-    required String email,
+    String? email,
+    String? username,
     required String password,
   }) async {
     final response = await _post('/api/me/link-email', {
-      'email': email,
+      if (email != null && email.trim().isNotEmpty) 'email': email.trim(),
+      if (username != null && username.trim().isNotEmpty)
+        'username': username.trim(),
       'password': password,
     }, timeout: const Duration(seconds: 30));
     _ensureSuccessResponse(response);
@@ -1196,7 +1199,10 @@ class ApiService {
 
   Future<List<Map<String, dynamic>>> fetchMyFollowers() async {
     try {
-      final response = await _get('/api/me/followers', timeout: const Duration(seconds: 30));
+      final response = await _get(
+        '/api/me/followers',
+        timeout: const Duration(seconds: 30),
+      );
       if (response.statusCode != 200) return const [];
       final body = jsonDecode(response.body) as Map<String, dynamic>;
       final items = body['items'];
@@ -1209,7 +1215,10 @@ class ApiService {
 
   Future<List<Map<String, dynamic>>> fetchMyFollowing() async {
     try {
-      final response = await _get('/api/me/following', timeout: const Duration(seconds: 30));
+      final response = await _get(
+        '/api/me/following',
+        timeout: const Duration(seconds: 30),
+      );
       if (response.statusCode != 200) return const [];
       final body = jsonDecode(response.body) as Map<String, dynamic>;
       final items = body['items'];
@@ -1222,7 +1231,10 @@ class ApiService {
 
   Future<List<Map<String, dynamic>>> fetchUserFollowers(int userId) async {
     try {
-      final response = await _get('/api/users/$userId/followers', timeout: const Duration(seconds: 30));
+      final response = await _get(
+        '/api/users/$userId/followers',
+        timeout: const Duration(seconds: 30),
+      );
       if (response.statusCode != 200) return const [];
       final body = jsonDecode(response.body) as Map<String, dynamic>;
       final items = body['items'];
@@ -1235,7 +1247,10 @@ class ApiService {
 
   Future<List<Map<String, dynamic>>> fetchUserFollowingList(int userId) async {
     try {
-      final response = await _get('/api/users/$userId/following', timeout: const Duration(seconds: 30));
+      final response = await _get(
+        '/api/users/$userId/following',
+        timeout: const Duration(seconds: 30),
+      );
       if (response.statusCode != 200) return const [];
       final body = jsonDecode(response.body) as Map<String, dynamic>;
       final items = body['items'];

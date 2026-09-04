@@ -347,6 +347,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
                   ? ''
                   : display,
               initialPhotoUrl: photo,
+              initialEmail: session.email,
               onDone: () {
                 if (Navigator.of(context).canPop()) {
                   Navigator.of(context).pop();

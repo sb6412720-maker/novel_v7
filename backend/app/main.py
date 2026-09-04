@@ -184,6 +184,7 @@ class ChapterUpdateRequest(BaseModel):
 
 class ProfileUpdateRequest(BaseModel):
     display_name: str | None = None
+    username: str | None = None
     photo_url: str | None = None
     cover_url: str | None = None
     bio: str | None = None
@@ -195,7 +196,8 @@ class ProfileUpdateRequest(BaseModel):
 
 
 class LinkEmailRequest(BaseModel):
-    email: str
+    email: str | None = None
+    username: str | None = None
     password: str
 
 
@@ -1903,7 +1905,7 @@ def get_me(user: dict[str, Any] = Depends(require_user)):
         pass
     try:
         rows = fetch_all(
-            """SELECT id, email, display_name, photo_url, cover_url, bio, provider,
+            """SELECT id, email, username, display_name, photo_url, cover_url, bio, provider,
                       gender, birth_date, country, facebook_url,
                       COALESCE(profile_complete,0) AS profile_complete,
                       COALESCE(is_author,0) AS is_author
@@ -1913,7 +1915,7 @@ def get_me(user: dict[str, Any] = Depends(require_user)):
     except Exception:
         try:
             rows = fetch_all(
-                """SELECT id, email, display_name, photo_url, cover_url, bio, provider,
+                """SELECT id, email, username, display_name, photo_url, cover_url, bio, provider,
                           gender, birth_date, country, facebook_url,
                           COALESCE(profile_complete,0) AS profile_complete
                    FROM app_users WHERE id=%s LIMIT 1""",
@@ -1958,7 +1960,7 @@ def get_me(user: dict[str, Any] = Depends(require_user)):
         "id": _row_get(u, "id"),
         "email": _row_get(u, "email") or "",
         "display_name": display_name,
-        "username": username,
+        "username": _row_get(u, "username") or username,
         "photo_url": _row_get(u, "photo_url") or "",
         "avatar_url": _row_get(u, "photo_url") or "",
         "cover_url": _row_get(u, "cover_url") or "",
@@ -2104,6 +2106,11 @@ def update_me(
         _ensure_profile_extra_columns()
     except Exception as exc:
         LOGGER.warning("ensure profile cols: %s", exc)
+    if payload.username is not None:
+        try:
+            _ensure_auth_profile_columns()
+        except Exception as exc:
+            LOGGER.warning("ensure username column: %s", exc)
 
     # Apply fields one-by-one so a missing optional column cannot wipe profile_complete
     def _set(col: str, val: Any) -> None:
@@ -2114,6 +2121,21 @@ def update_me(
 
     if payload.display_name is not None:
         _set("display_name", payload.display_name.strip() or "Reader")
+    if payload.username is not None:
+        username = payload.username.strip().lstrip("@").lower()
+        if username:
+            try:
+                existing = fetch_all(
+                    "SELECT id FROM app_users WHERE LOWER(username)=%s AND id<>%s LIMIT 1",
+                    (username, uid),
+                )
+                if existing:
+                    raise HTTPException(status_code=409, detail="Username already taken")
+                _set("username", username)
+            except HTTPException:
+                raise
+            except Exception as exc:
+                LOGGER.warning("update_me username skipped: %s", exc)
     if payload.photo_url is not None:
         _set("photo_url", payload.photo_url)
     if payload.cover_url is not None:
@@ -2161,6 +2183,7 @@ def update_me(
         "ok": True,
         "id": _row_get(u, "id") or uid,
         "email": _row_get(u, "email") or "",
+        "username": _row_get(u, "username") or "",
         "display_name": _row_get(u, "display_name") or "Reader",
         "photo_url": _row_get(u, "photo_url") or "",
         "cover_url": _row_get(u, "cover_url") or "",
@@ -2182,9 +2205,10 @@ def link_email_password(
 ):
     """Attach email+password so Google users can also sign in with email."""
     email = (payload.email or "").strip().lower()
+    username = (payload.username or "").strip().lstrip("@").lower()
     password = payload.password or ""
-    if "@" not in email or len(password) < 6:
-        raise HTTPException(status_code=400, detail="Valid email and password (min 6) required")
+    if (email and "@" not in email) or (not email and not username) or len(password) < 6:
+        raise HTTPException(status_code=400, detail="Valid username/email and password (min 6) required")
     try:
         _ensure_password_hash_column()
     except Exception:
@@ -2197,25 +2221,45 @@ def link_email_password(
         import hashlib
         pw_hash = hashlib.sha256(password.encode()).hexdigest()
     # Ensure email unique
-    existing = fetch_all(
-        "SELECT id FROM app_users WHERE LOWER(email)=%s AND id<>%s LIMIT 1",
-        (email, user["user_id"]),
-    )
-    if existing:
-        raise HTTPException(status_code=409, detail="Email already in use")
+    if email:
+        existing = fetch_all(
+            "SELECT id FROM app_users WHERE LOWER(email)=%s AND id<>%s LIMIT 1",
+            (email, user["user_id"]),
+        )
+        if existing:
+            raise HTTPException(status_code=409, detail="Email already in use")
+    if username:
+        try:
+            existing = fetch_all(
+                "SELECT id FROM app_users WHERE LOWER(username)=%s AND id<>%s LIMIT 1",
+                (username, user["user_id"]),
+            )
+        except Exception:
+            _ensure_auth_profile_columns()
+            existing = fetch_all(
+                "SELECT id FROM app_users WHERE LOWER(username)=%s AND id<>%s LIMIT 1",
+                (username, user["user_id"]),
+            )
+        if existing:
+            raise HTTPException(status_code=409, detail="Username already taken")
+    fields = ["password_hash=%s"]
+    values: list[Any] = [pw_hash]
+    if email:
+        fields.append("email=%s")
+        values.append(email)
+    if username:
+        fields.append("username=%s")
+        values.append(username)
+    values.append(user["user_id"])
     try:
         execute_write(
-            """
-            UPDATE app_users
-            SET email=%s, password_hash=%s, updated_at=CURRENT_TIMESTAMP
-            WHERE id=%s
-            """,
-            (email, pw_hash, user["user_id"]),
+            f"UPDATE app_users SET {', '.join(fields)}, updated_at=CURRENT_TIMESTAMP WHERE id=%s",
+            tuple(values),
         )
     except Exception as exc:
         LOGGER.warning("link-email failed: %s", exc)
         raise HTTPException(status_code=500, detail="Could not link email")
-    return {"ok": True, "email": email}
+    return {"ok": True, "email": email, "username": username}
 
 
 @app.api_route("/api/admin/session", methods=["GET", "POST"])

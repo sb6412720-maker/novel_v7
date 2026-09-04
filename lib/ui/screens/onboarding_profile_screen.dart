@@ -15,12 +15,14 @@ class OnboardingProfileScreen extends StatefulWidget {
     required this.apiService,
     this.initialDisplayName = '',
     this.initialPhotoUrl = '',
+    this.initialEmail = '',
     required this.onDone,
   });
 
   final ApiService apiService;
   final String initialDisplayName;
   final String initialPhotoUrl;
+  final String initialEmail;
   final VoidCallback onDone;
 
   @override
@@ -30,6 +32,7 @@ class OnboardingProfileScreen extends StatefulWidget {
 
 class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
   late final TextEditingController _nameCtrl;
+  late final TextEditingController _usernameCtrl;
   late final TextEditingController _bioCtrl;
   late final TextEditingController _emailCtrl;
   late final TextEditingController _passCtrl;
@@ -65,9 +68,11 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
   void initState() {
     super.initState();
     _nameCtrl = TextEditingController(text: widget.initialDisplayName);
+    _usernameCtrl = TextEditingController();
     _bioCtrl = TextEditingController();
     _emailCtrl = TextEditingController();
     _passCtrl = TextEditingController();
+    _emailCtrl.text = widget.initialEmail;
     _photoUrl = widget.initialPhotoUrl; // Google avatar if present
     unawaited(_detectCountryFromIp());
   }
@@ -104,6 +109,7 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
   @override
   void dispose() {
     _nameCtrl.dispose();
+    _usernameCtrl.dispose();
     _bioCtrl.dispose();
     _emailCtrl.dispose();
     _passCtrl.dispose();
@@ -137,7 +143,8 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
         bytes,
         name.isEmpty ? 'photo.jpg' : name,
       );
-      final path = (res['path'] ?? res['url'] ?? res['photo_url'] ?? '').toString();
+      final path = (res['path'] ?? res['url'] ?? res['photo_url'] ?? '')
+          .toString();
       return path.isEmpty ? null : path;
     } catch (_) {
       return null;
@@ -157,6 +164,8 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
 
   Future<void> _save() async {
     final name = _nameCtrl.text.trim();
+    final username = _usernameCtrl.text.trim().replaceFirst('@', '');
+    final password = _passCtrl.text;
     if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a display name')),
@@ -164,16 +173,34 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
       return;
     }
     if (_birthDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Birthday is required')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Birthday is required')));
       return;
     }
     if ((_country ?? '').trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Country is required')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Country is required')));
       return;
+    }
+    if (username.isNotEmpty || password.isNotEmpty) {
+      if (username.length < 3) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Username must be at least 3 characters'),
+          ),
+        );
+        return;
+      }
+      if (password.length < 6) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Password must be at least 6 characters'),
+          ),
+        );
+        return;
+      }
     }
     // Must be at least 13 to use the app
     final age = DateTime.now().difference(_birthDate!).inDays ~/ 365;
@@ -202,9 +229,11 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
       } catch (_) {}
       await widget.apiService.updateMyProfile({
         'display_name': name,
+        if (username.isNotEmpty) 'username': username,
         'bio': _bioCtrl.text.trim(),
         if (_gender != null) 'gender': _gender,
-        if ((_country ?? '').trim().isNotEmpty) 'country': (_country ?? '').trim(),
+        if ((_country ?? '').trim().isNotEmpty)
+          'country': (_country ?? '').trim(),
         if (_birthDate != null)
           'birth_date':
               '${_birthDate!.year.toString().padLeft(4, '0')}-${_birthDate!.month.toString().padLeft(2, '0')}-${_birthDate!.day.toString().padLeft(2, '0')}',
@@ -217,10 +246,13 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
         await widget.apiService.updateMe({'profile_complete': true});
       } catch (_) {}
       final em = _emailCtrl.text.trim();
-      final pw = _passCtrl.text;
-      if (em.contains('@') && pw.length >= 6) {
+      if (password.length >= 6 && (username.isNotEmpty || em.contains('@'))) {
         try {
-          await widget.apiService.linkEmailPassword(email: em, password: pw);
+          await widget.apiService.linkEmailPassword(
+            email: em,
+            username: username,
+            password: password,
+          );
         } catch (_) {}
       }
       if (!mounted) return;
@@ -268,211 +300,244 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
     return PopScope(
       canPop: false,
       child: Scaffold(
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
-          children: [
-            Text(
-              'Complete your profile',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
+        body: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+            children: [
+              Text(
+                'Complete your profile',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'This appears on your public profile for readers and authors.',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: Colors.black54),
+              ),
+              const SizedBox(height: 20),
+              // Cover
+              GestureDetector(
+                onTap: _saving ? null : () => _pickImage(cover: true),
+                child: Container(
+                  height: 120,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF3F0FF),
+                    borderRadius: BorderRadius.circular(12),
+                    image: _coverProvider != null
+                        ? DecorationImage(
+                            image: _coverProvider!,
+                            fit: BoxFit.cover,
+                          )
+                        : null,
                   ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'This appears on your public profile for readers and authors.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.black54,
-                  ),
-            ),
-            const SizedBox(height: 20),
-            // Cover
-            GestureDetector(
-              onTap: _saving ? null : () => _pickImage(cover: true),
-              child: Container(
-                height: 120,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF3F0FF),
-                  borderRadius: BorderRadius.circular(12),
-                  image: _coverProvider != null
-                      ? DecorationImage(image: _coverProvider!, fit: BoxFit.cover)
+                  alignment: Alignment.center,
+                  child: _coverProvider == null
+                      ? const Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.add_photo_alternate_outlined, size: 28),
+                            SizedBox(height: 4),
+                            Text(
+                              'Add cover photo',
+                              style: TextStyle(fontSize: 13),
+                            ),
+                          ],
+                        )
                       : null,
                 ),
-                alignment: Alignment.center,
-                child: _coverProvider == null
-                    ? const Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.add_photo_alternate_outlined, size: 28),
-                          SizedBox(height: 4),
-                          Text('Add cover photo', style: TextStyle(fontSize: 13)),
-                        ],
-                      )
-                    : null,
               ),
-            ),
-            const SizedBox(height: 8),
-            // Avatar overlapping
-            Center(
-              child: GestureDetector(
-                onTap: _saving ? null : () => _pickImage(cover: false),
-                child: Stack(
-                  children: [
-                    CircleAvatar(
-                      radius: 44,
-                      backgroundColor: const Color(0xFFEDE9FE),
-                      backgroundImage: _avatarProvider,
-                      child: _avatarProvider == null
-                          ? const Icon(Icons.person, size: 40, color: Colors.black45)
-                          : null,
-                    ),
-                    Positioned(
-                      right: 0,
-                      bottom: 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF6C3CE1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.camera_alt, size: 14, color: Colors.white),
+              const SizedBox(height: 8),
+              // Avatar overlapping
+              Center(
+                child: GestureDetector(
+                  onTap: _saving ? null : () => _pickImage(cover: false),
+                  child: Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 44,
+                        backgroundColor: const Color(0xFFEDE9FE),
+                        backgroundImage: _avatarProvider,
+                        child: _avatarProvider == null
+                            ? const Icon(
+                                Icons.person,
+                                size: 40,
+                                color: Colors.black45,
+                              )
+                            : null,
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            if (widget.initialPhotoUrl.isNotEmpty && _localPhoto == null)
-              const Padding(
-                padding: EdgeInsets.only(top: 6),
-                child: Text(
-                  'Using your Google photo — tap to change',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12, color: Colors.black45),
-                ),
-              ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: _nameCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Display name *',
-                border: OutlineInputBorder(),
-              ),
-              textCapitalization: TextCapitalization.words,
-              style: const TextStyle(color: Colors.black),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: _bioCtrl,
-              maxLines: 3,
-              style: const TextStyle(color: Colors.black),
-              decoration: const InputDecoration(
-                labelText: 'Bio',
-                hintText: 'A short intro about you',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 14),
-            DropdownMenu<String>(
-              initialSelection: _gender,
-              label: const Text('Gender'),
-              dropdownMenuEntries: _genders
-                  .map((g) => DropdownMenuEntry<String>(value: g, label: g))
-                  .toList(),
-              onSelected: (v) => setState(() => _gender = v),
-              expandedInsets: EdgeInsets.zero,
-            ),
-            const SizedBox(height: 14),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(
-                _birthDate == null
-                    ? 'Birthday (required)'
-                    : 'Birthday: ${_birthDate!.year}-${_birthDate!.month.toString().padLeft(2, '0')}-${_birthDate!.day.toString().padLeft(2, '0')}',
-              ),
-              trailing: const Icon(Icons.calendar_today_outlined),
-              onTap: _pickBirthDate,
-            ),
-
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              value: (_country != null &&
-                      (_countryOptions.contains(_country) ||
-                          _country == _detectedCountry))
-                  ? _country
-                  : null,
-              decoration: const InputDecoration(
-                labelText: 'Country (required)',
-                border: OutlineInputBorder(),
-              ),
-              items: [
-                for (final c in {
-                  ..._countryOptions,
-                  if ((_detectedCountry ?? '').isNotEmpty) _detectedCountry!,
-                })
-                  DropdownMenuItem(value: c, child: Text(c)),
-              ],
-              onChanged: (v) => setState(() => _country = v),
-            ),
-            if ((_detectedCountry ?? '').isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(
-                  'Detected from network: $_detectedCountry',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.black54),
-                ),
-              ),
-
-            const SizedBox(height: 8),
-            Text(
-              'Account login (optional)',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
+                      Positioned(
+                        right: 0,
+                        bottom: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF6C3CE1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.camera_alt,
+                            size: 14,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Set an email and password so you can also sign in without Google.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.black54),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _emailCtrl,
-              keyboardType: TextInputType.emailAddress,
-              style: const TextStyle(color: Colors.black87),
-              decoration: const InputDecoration(
-                labelText: 'Email (optional)',
-                border: OutlineInputBorder(),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _passCtrl,
-              obscureText: true,
-              style: const TextStyle(color: Colors.black87),
-              decoration: const InputDecoration(
-                labelText: 'Password (optional, min 6)',
-                border: OutlineInputBorder(),
+              if (widget.initialPhotoUrl.isNotEmpty && _localPhoto == null)
+                const Padding(
+                  padding: EdgeInsets.only(top: 6),
+                  child: Text(
+                    'Using your Google photo — tap to change',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12, color: Colors.black45),
+                  ),
+                ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: _nameCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Display name *',
+                  border: OutlineInputBorder(),
+                ),
+                textCapitalization: TextCapitalization.words,
+                style: const TextStyle(color: Colors.black),
               ),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              height: 52,
-              child: FilledButton(
-                onPressed: _saving ? null : _save,
-                child: _saving
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Text('Save and continue'),
+              const SizedBox(height: 14),
+              TextField(
+                controller: _bioCtrl,
+                maxLines: 3,
+                style: const TextStyle(color: Colors.black),
+                decoration: const InputDecoration(
+                  labelText: 'Bio',
+                  hintText: 'A short intro about you',
+                  border: OutlineInputBorder(),
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 14),
+              DropdownMenu<String>(
+                initialSelection: _gender,
+                label: const Text('Gender'),
+                dropdownMenuEntries: _genders
+                    .map((g) => DropdownMenuEntry<String>(value: g, label: g))
+                    .toList(),
+                onSelected: (v) => setState(() => _gender = v),
+                expandedInsets: EdgeInsets.zero,
+              ),
+              const SizedBox(height: 14),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(
+                  _birthDate == null
+                      ? 'Birthday (required)'
+                      : 'Birthday: ${_birthDate!.year}-${_birthDate!.month.toString().padLeft(2, '0')}-${_birthDate!.day.toString().padLeft(2, '0')}',
+                ),
+                trailing: const Icon(Icons.calendar_today_outlined),
+                onTap: _pickBirthDate,
+              ),
+
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value:
+                    (_country != null &&
+                        (_countryOptions.contains(_country) ||
+                            _country == _detectedCountry))
+                    ? _country
+                    : null,
+                decoration: const InputDecoration(
+                  labelText: 'Country (required)',
+                  border: OutlineInputBorder(),
+                ),
+                items: [
+                  for (final c in {
+                    ..._countryOptions,
+                    if ((_detectedCountry ?? '').isNotEmpty) _detectedCountry!,
+                  })
+                    DropdownMenuItem(value: c, child: Text(c)),
+                ],
+                onChanged: (v) => setState(() => _country = v),
+              ),
+              if ((_detectedCountry ?? '').isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    'Detected from network: $_detectedCountry',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: Colors.black54),
+                  ),
+                ),
+
+              const SizedBox(height: 8),
+              TextField(
+                controller: _usernameCtrl,
+                style: const TextStyle(color: Colors.black87),
+                decoration: const InputDecoration(
+                  labelText: 'Username (optional)',
+                  hintText: 'Used to sign in without Google',
+                  prefixText: '@',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Account login (optional)',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Set an email and password so you can also sign in without Google.',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: Colors.black54),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                style: const TextStyle(color: Colors.black87),
+                decoration: const InputDecoration(
+                  labelText: 'Email (optional)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _passCtrl,
+                obscureText: true,
+                style: const TextStyle(color: Colors.black87),
+                decoration: const InputDecoration(
+                  labelText: 'Password (optional, min 6)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                height: 52,
+                child: FilledButton(
+                  onPressed: _saving ? null : _save,
+                  child: _saving
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Save and continue'),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-    ),
     );
   }
 }
