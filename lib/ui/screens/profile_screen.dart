@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../data/models/app_bootstrap.dart';
 import '../../data/services/api_service.dart';
 import 'story_detail_screen.dart';
@@ -238,6 +239,13 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
+  Future<void> _shareProfile() async {
+    await Share.share(
+      'Check out $_displayName (@$_username) on Wingsaga.',
+      subject: 'Wingsaga profile',
+    );
+  }
+
   String get _avatarUrl {
     final p = _s(
       _userProfile?['avatar_url'] ??
@@ -284,17 +292,12 @@ class _ProfileScreenState extends State<ProfileScreen>
         _isFollowing = following ?? !wasFollowing;
         if (_userProfile != null) {
           if (followers != null) {
-            _userProfile = {
-              ..._userProfile!,
-              'followers': followers,
-              'following': following ?? !wasFollowing,
-            };
+            _userProfile = {..._userProfile!, 'followers': followers};
           } else {
             final cur = _asInt(_userProfile!['followers']);
             _userProfile = {
               ..._userProfile!,
               'followers': _isFollowing ? cur + 1 : (cur > 0 ? cur - 1 : 0),
-              'following': _isFollowing,
             };
           }
         }
@@ -325,7 +328,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                 'Share profile',
                 style: TextStyle(color: Color(0xFF2B6CB0)),
               ),
-              onTap: () => Navigator.pop(ctx),
+              onTap: () async {
+                Navigator.pop(ctx);
+                await _shareProfile();
+              },
             ),
             ListTile(
               title: const Text(
@@ -354,8 +360,16 @@ class _ProfileScreenState extends State<ProfileScreen>
   Future<void> _editProfile() async {
     if (!_isOwnProfile) return;
     final nameCtrl = TextEditingController(text: _displayName);
+    final usernameCtrl = TextEditingController(text: _username);
     final bioCtrl = TextEditingController(text: _bio);
     final facebookCtrl = TextEditingController(text: _facebookUrl);
+    final genderCtrl = TextEditingController(text: _s(_userProfile?['gender']));
+    final birthDateCtrl = TextEditingController(
+      text: _s(_userProfile?['birth_date']),
+    );
+    final countryCtrl = TextEditingController(
+      text: _s(_userProfile?['country']),
+    );
     String photoUrl = _s(
       _userProfile?['photo_url'] ?? _userProfile?['avatar_url'],
     );
@@ -394,9 +408,31 @@ class _ProfileScreenState extends State<ProfileScreen>
                       ),
                     ),
                     TextField(
+                      controller: usernameCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Username',
+                        prefixText: '@',
+                      ),
+                    ),
+                    TextField(
                       controller: bioCtrl,
                       maxLines: 3,
                       decoration: const InputDecoration(labelText: 'Bio'),
+                    ),
+                    TextField(
+                      controller: genderCtrl,
+                      decoration: const InputDecoration(labelText: 'Gender'),
+                    ),
+                    TextField(
+                      controller: birthDateCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Birthday',
+                        hintText: 'YYYY-MM-DD',
+                      ),
+                    ),
+                    TextField(
+                      controller: countryCtrl,
+                      decoration: const InputDecoration(labelText: 'Country'),
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -526,7 +562,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                                 try {
                                   await widget.apiService.updateMe({
                                     'display_name': nameCtrl.text.trim(),
+                                    'username': usernameCtrl.text.trim(),
                                     'bio': bioCtrl.text.trim(),
+                                    'gender': genderCtrl.text.trim(),
+                                    'birth_date': birthDateCtrl.text.trim(),
+                                    'country': countryCtrl.text.trim(),
                                     'facebook_url': facebookCtrl.text.trim(),
                                     if (photoUrl.isNotEmpty)
                                       'photo_url': photoUrl,
@@ -570,6 +610,13 @@ class _ProfileScreenState extends State<ProfileScreen>
         },
       ),
     );
+    nameCtrl.dispose();
+    usernameCtrl.dispose();
+    bioCtrl.dispose();
+    facebookCtrl.dispose();
+    genderCtrl.dispose();
+    birthDateCtrl.dispose();
+    countryCtrl.dispose();
   }
 
   List<Map<String, dynamic>> get _filteredStories {
@@ -1046,9 +1093,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         if (_facebookUrl.isNotEmpty) ...[
           const SizedBox(height: 14),
           InkWell(
-            onTap: () {
-              // open externally via share_plus or url - use simple snack for now
-            },
+            onTap: () => Share.share(_facebookUrl, subject: 'Facebook profile'),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               decoration: BoxDecoration(

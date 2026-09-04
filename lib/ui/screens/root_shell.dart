@@ -318,8 +318,8 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       }
       return true; // first-time: show complete-profile BEFORE home only
     } catch (_) {
-      // Network / Vercel cold start failure: do not force onboarding loop
-      return false;
+      // A missing profile response cannot prove onboarding is complete.
+      return true;
     }
   }
 
@@ -379,7 +379,9 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       if (mounted && refreshed != null) {
         setState(() => _session = refreshed);
       }
-      unawaited(_loadBootstrap(showLoading: false));
+      if (mounted) {
+        await _loadBootstrap(showLoading: false);
+      }
     } catch (_) {}
   }
 
