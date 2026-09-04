@@ -1556,9 +1556,13 @@ class _SearchScreenState extends State<SearchScreen> {
                         separatorBuilder: (_, __) => const SizedBox(height: 8),
                         itemBuilder: (context, index) {
                           final item = _results[index];
-                          final kind = (item['kind'] ?? item['type'] ?? 'book')
-                              .toString()
-                              .toLowerCase();
+                          final kind =
+                              (item['kind'] ??
+                                      item['_kind'] ??
+                                      item['type'] ??
+                                      'book')
+                                  .toString()
+                                  .toLowerCase();
                           final cover =
                               (item['cover_path'] ??
                                       item['photo_url'] ??
@@ -1631,13 +1635,14 @@ class _SearchScreenState extends State<SearchScreen> {
                                       (item['tag_name'] ?? item['title'] ?? '')
                                           .toString();
                                   if (tag.isEmpty) return;
-                                  setState(() {
-                                    _searchScope = 'tag';
-                                    _searchQuery = tag;
-                                    _showRecent = false;
-                                  });
-                                  _searchController.text = tag;
-                                  _runSearch(recordHistory: true);
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => HashtagDetailScreen(
+                                        tag: tag,
+                                        apiService: widget.apiService,
+                                      ),
+                                    ),
+                                  );
                                   return;
                                 }
                                 if (kind == 'profile') {

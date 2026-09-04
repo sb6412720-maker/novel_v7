@@ -302,6 +302,14 @@ class _ProfileScreenState extends State<ProfileScreen>
           }
         }
       });
+      if (widget.viewingUserId != null) {
+        final refreshed = await widget.apiService.fetchProfile(
+          widget.viewingUserId!,
+        );
+        if (mounted && refreshed.isNotEmpty) {
+          setState(() => _userProfile = {...?_userProfile, ...refreshed});
+        }
+      }
     } catch (e) {
       if (!mounted) return;
       final msg = e.toString().toLowerCase();
