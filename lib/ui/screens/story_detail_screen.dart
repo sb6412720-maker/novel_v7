@@ -377,15 +377,15 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
         .then((ok) async {
           if (ok == true && mounted) {
             setState(() => _hasMyReview = true);
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('Review added')));
             try {
               final reviews = await widget.apiService.fetchBookReviews(
                 _book.id,
               );
               if (mounted) setState(() => _reviews = _dedupeReviews(reviews));
             } catch (_) {}
-            if (!mounted) return;
-            // Go back to the reviews list so the new review is visible
-            await _openReviewsPage();
           }
         });
   }
@@ -1358,7 +1358,6 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
@@ -1366,23 +1365,17 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context, widget.hasMyReview),
+          onPressed: () => Navigator.pop(context),
         ),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
+          : ListView(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
               children: [
                 Text(
                   '${_reviews.length} reviews for',
-                  style: TextStyle(
-                    color: isDark ? Colors.white70 : Colors.grey.shade600,
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -1463,7 +1456,6 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
                   for (final r in _reviews) _reviewCard(r),
               ],
             ),
-            ),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
@@ -1495,21 +1487,9 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
     final name =
         (r['user_name'] ?? r['display_name'] ?? r['username'] ?? 'Reader')
             .toString();
-    var body = (r['comment'] ?? r['body'] ?? r['text'] ?? '').toString().trim();
-    var title = (r['title'] ?? '').toString().trim();
-    // Split combined "title\n\nbody" if backend stored that way
-    if (title.isEmpty && body.contains('\n\n')) {
-      final parts = body.split('\n\n');
-      title = parts.first.trim();
-      body = parts.skip(1).join('\n\n').trim();
-    } else if (title.isNotEmpty && body.startsWith(title)) {
-      body = body.substring(title.length).trim();
-      if (body.startsWith('\n')) body = body.trimLeft();
-    }
+    final body = (r['comment'] ?? r['body'] ?? r['text'] ?? '').toString();
+    final title = (r['title'] ?? '').toString();
     final rating = (r['rating'] as num?)?.toDouble() ?? 0;
-    final plot = (r['plot_rating'] as num?)?.toDouble() ?? rating;
-    final style = (r['style_rating'] as num?)?.toDouble() ?? rating;
-    final tech = (r['tech_rating'] as num?)?.toDouble() ?? rating;
     final created = (r['created_at'] ?? '').toString();
     final chaptersRead = r['chapters_read'];
 
@@ -1575,28 +1555,13 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
             ),
           ],
           if (body.isNotEmpty) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
-              body,
-              style: TextStyle(
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? Colors.white
-                    : Colors.grey.shade900,
-                height: 1.45,
-                fontSize: 14.5,
-              ),
-            ),
-          ] else if (title.isEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              'No written review text.',
-              style: TextStyle(
-                fontStyle: FontStyle.italic,
-                color: Colors.grey.shade600,
-              ),
+              '"$body"',
+              style: TextStyle(color: Colors.grey.shade800, height: 1.4),
             ),
           ],
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Row(
             children: [
               Expanded(
@@ -1616,7 +1581,7 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text('Plot', style: TextStyle(fontSize: 12)),
-                    stars(plot),
+                    stars(rating),
                   ],
                 ),
               ),
@@ -1630,7 +1595,7 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text('Writing Style', style: TextStyle(fontSize: 12)),
-                    stars(style),
+                    stars(rating),
                   ],
                 ),
               ),
@@ -1642,7 +1607,7 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
                       'Grammar & Punctuation',
                       style: TextStyle(fontSize: 12),
                     ),
-                    stars(tech),
+                    stars(rating),
                   ],
                 ),
               ),

@@ -483,19 +483,13 @@ class ApiService {
   }
 
   Future<void> submitSupportRequest(Map<String, dynamic> payload) async {
-    // Cold-start backends need a longer timeout than 10s.
     final response = await _post(
       '/api/support/requests',
       payload,
-      timeout: const Duration(seconds: 60),
+      timeout: const Duration(seconds: 10),
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      final body = response.body.length > 200
-          ? response.body.substring(0, 200)
-          : response.body;
-      throw Exception(
-        'Unable to submit support request (${response.statusCode}): $body',
-      );
+      throw Exception('Unable to submit support request');
     }
   }
 
