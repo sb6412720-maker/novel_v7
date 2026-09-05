@@ -432,7 +432,9 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
     final seen = <String>{};
     final out = <Map<String, dynamic>>[];
     for (final r in list) {
-      final id = (r['id'] ?? r['review_id'] ?? '${r['user_id']}_${r['created_at']}').toString();
+      final id =
+          (r['id'] ?? r['review_id'] ?? '${r['user_id']}_${r['created_at']}')
+              .toString();
       if (seen.contains(id)) continue;
       seen.add(id);
       out.add(r);
@@ -635,7 +637,9 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('This story is still a draft and not available to read yet.'),
+          content: Text(
+            'This story is still a draft and not available to read yet.',
+          ),
         ),
       );
       return;
@@ -1216,7 +1220,6 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
 
             // Hidden: other authors' recommendation rails (You may also like / Recommended)
             // Keep only "More stories by author" above.
-
             const SliverToBoxAdapter(child: SizedBox(height: 100)),
           ],
         ),
@@ -1370,91 +1373,94 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
-              children: [
-                Text(
-                  '${_reviews.length} reviews for',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  widget.book.title,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    height: 1.25,
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
+                children: [
+                  Text(
+                    '${_reviews.length} reviews for',
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
                   ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'By ${widget.book.author}',
-                  style: const TextStyle(
-                    color: Color(0xFF6C3CE1),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                if (widget.isOwner)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Text(
-                      "Authors can't write reviews on their own books. You can still read reviews below.",
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 13,
-                      ),
-                      textAlign: TextAlign.center,
+                  const SizedBox(height: 6),
+                  Text(
+                    widget.book.title,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      height: 1.25,
                     ),
-                  )
-                else if (!widget.isOwner)
-                  Center(
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF6C3CE1),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 28,
-                          vertical: 12,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'By ${widget.book.author}',
+                    style: const TextStyle(
+                      color: Color(0xFF6C3CE1),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  if (widget.isOwner)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Text(
+                        "Authors can't write reviews on their own books. You can still read reviews below.",
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 13,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    )
+                  else if (!widget.isOwner)
+                    Center(
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF6C3CE1),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 28,
+                            vertical: 12,
+                          ),
+                        ),
+                        onPressed: widget.hasMyReview
+                            ? null
+                            : () async {
+                                final posted = await Navigator.of(context).push(
+                                  MaterialPageRoute<bool>(
+                                    builder: (_) => _WriteReviewScreen(
+                                      bookId: widget.book.id,
+                                      apiService: widget.apiService,
+                                    ),
+                                  ),
+                                );
+
+                                if (posted == true && mounted) {
+                                  // Leave reviews page immediately; parent refreshes counts
+                                  Navigator.of(context).pop(true);
+                                }
+                              },
+                        child: Text(
+                          widget.hasMyReview
+                              ? 'You already reviewed'
+                              : 'Write a Review',
                         ),
                       ),
-                      onPressed: widget.hasMyReview
-                          ? null
-                          : () async {
-                              final posted = await Navigator.of(context).push(
-                                MaterialPageRoute<bool>(
-                                  builder: (_) => _WriteReviewScreen(
-                                    bookId: widget.book.id,
-                                    apiService: widget.apiService,
-                                  ),
-                                ),
-                              );
-
-                              if (posted == true && mounted) {
-                                // Leave reviews page immediately; parent refreshes counts
-                                Navigator.of(context).pop(true);
-                              }
-                            },
-                      child: Text(
-                        widget.hasMyReview
-                            ? 'You already reviewed'
-                            : 'Write a Review',
-                      ),
                     ),
-                  ),
-                const SizedBox(height: 24),
-                if (_reviews.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 40),
-                    child: Center(
-                      child: Text(
-                        'No reviews yet. Be the first!',
-                        style: TextStyle(color: Colors.grey.shade600),
+                  const SizedBox(height: 24),
+                  if (_reviews.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 40),
+                      child: Center(
+                        child: Text(
+                          'No reviews yet. Be the first!',
+                          style: TextStyle(color: Colors.grey.shade600),
+                        ),
                       ),
-                    ),
-                  )
-                else
-                  for (final r in _reviews) _reviewCard(r),
-              ],
+                    )
+                  else
+                    for (final r in _reviews) _reviewCard(r),
+                ],
+              ),
             ),
       bottomNavigationBar: SafeArea(
         child: Padding(
@@ -1490,6 +1496,17 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
     final body = (r['comment'] ?? r['body'] ?? r['text'] ?? '').toString();
     final title = (r['title'] ?? '').toString();
     final rating = (r['rating'] as num?)?.toDouble() ?? 0;
+    final plotRating = (r['plot_rating'] ?? r['plot_score'] ?? rating) is num
+        ? ((r['plot_rating'] ?? r['plot_score'] ?? rating) as num).toDouble()
+        : rating;
+    final styleRating =
+        (r['style_rating'] ?? r['writing_score'] ?? rating) is num
+        ? ((r['style_rating'] ?? r['writing_score'] ?? rating) as num)
+              .toDouble()
+        : rating;
+    final techRating = (r['tech_rating'] ?? r['grammar_score'] ?? rating) is num
+        ? ((r['tech_rating'] ?? r['grammar_score'] ?? rating) as num).toDouble()
+        : rating;
     final created = (r['created_at'] ?? '').toString();
     final chaptersRead = r['chapters_read'];
 
@@ -1581,7 +1598,7 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text('Plot', style: TextStyle(fontSize: 12)),
-                    stars(rating),
+                    stars(plotRating),
                   ],
                 ),
               ),
@@ -1595,7 +1612,7 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text('Writing Style', style: TextStyle(fontSize: 12)),
-                    stars(rating),
+                    stars(styleRating),
                   ],
                 ),
               ),
@@ -1607,7 +1624,7 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
                       'Grammar & Punctuation',
                       style: TextStyle(fontSize: 12),
                     ),
-                    stars(rating),
+                    stars(techRating),
                   ],
                 ),
               ),

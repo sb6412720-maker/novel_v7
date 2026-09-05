@@ -130,7 +130,9 @@ class _ProfileScreenState extends State<ProfileScreen>
             };
           }
         } else if (targetId > 0) {
-          final fwing = await widget.apiService.fetchUserFollowingList(targetId);
+          final fwing = await widget.apiService.fetchUserFollowingList(
+            targetId,
+          );
           final fwers = await widget.apiService.fetchUserFollowers(targetId);
           if (_userProfile != null) {
             _userProfile = {
@@ -219,11 +221,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     final b = _s(_userProfile?['bio']);
     if (b.isNotEmpty) return b;
     return 'Just a reader turning pages into worlds.';
-  }
-
-  String get _aboutLong {
-    final a = _s(_userProfile?['about'] ?? _userProfile?['bio']);
-    return a.isNotEmpty ? a : _bio;
   }
 
   String get _facebookUrl {
@@ -763,138 +760,146 @@ class _ProfileScreenState extends State<ProfileScreen>
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: _loadingProfile
           ? const Center(child: CircularProgressIndicator(color: brand))
-          : NestedScrollView(
-              headerSliverBuilder: (context, innerBoxIsScrolled) {
-                return [
-                  // Facebook-style: taller cover + avatar drawn ON TOP of cover (higher z-index)
-                  // and still visible below the cover edge.
-                  SliverAppBar(
-                    expandedHeight: 200,
-                    pinned: true,
-                    backgroundColor: isDark
-                        ? Colors.black
-                        : const Color(0xFF3B2A6B),
-                    leading: IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Colors.white),
-                      onPressed: () => Navigator.of(context).maybePop(),
-                    ),
-                    actions: [
-                      IconButton(
-                        icon: const Icon(Icons.more_vert, color: Colors.white),
-                        onPressed: _showMoreMenu,
+          : RefreshIndicator(
+              onRefresh: _loadAll,
+              child: NestedScrollView(
+                headerSliverBuilder: (context, innerBoxIsScrolled) {
+                  return [
+                    // Facebook-style: taller cover + avatar drawn ON TOP of cover (higher z-index)
+                    // and still visible below the cover edge.
+                    SliverAppBar(
+                      expandedHeight: 200,
+                      pinned: true,
+                      backgroundColor: isDark
+                          ? Colors.black
+                          : const Color(0xFF3B2A6B),
+                      leading: IconButton(
+                        icon: const Icon(Icons.arrow_back, color: Colors.white),
+                        onPressed: () => Navigator.of(context).maybePop(),
                       ),
-                    ],
-                    // Stack directly (not FlexibleSpaceBar) so clipBehavior: Clip.none
-                    // keeps the avatar painted above the cover and slightly below the bar.
-                    flexibleSpace: Stack(
-                      fit: StackFit.expand,
-                      clipBehavior: Clip.none,
-                      children: [
-                        if (_coverUrl.isNotEmpty)
-                          Image.network(
-                            _coverUrl,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                _defaultCover(),
-                          )
-                        else
-                          _defaultCover(),
-                        Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.black.withValues(alpha: 0.15),
-                                Colors.black.withValues(alpha: 0.45),
-                              ],
-                            ),
+                      actions: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.more_vert,
+                            color: Colors.white,
                           ),
-                        ),
-                        // Avatar sits on the bottom edge of the cover (above cover in z-order)
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          bottom: -44,
-                          child: Center(
-                            child: Container(
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.white,
-                                  width: 3,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.25),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 3),
-                                  ),
-                                ],
-                              ),
-                              child: CircleAvatar(
-                                radius: 48,
-                                backgroundColor: const Color(0xFFE2E8F0),
-                                backgroundImage: _avatarUrl.isNotEmpty
-                                    ? NetworkImage(_avatarUrl)
-                                    : null,
-                                child: _avatarUrl.isEmpty
-                                    ? Text(
-                                        _displayName.isNotEmpty
-                                            ? _displayName[0].toUpperCase()
-                                            : '?',
-                                        style: const TextStyle(
-                                          fontSize: 34,
-                                          fontWeight: FontWeight.w700,
-                                          color: muted,
-                                        ),
-                                      )
-                                    : null,
-                              ),
-                            ),
-                          ),
+                          onPressed: _showMoreMenu,
                         ),
                       ],
-                    ),
-                  ),
-                  // Space so content starts below the overlapping avatar
-                  SliverToBoxAdapter(child: _buildIdentityBlock()),
-                  // Sticky tabs
-                  SliverPersistentHeader(
-                    pinned: true,
-                    delegate: _TabBarDelegate(
-                      TabBar(
-                        controller: _tabController,
-                        isScrollable: true,
-                        tabAlignment: TabAlignment.center,
-                        labelColor: brand,
-                        unselectedLabelColor: muted,
-                        indicatorColor: brand,
-                        indicatorWeight: 3,
-                        labelStyle: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        ),
-                        tabs: const [
-                          Tab(text: 'About'),
-                          Tab(text: 'Stories'),
-                          Tab(text: 'Wall'),
-
-                          Tab(text: 'Reviews'),
+                      // Stack directly (not FlexibleSpaceBar) so clipBehavior: Clip.none
+                      // keeps the avatar painted above the cover and slightly below the bar.
+                      flexibleSpace: Stack(
+                        fit: StackFit.expand,
+                        clipBehavior: Clip.none,
+                        children: [
+                          if (_coverUrl.isNotEmpty)
+                            Image.network(
+                              _coverUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  _defaultCover(),
+                            )
+                          else
+                            _defaultCover(),
+                          Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.black.withValues(alpha: 0.15),
+                                  Colors.black.withValues(alpha: 0.45),
+                                ],
+                              ),
+                            ),
+                          ),
+                          // Avatar sits on the bottom edge of the cover (above cover in z-order)
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: -44,
+                            child: Center(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 3,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.25,
+                                      ),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ],
+                                ),
+                                child: CircleAvatar(
+                                  radius: 48,
+                                  backgroundColor: const Color(0xFFE2E8F0),
+                                  backgroundImage: _avatarUrl.isNotEmpty
+                                      ? NetworkImage(_avatarUrl)
+                                      : null,
+                                  child: _avatarUrl.isEmpty
+                                      ? Text(
+                                          _displayName.isNotEmpty
+                                              ? _displayName[0].toUpperCase()
+                                              : '?',
+                                          style: const TextStyle(
+                                            fontSize: 34,
+                                            fontWeight: FontWeight.w700,
+                                            color: muted,
+                                          ),
+                                        )
+                                      : null,
+                                ),
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                  ),
-                ];
-              },
-              body: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildAboutTab(),
-                  _buildStoriesTab(),
-                  _buildWallTab(),
-                  _buildReviewsTab(),
-                ],
+                    // Space so content starts below the overlapping avatar
+                    SliverToBoxAdapter(child: _buildIdentityBlock()),
+                    // Sticky tabs
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: _TabBarDelegate(
+                        TabBar(
+                          controller: _tabController,
+                          isScrollable: true,
+                          tabAlignment: TabAlignment.center,
+                          labelColor: brand,
+                          unselectedLabelColor: muted,
+                          indicatorColor: brand,
+                          indicatorWeight: 3,
+                          labelStyle: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
+                          tabs: const [
+                            Tab(text: 'About'),
+                            Tab(text: 'Stories'),
+                            Tab(text: 'Wall'),
+
+                            Tab(text: 'Reviews'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ];
+                },
+                body: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildAboutTab(),
+                    _buildStoriesTab(),
+                    _buildWallTab(),
+                    _buildReviewsTab(),
+                  ],
+                ),
               ),
             ),
     );
@@ -954,7 +959,12 @@ class _ProfileScreenState extends State<ProfileScreen>
           const SizedBox(height: 2),
           Text(
             '@$_username',
-            style: const TextStyle(fontSize: 14, color: muted),
+            style: TextStyle(
+              fontSize: 14,
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.white70
+                  : muted,
+            ),
           ),
           const SizedBox(height: 10),
           Padding(
@@ -1065,7 +1075,15 @@ class _ProfileScreenState extends State<ProfileScreen>
           value,
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
         ),
-        Text(label, style: const TextStyle(fontSize: 12, color: muted)),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Theme.of(context).brightness == Brightness.dark
+                ? Colors.white70
+                : muted,
+          ),
+        ),
       ],
     );
   }
@@ -1094,7 +1112,11 @@ class _ProfileScreenState extends State<ProfileScreen>
         if (username.isNotEmpty)
           ListTile(
             contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.alternate_email, size: 20, color: isDark ? Colors.white70 : null),
+            leading: Icon(
+              Icons.alternate_email,
+              size: 20,
+              color: isDark ? Colors.white70 : null,
+            ),
             title: Text('Username', style: labelStyle),
             subtitle: Text('@$username', style: valueStyle),
             dense: true,
@@ -1102,7 +1124,11 @@ class _ProfileScreenState extends State<ProfileScreen>
         if (gender.isNotEmpty)
           ListTile(
             contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.person_outline, size: 20, color: isDark ? Colors.white70 : null),
+            leading: Icon(
+              Icons.person_outline,
+              size: 20,
+              color: isDark ? Colors.white70 : null,
+            ),
             title: Text('Gender', style: labelStyle),
             subtitle: Text(gender, style: valueStyle),
             dense: true,
@@ -1110,7 +1136,11 @@ class _ProfileScreenState extends State<ProfileScreen>
         if (birth.isNotEmpty)
           ListTile(
             contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.cake_outlined, size: 20, color: isDark ? Colors.white70 : null),
+            leading: Icon(
+              Icons.cake_outlined,
+              size: 20,
+              color: isDark ? Colors.white70 : null,
+            ),
             title: Text('Birthday', style: labelStyle),
             subtitle: Text(birth, style: valueStyle),
             dense: true,
@@ -1118,12 +1148,19 @@ class _ProfileScreenState extends State<ProfileScreen>
         if (country.isNotEmpty)
           ListTile(
             contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.public, size: 20, color: isDark ? Colors.white70 : null),
+            leading: Icon(
+              Icons.public,
+              size: 20,
+              color: isDark ? Colors.white70 : null,
+            ),
             title: Text('Country', style: labelStyle),
             subtitle: Text(country, style: valueStyle),
             dense: true,
           ),
-        if (gender.isEmpty && birth.isEmpty && country.isEmpty && username.isEmpty)
+        if (gender.isEmpty &&
+            birth.isEmpty &&
+            country.isEmpty &&
+            username.isEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 8, bottom: 8),
             child: Text(
@@ -1131,29 +1168,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               style: TextStyle(color: isDark ? Colors.white70 : muted),
             ),
           ),
-        const SizedBox(height: 8),
-        const SizedBox(height: 12),
-        // Bio is already shown below profile name in the header.
-        if (_aboutLong.isNotEmpty && _aboutLong != _bio) ...[
-          Text(
-            'More about me',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.2,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _aboutLong,
-            style: TextStyle(
-              fontSize: 14,
-              height: 1.45,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
-          ),
-        ],
+        const SizedBox(height: 20),
         if (_facebookUrl.isNotEmpty) ...[
           const SizedBox(height: 14),
           InkWell(

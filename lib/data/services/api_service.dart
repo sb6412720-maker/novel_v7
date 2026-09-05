@@ -486,7 +486,7 @@ class ApiService {
     final response = await _post(
       '/api/support/requests',
       payload,
-      timeout: const Duration(seconds: 10),
+      timeout: const Duration(seconds: 30),
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('Unable to submit support request');

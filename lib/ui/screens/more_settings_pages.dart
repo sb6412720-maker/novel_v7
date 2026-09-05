@@ -8,10 +8,12 @@ class MorePageChrome {
     final dark = Theme.of(context).brightness == Brightness.dark;
     return dark ? Colors.white70 : muted;
   }
+
   static Color textOf(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     return dark ? Colors.white : const Color(0xFF1A1A1A);
   }
+
   static BoxDecoration card(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     return BoxDecoration(
@@ -229,28 +231,6 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
             ),
           ],
           const SizedBox(height: 20),
-          ListTile(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-            tileColor: MorePageChrome.purple.withValues(alpha: 0.08),
-            leading: const Icon(
-              Icons.chat_bubble_outline,
-              color: MorePageChrome.purple,
-            ),
-            title: const Text(
-              'Still need help? Live Chat',
-              style: TextStyle(fontWeight: FontWeight.w700),
-            ),
-            subtitle: const Text('Message the admin team'),
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => LiveChatScreen(apiService: widget.apiService),
-                ),
-              );
-            },
-          ),
         ],
       ),
     );
@@ -627,24 +607,14 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
           Text(
             'Other ways to reach us',
             style: TextStyle(
-              color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.grey.shade600,
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.white70
+                  : Colors.grey.shade600,
               fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(height: 12),
           _tile(Icons.email_outlined, 'Email', 'support@example.com'),
-          _tile(
-            Icons.chat_bubble_outline,
-            'Live Chat',
-            'Message admin team',
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => LiveChatScreen(apiService: widget.apiService),
-                ),
-              );
-            },
-          ),
           _tile(
             Icons.help_outline,
             'FAQ',
@@ -1268,7 +1238,12 @@ class LegalTextScreen extends StatelessWidget {
         children: [
           Text(
             'Last updated: 1 May 2024',
-            style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.grey.shade600, fontSize: 13),
+            style: TextStyle(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.white70
+                  : Colors.grey.shade600,
+              fontSize: 13,
+            ),
           ),
           const SizedBox(height: 16),
           for (final s in sections) ...[
@@ -1352,7 +1327,12 @@ Future<bool> showSignOutConfirmDialog(BuildContext context) async {
           Text(
             'You will need to sign in again to access your account.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.grey.shade600, fontSize: 13),
+            style: TextStyle(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.white70
+                  : Colors.grey.shade600,
+              fontSize: 13,
+            ),
           ),
           const SizedBox(height: 22),
           SizedBox(

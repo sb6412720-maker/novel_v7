@@ -191,7 +191,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       });
       // First-time users only: complete profile BEFORE Discover (cannot skip).
       // Never again from More / Profile.
-      if (session.isGoogle) {
+      if (session.isGoogle || method == 'email') {
         final needsProfile = await _needsCompleteProfile(session);
         if (!mounted) return;
         if (needsProfile) {
