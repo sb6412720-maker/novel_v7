@@ -763,7 +763,13 @@ class _ProfileScreenState extends State<ProfileScreen>
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: _loadingProfile
           ? const Center(child: CircularProgressIndicator(color: brand))
-          : NestedScrollView(
+          : RefreshIndicator(
+              color: brand,
+              onRefresh: _loadAll,
+              // NestedScrollView needs depth predicate so pull works on tabs
+              notificationPredicate: (notification) =>
+                  notification.depth == 0 || notification.depth == 1 || notification.depth == 2,
+              child: NestedScrollView(
               headerSliverBuilder: (context, innerBoxIsScrolled) {
                 return [
                   // Facebook-style: taller cover + avatar drawn ON TOP of cover (higher z-index)
@@ -896,6 +902,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   _buildReviewsTab(),
                 ],
               ),
+            ),
             ),
     );
   }
@@ -1088,7 +1095,11 @@ class _ProfileScreenState extends State<ProfileScreen>
       color: isDark ? Colors.white : Theme.of(context).colorScheme.onSurface,
     );
 
-    return ListView(
+    return RefreshIndicator(
+      color: brand,
+      onRefresh: _loadAll,
+      child: ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
       children: [
         if (username.isNotEmpty)
@@ -1133,27 +1144,27 @@ class _ProfileScreenState extends State<ProfileScreen>
           ),
         const SizedBox(height: 8),
         const SizedBox(height: 12),
-        // Bio is already shown below profile name in the header.
-        if (_aboutLong.isNotEmpty && _aboutLong != _bio) ...[
-          Text(
-            'More about me',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.2,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
+        // Always show Bio section on About tab (in addition to header snippet)
+        const SizedBox(height: 8),
+        Text(
+          'Bio',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.2,
+            color: Theme.of(context).colorScheme.onSurface,
           ),
-          const SizedBox(height: 8),
-          Text(
-            _aboutLong,
-            style: TextStyle(
-              fontSize: 14,
-              height: 1.45,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          _bio.isNotEmpty ? _bio : 'No bio yet. Tap Edit profile to add one.',
+          style: TextStyle(
+            fontSize: 14,
+            height: 1.45,
+            color: Theme.of(context).colorScheme.onSurface,
+            fontStyle: _bio.isEmpty ? FontStyle.italic : FontStyle.normal,
           ),
-        ],
+        ),
         if (_facebookUrl.isNotEmpty) ...[
           const SizedBox(height: 14),
           InkWell(
@@ -1511,6 +1522,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         const SizedBox(height: 12),
         _buildAchievementsGrid(),
       ],
+    ),
     );
   }
 
@@ -2242,20 +2254,34 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Widget _buildReviewsTab() {
     if (_reviews.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(
-            _isOwnProfile
-                ? 'You have not reviewed any stories yet. Open a story and tap Review.'
-                : 'No reviews yet.',
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: muted),
-          ),
+      return RefreshIndicator(
+        color: brand,
+        onRefresh: _loadAll,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            SizedBox(height: 80),
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  _isOwnProfile
+                      ? 'You have not reviewed any stories yet. Open a story and tap Review.'
+                      : 'No reviews yet.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: muted),
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }
-    return ListView.separated(
+    return RefreshIndicator(
+      color: brand,
+      onRefresh: _loadAll,
+      child: ListView.separated(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       itemCount: _reviews.length,
       separatorBuilder: (context, index) => const Divider(height: 28),
@@ -2286,10 +2312,15 @@ class _ProfileScreenState extends State<ProfileScreen>
           r['writing_score'] ?? r['writing_style'] ?? stars,
         );
         final grammar = _asInt(r['grammar_score'] ?? r['grammar'] ?? stars);
-        final headline = _s(r['headline'] ?? r['reviewer_name'] ?? '');
-        final body = _s(
+        var headline = _s(r['headline'] ?? r['title'] ?? '');
+        var body = _s(
           r['body'] ?? r['comment'] ?? r['review'] ?? r['text'] ?? '',
         );
+        if (headline.isEmpty && body.contains('\n\n')) {
+          final parts = body.split('\n\n');
+          headline = parts.first.trim();
+          body = parts.skip(1).join('\n\n').trim();
+        }
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2412,18 +2443,22 @@ class _ProfileScreenState extends State<ProfileScreen>
             ],
             if (body.isNotEmpty) ...[
               const SizedBox(height: 4),
-              Text(
-                body,
-                style: const TextStyle(
-                  fontSize: 13,
-                  height: 1.4,
-                  color: Color(0xFF3A3A3A),
+              if (body.isNotEmpty)
+                Text(
+                  body,
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 1.45,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.white
+                        : const Color(0xFF3A3A3A),
+                  ),
                 ),
-              ),
             ],
           ],
         );
       },
+    ),
     );
   }
 

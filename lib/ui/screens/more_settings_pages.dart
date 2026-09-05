@@ -535,29 +535,49 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
       return;
     }
     setState(() => _sending = true);
-    try {
-      await widget.apiService.submitSupportRequest({
-        'email': widget.email.isNotEmpty ? widget.email : 'user@novel.app',
-        'first_name': 'User',
-        'issue': 'Contact Us',
-        'subject': s,
-        'description': m,
-        'device_type': 'Mobile',
-      });
-      if (!mounted) return;
-      _subject.clear();
-      _message.clear();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Message sent. We will reply soon.')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not send: $e')));
-    } finally {
-      if (mounted) setState(() => _sending = false);
+    Object? lastError;
+    // Retry once — free-tier backends often cold-start past the first attempt.
+    for (var attempt = 1; attempt <= 2; attempt++) {
+      try {
+        await widget.apiService.submitSupportRequest({
+          'email': widget.email.isNotEmpty ? widget.email : 'user@novel.app',
+          'first_name': 'User',
+          'issue': 'Contact Us',
+          'subject': s,
+          'description': m,
+          'device_type': 'Mobile',
+        });
+        if (!mounted) return;
+        _subject.clear();
+        _message.clear();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Message sent. We will reply soon.')),
+        );
+        lastError = null;
+        break;
+      } catch (e) {
+        lastError = e;
+        if (attempt == 1) {
+          await Future<void>.delayed(const Duration(seconds: 2));
+          continue;
+        }
+      }
     }
+    if (lastError != null && mounted) {
+      final msg = lastError.toString();
+      final isTimeout = msg.toLowerCase().contains('timeout') ||
+          msg.toLowerCase().contains('timed out');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isTimeout
+                ? 'Server is waking up — please try Send again in a few seconds.'
+                : 'Could not send: $lastError',
+          ),
+        ),
+      );
+    }
+    if (mounted) setState(() => _sending = false);
   }
 
   @override

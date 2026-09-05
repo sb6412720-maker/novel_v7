@@ -52,6 +52,9 @@ class MoreScreen extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final name = session.displayName.isNotEmpty ? session.displayName : (data.profile.displayName.isNotEmpty ? data.profile.displayName : 'Reader');
     final email = session.email.isNotEmpty ? session.email : '';
+    final photo = (session.photoUrl != null && session.photoUrl!.isNotEmpty)
+        ? session.photoUrl!
+        : data.profile.photoUrl;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 28),
@@ -60,16 +63,72 @@ class MoreScreen extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           decoration: _card(isDark),
           child: Row(children: [
-            Expanded(
-              child: GestureDetector(
+            // Profile avatar — opens profile (not next to a second logout control)
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
                 onTap: () => _openProfile(context),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(name, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: isDark ? Colors.white : null)),
-                  if (email.isNotEmpty) Text(email, style: TextStyle(color: isDark ? Colors.white70 : Colors.grey.shade600, fontSize: 13)),
-                ]),
+                borderRadius: BorderRadius.circular(30),
+                child: CircleAvatar(
+                  radius: 26,
+                  backgroundColor: _purple.withValues(alpha: 0.15),
+                  backgroundImage: photo.isNotEmpty
+                      ? NetworkImage(apiService.resolveAssetUrl(photo))
+                      : null,
+                  child: photo.isEmpty
+                      ? Text(
+                          name.isNotEmpty ? name[0].toUpperCase() : '?',
+                          style: const TextStyle(
+                            color: _purple,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 20,
+                          ),
+                        )
+                      : null,
+                ),
               ),
             ),
-            TextButton(onPressed: () => _signOut(context), child: const Text('Log out', style: TextStyle(color: _purple, fontWeight: FontWeight.w700))),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => _openProfile(context),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                            color: isDark ? Colors.white : null,
+                          ),
+                        ),
+                        if (email.isNotEmpty)
+                          Text(
+                            email,
+                            style: TextStyle(
+                              color: isDark ? Colors.white70 : Colors.grey.shade600,
+                              fontSize: 13,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () => _signOut(context),
+              child: const Text(
+                'Log out',
+                style: TextStyle(color: _purple, fontWeight: FontWeight.w700),
+              ),
+            ),
           ]),
         ),
         const SizedBox(height: 12),

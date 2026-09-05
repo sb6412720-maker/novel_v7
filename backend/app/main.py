@@ -3607,16 +3607,28 @@ def create_support_request(
     payload: SupportRequestCreateRequest,
     user: dict[str, Any] | None = Depends(optional_user),
 ):
-    _ensure_support_request_columns()
+    """Create Contact Us ticket. Optimized for cold-start (no heavy work)."""
+    try:
+        _ensure_support_request_columns()
+    except Exception:
+        pass
     uid = None
     try:
         if user and user.get("user_id"):
             uid = int(user["user_id"])
     except Exception:
         uid = None
-    # Try insert with user_id first; fall back without if column missing mid-deploy
+    email = (payload.email or "").strip() or "user@novel.app"
+    first_name = (payload.first_name or "").strip() or "User"
+    issue = (payload.issue or "").strip() or "Contact Us"
+    subject = (payload.subject or "").strip() or "Support"
+    description = (payload.description or "").strip()
+    if not description:
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
+    request_id = None
+    # Prefer insert with user_id; fall back if column missing
     try:
-        request_id, affected = execute_write(
+        request_id, _affected = execute_write(
             """
             INSERT INTO support_requests (
                 email, first_name, issue, subject, description,
@@ -3625,38 +3637,45 @@ def create_support_request(
             VALUES (%s, %s, %s, %s, %s, %s, %s, 'open', %s)
             """,
             (
-                payload.email,
-                payload.first_name,
-                payload.issue,
-                payload.subject,
-                payload.description,
-                payload.device_type,
-                payload.attachment_path,
+                email,
+                first_name,
+                issue,
+                subject,
+                description,
+                payload.device_type or "",
+                payload.attachment_path or "",
                 uid,
             ),
         )
-    except Exception:
-        request_id, affected = execute_write(
-            """
-            INSERT INTO support_requests (
-                email, first_name, issue, subject, description,
-                device_type, attachment_path, status
+    except Exception as exc:
+        LOGGER.warning("support insert with user_id failed: %s", exc)
+        try:
+            request_id, _affected = execute_write(
+                """
+                INSERT INTO support_requests (
+                    email, first_name, issue, subject, description,
+                    device_type, attachment_path, status
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'open')
+                """,
+                (
+                    email,
+                    first_name,
+                    issue,
+                    subject,
+                    description,
+                    payload.device_type or "",
+                    payload.attachment_path or "",
+                ),
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, 'open')
-            """,
-            (
-                payload.email,
-                payload.first_name,
-                payload.issue,
-                payload.subject,
-                payload.description,
-                payload.device_type,
-                payload.attachment_path,
-            ),
-        )
-    if affected == 0:
-        raise HTTPException(status_code=400, detail="Failed to create support request")
-    bump_content_version()
+        except Exception as exc2:
+            LOGGER.warning("support insert failed: %s", exc2)
+            raise HTTPException(status_code=503, detail="Could not save message. Try again.") from exc2
+    # Do not fail the user if content-version bump is slow
+    try:
+        bump_content_version()
+    except Exception:
+        pass
     return {"ok": True, "id": request_id}
 
 
