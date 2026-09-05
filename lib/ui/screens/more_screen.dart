@@ -132,13 +132,6 @@ class MoreScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              TextButton(
-                onPressed: () => _signOut(context),
-                child: const Text(
-                  'Log out',
-                  style: TextStyle(color: _purple, fontWeight: FontWeight.w700),
-                ),
-              ),
             ],
           ),
         ),

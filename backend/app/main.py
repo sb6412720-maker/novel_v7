@@ -2475,7 +2475,9 @@ def bootstrap(user: dict[str, Any] | None = Depends(optional_user)):
                COALESCE(u.country, '') AS author_country
         FROM books b
         LEFT JOIN app_users u ON u.id = b.user_id
-        WHERE LOWER(COALESCE(b.status_text, 'draft')) NOT IN ('draft', 'unpublished', 'private')
+                WHERE LOWER(TRIM(COALESCE(b.status_text, 'draft'))) NOT LIKE 'draft%'
+                    AND LOWER(TRIM(COALESCE(b.status_text, ''))) NOT LIKE 'unpublish%'
+                    AND LOWER(TRIM(COALESCE(b.status_text, ''))) NOT IN ('private', 'unlisted')
         ORDER BY b.sort_order ASC, b.id DESC
         LIMIT 80
         """
@@ -2818,8 +2820,9 @@ def search_stories(
     # Public-ish statuses: Ongoing / Completed / Published / empty (legacy)
     # Draft / unpublished / private stay hidden from search.
     status_ok = (
-        "LOWER(COALESCE(status_text, '')) NOT IN "
-        "('draft', 'unpublished', 'private', 'unlisted')"
+        "LOWER(TRIM(COALESCE(status_text, ''))) NOT LIKE 'draft%' "
+        "AND LOWER(TRIM(COALESCE(status_text, ''))) NOT LIKE 'unpublish%' "
+        "AND LOWER(TRIM(COALESCE(status_text, ''))) NOT IN ('private', 'unlisted')"
     )
 
     if not q_raw and not g and min_rating <= 0:
@@ -5142,7 +5145,11 @@ def get_public_book(book_id: int):
     if not rows:
         raise HTTPException(status_code=404, detail="Book not found")
     status = str(_row_get(rows[0], "status_text") or "").strip().lower()
-    if status in ("draft", "unpublished", "private"):
+    if (
+        status.startswith("draft")
+        or status.startswith("unpublish")
+        or status in ("private", "unlisted")
+    ):
         raise HTTPException(status_code=404, detail="Book not found")
     try:
         new_views = _increment_book_views(book_id)

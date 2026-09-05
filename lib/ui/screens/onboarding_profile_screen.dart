@@ -143,8 +143,14 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
         bytes,
         name.isEmpty ? 'photo.jpg' : name,
       );
-      final path = (res['path'] ?? res['url'] ?? res['photo_url'] ?? '')
-          .toString();
+      final path =
+          (res['path'] ??
+                  res['url'] ??
+                  res['photo_url'] ??
+                  res['cover_url'] ??
+                  res['cover_path'] ??
+                  '')
+              .toString();
       return path.isEmpty ? null : path;
     } catch (_) {
       return null;

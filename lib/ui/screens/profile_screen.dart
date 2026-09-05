@@ -80,19 +80,36 @@ class _ProfileScreenState extends State<ProfileScreen>
         if (me.isNotEmpty) {
           _userProfile = {
             ...me,
-            'display_name':
-                (me['display_name'] ?? me['name'] ?? widget.profile.displayName)
-                    .toString(),
-            'photo_url':
-                (me['photo_url'] ?? me['avatar_url'] ?? widget.profile.photoUrl)
-                    .toString(),
-            'cover_url': (me['cover_url'] ?? widget.profile.coverUrl)
-                .toString(),
-            'bio': (me['bio'] ?? '').toString(),
-            'gender': (me['gender'] ?? '').toString(),
-            'birth_date': (me['birth_date'] ?? '').toString(),
-            'country': (me['country'] ?? '').toString(),
-            'username': (me['username'] ?? widget.profile.username).toString(),
+            'display_name': _firstNonEmpty([
+              me['display_name'],
+              me['name'],
+              widget.profile.displayName,
+            ]),
+            'photo_url': _firstNonEmpty([
+              me['photo_url'],
+              me['avatar_url'],
+              widget.profile.photoUrl,
+            ]),
+            'cover_url': _firstNonEmpty([
+              me['cover_url'],
+              me['coverUrl'],
+              me['banner_url'],
+              me['cover_path'],
+              widget.profile.coverUrl,
+            ]),
+            'bio': _firstNonEmpty([me['bio'], me['about'], widget.profile.bio]),
+            'gender': _firstNonEmpty([me['gender'], widget.profile.gender]),
+            'birth_date': _firstNonEmpty([
+              me['birth_date'],
+              me['birthday'],
+              widget.profile.birthDate,
+            ]),
+            'country': _firstNonEmpty([me['country'], widget.profile.country]),
+            'username': _firstNonEmpty([
+              me['username'],
+              me['user_name'],
+              widget.profile.username,
+            ]),
           };
         } else {
           _userProfile = {
@@ -106,6 +123,10 @@ class _ProfileScreenState extends State<ProfileScreen>
             'day_streak': widget.profile.dayStreak,
             'photo_url': widget.profile.photoUrl,
             'cover_url': widget.profile.coverUrl,
+            'bio': widget.profile.bio,
+            'gender': widget.profile.gender,
+            'birth_date': widget.profile.birthDate,
+            'country': widget.profile.country,
           };
         }
       } else {
@@ -193,6 +214,15 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   String _s(dynamic v) => v == null ? '' : '$v'.trim();
+
+  String _firstNonEmpty(Iterable<dynamic> values) {
+    for (final value in values) {
+      final text = _s(value);
+      if (text.isNotEmpty) return text;
+    }
+    return '';
+  }
+
   int _asInt(dynamic v) {
     if (v is int) return v;
     if (v is num) return v.toInt();
@@ -212,15 +242,17 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   String get _username {
-    final u = _s(_userProfile?['username']);
+    final u = _firstNonEmpty([
+      _userProfile?['username'],
+      _userProfile?['user_name'],
+      widget.profile.username,
+    ]);
     if (u.isNotEmpty) return u.replaceAll('@', '');
-    return widget.profile.username.replaceAll('@', '');
+    return '';
   }
 
   String get _bio {
-    final b = _s(_userProfile?['bio']);
-    if (b.isNotEmpty) return b;
-    return 'Just a reader turning pages into worlds.';
+    return _firstNonEmpty([_userProfile?['bio'], widget.profile.bio]);
   }
 
   String get _facebookUrl {
@@ -282,12 +314,14 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   String get _coverUrl {
-    final p = _s(
-      _userProfile?['cover_url'] ??
-          _userProfile?['banner_url'] ??
-          _userProfile?['coverUrl'] ??
-          widget.profile.coverUrl,
-    );
+    final p = _firstNonEmpty([
+      _userProfile?['cover_url'],
+      _userProfile?['coverUrl'],
+      _userProfile?['banner_url'],
+      _userProfile?['bannerUrl'],
+      _userProfile?['cover_path'],
+      widget.profile.coverUrl,
+    ]);
     if (p.isEmpty) return '';
     return widget.apiService.resolveAssetUrl(p);
   }
@@ -1090,9 +1124,19 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   // ─── About ───────────────────────────────────────────────
   Widget _buildAboutTab() {
-    final gender = _s(_userProfile?['gender']);
-    final birth = _s(_userProfile?['birth_date']);
-    final country = _s(_userProfile?['country']);
+    final gender = _firstNonEmpty([
+      _userProfile?['gender'],
+      widget.profile.gender,
+    ]);
+    final birth = _firstNonEmpty([
+      _userProfile?['birth_date'],
+      _userProfile?['birthday'],
+      widget.profile.birthDate,
+    ]);
+    final country = _firstNonEmpty([
+      _userProfile?['country'],
+      widget.profile.country,
+    ]);
     final username = _username;
     final lists = _readingLists;
     final isDark = Theme.of(context).brightness == Brightness.dark;

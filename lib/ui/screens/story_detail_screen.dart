@@ -35,6 +35,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
   List<String> _tags = const [];
   List<Map<String, dynamic>> _reviews = const [];
   bool _loadingReviews = true;
+  int _reviewCount = 0;
   int _viewCount = 0;
   String? _error;
   int _likesCount = 0;
@@ -87,6 +88,10 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
               (detail['likes_count'] as num?)?.toInt() ??
               (detail['likes'] as num?)?.toInt() ??
               0;
+          _reviewCount =
+              (detail['reviews_count'] as num?)?.toInt() ??
+              (detail['review_count'] as num?)?.toInt() ??
+              _reviewCount;
           _viewCount =
               (detail['view_count'] as num?)?.toInt() ??
               (detail['views'] as num?)?.toInt() ??
@@ -152,6 +157,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
       if (mounted) {
         setState(() {
           _reviews = _dedupeReviews(reviews);
+          _reviewCount = _reviews.length;
           _loadingReviews = false;
         });
       }
@@ -346,6 +352,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
       if (mounted) {
         setState(() {
           _reviews = _dedupeReviews(reviews);
+          _reviewCount = _reviews.length;
           if (result == true) _hasMyReview = true;
         });
       }
@@ -384,7 +391,12 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
               final reviews = await widget.apiService.fetchBookReviews(
                 _book.id,
               );
-              if (mounted) setState(() => _reviews = _dedupeReviews(reviews));
+              if (mounted) {
+                setState(() {
+                  _reviews = _dedupeReviews(reviews);
+                  _reviewCount = _reviews.length;
+                });
+              }
             } catch (_) {}
           }
         });
@@ -992,7 +1004,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                           color: _hasMyReview ? inkittGreen : fg,
                         ),
                         label: Text(
-                          '${_reviews.length}',
+                          '$_reviewCount',
                           style: TextStyle(color: fg),
                         ),
                       ),
@@ -1493,7 +1505,15 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
     final name =
         (r['user_name'] ?? r['display_name'] ?? r['username'] ?? 'Reader')
             .toString();
-    final body = (r['comment'] ?? r['body'] ?? r['text'] ?? '').toString();
+    final body =
+        (r['comment'] ??
+                r['body'] ??
+                r['review'] ??
+                r['review_text'] ??
+                r['text'] ??
+                '')
+            .toString()
+            .trim();
     final title = (r['title'] ?? '').toString();
     final rating = (r['rating'] as num?)?.toDouble() ?? 0;
     final plotRating = (r['plot_rating'] ?? r['plot_score'] ?? rating) is num
