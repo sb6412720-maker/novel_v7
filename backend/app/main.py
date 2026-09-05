@@ -62,7 +62,7 @@ _DEFAULT_CORS = [
 _extra = [s.strip() for s in os.getenv("CORS_ORIGINS", "").split(",") if s.strip()]
 _CORS_ORIGINS = list(dict.fromkeys(_DEFAULT_CORS + _extra))
 # Allow any Vercel preview/deployment for this project family (admin + web)
-_CORS_ORIGIN_REGEX = r"https://.*\.vercel\.app|http://localhost(:\\d+)?|http://127\.0\.0\.1(:\\d+)?"
+_CORS_ORIGIN_REGEX = r"https://.*\.vercel\.app|http://localhost(:\d+)?|http://127\.0\.0\.1(:\d+)?"
 
 app.add_middleware(
     CORSMiddleware,
@@ -354,7 +354,8 @@ class SupportRequestCreateRequest(BaseModel):
 
 
 class SupportRequestUpdateRequest(BaseModel):
-    status: str
+    status: str | None = None
+    admin_reply: str | None = None
 
 
 
@@ -367,6 +368,24 @@ def _ensure_password_hash_column() -> None:
             execute_write("ALTER TABLE app_users ADD COLUMN password_hash VARCHAR(255) NULL", ())
     except Exception:
         pass
+
+
+
+def _ensure_support_request_columns() -> None:
+    """Add admin_reply / user_id on support_requests if missing."""
+    for col, ddl_mysql, ddl_sqlite in (
+        ("admin_reply", "ALTER TABLE support_requests ADD COLUMN admin_reply TEXT NULL", "ALTER TABLE support_requests ADD COLUMN admin_reply TEXT"),
+        ("user_id", "ALTER TABLE support_requests ADD COLUMN user_id INT NULL", "ALTER TABLE support_requests ADD COLUMN user_id INTEGER"),
+        ("replied_at", "ALTER TABLE support_requests ADD COLUMN replied_at TIMESTAMP NULL", "ALTER TABLE support_requests ADD COLUMN replied_at TEXT"),
+    ):
+        try:
+            if _live_use_sqlite():
+                execute_write(ddl_sqlite, ())
+            else:
+                execute_write(ddl_mysql, ())
+        except Exception:
+            pass
+
 
 
 def _ensure_auth_profile_columns() -> None:
@@ -1282,6 +1301,12 @@ def startup_initialize_database():
             except Exception as col_exc:
                 LOGGER.warning("password_hash column ensure failed: %s", col_exc)
             try:
+                _ensure_support_request_columns()
+                _ensure_user_support_notifications_table()
+                _ensure_user_preferences_table()
+            except Exception as col_exc:
+                LOGGER.warning("support/prefs column ensure failed: %s", col_exc)
+            try:
                 books = fetch_all("SELECT COUNT(*) AS c FROM books")
                 def _c(rows):
                     if not rows:
@@ -1296,6 +1321,13 @@ def startup_initialize_database():
 
         try:
             _content_version_row()
+        except Exception:
+            pass
+        # Lightweight ensures even on fast path
+        try:
+            _ensure_support_request_columns()
+            _ensure_user_support_notifications_table()
+            _ensure_user_preferences_table()
         except Exception:
             pass
     except DB_INIT_EXCEPTIONS as exc:
@@ -3378,6 +3410,34 @@ def get_notifications(
     except Exception as exc:
         LOGGER.warning("notifications wall: %s", exc)
 
+    # Support / Contact Us admin replies
+    try:
+        _ensure_user_support_notifications_table()
+        srows = fetch_all(
+            """
+            SELECT id, support_request_id, title, message, is_read, created_at
+            FROM user_support_notifications
+            WHERE user_id=%s
+            ORDER BY id DESC LIMIT 30
+            """,
+            (uid,),
+        )
+        for row in srows or []:
+            items.append({
+                "id": f"support-{_row_get(row, 'id')}",
+                "tab": "System",
+                "type": "support_reply",
+                "title": _row_get(row, "title") or "Support reply",
+                "message": _row_get(row, "message") or "",
+                "created_at": _serialize_db_datetime(_row_get(row, "created_at")),
+                "support_request_id": _row_get(row, "support_request_id"),
+                "is_read": bool(int(_row_get(row, "is_read") or 0)),
+                "actor_name": "Support Team",
+                "actor_photo": "",
+            })
+    except Exception as exc:
+        LOGGER.warning("notifications support: %s", exc)
+
     items.sort(key=lambda it: str(it.get("created_at") or it.get("id") or ""), reverse=True)
     tab_f = (tab or "").strip().lower()
     if tab_f:
@@ -3543,25 +3603,57 @@ def get_my_reading_stats(user: dict[str, Any] = Depends(require_user)):
 
 
 @app.post("/api/support/requests")
-def create_support_request(payload: SupportRequestCreateRequest):
-    request_id, affected = execute_write(
-        """
-        INSERT INTO support_requests (
-            email, first_name, issue, subject, description,
-            device_type, attachment_path, status
+def create_support_request(
+    payload: SupportRequestCreateRequest,
+    user: dict[str, Any] | None = Depends(optional_user),
+):
+    _ensure_support_request_columns()
+    uid = None
+    try:
+        if user and user.get("user_id"):
+            uid = int(user["user_id"])
+    except Exception:
+        uid = None
+    # Try insert with user_id first; fall back without if column missing mid-deploy
+    try:
+        request_id, affected = execute_write(
+            """
+            INSERT INTO support_requests (
+                email, first_name, issue, subject, description,
+                device_type, attachment_path, status, user_id
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, 'open', %s)
+            """,
+            (
+                payload.email,
+                payload.first_name,
+                payload.issue,
+                payload.subject,
+                payload.description,
+                payload.device_type,
+                payload.attachment_path,
+                uid,
+            ),
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, 'open')
-        """,
-        (
-            payload.email,
-            payload.first_name,
-            payload.issue,
-            payload.subject,
-            payload.description,
-            payload.device_type,
-            payload.attachment_path,
-        ),
-    )
+    except Exception:
+        request_id, affected = execute_write(
+            """
+            INSERT INTO support_requests (
+                email, first_name, issue, subject, description,
+                device_type, attachment_path, status
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, 'open')
+            """,
+            (
+                payload.email,
+                payload.first_name,
+                payload.issue,
+                payload.subject,
+                payload.description,
+                payload.device_type,
+                payload.attachment_path,
+            ),
+        )
     if affected == 0:
         raise HTTPException(status_code=400, detail="Failed to create support request")
     bump_content_version()
@@ -5502,7 +5594,7 @@ def list_my_reviews(user: dict[str, Any] = Depends(require_user)):
                    b.title, b.author, b.cover_path, b.accent_hex, b.primary_genre, b.status_text,
                    u.display_name AS reviewer_name, u.photo_url AS reviewer_photo
             FROM book_reviews r
-            JOIN books b ON b.id = r.book_id
+            LEFT JOIN books b ON b.id = r.book_id
             LEFT JOIN app_users u ON u.id = r.user_id
             WHERE r.user_id = %s
             ORDER BY r.id DESC
@@ -5513,31 +5605,38 @@ def list_my_reviews(user: dict[str, Any] = Depends(require_user)):
     except Exception as exc:
         LOGGER.warning("list_my_reviews (written) failed: %s", exc)
         rows = []
-    return {
-        "items": [
-            {
-                "id": row["id"] if isinstance(row, dict) else row[0],
-                "rating": (row.get("rating") if isinstance(row, dict) else None) or 0,
-                "comment": (row.get("comment") if isinstance(row, dict) else "") or "",
-                "body": (row.get("comment") if isinstance(row, dict) else "") or "",
-                "created_at": str(row.get("created_at") or "") if isinstance(row, dict) else "",
-                "reviewer_name": (row.get("reviewer_name") if isinstance(row, dict) else None) or "Reader",
-                "reviewer_photo": (row.get("reviewer_photo") if isinstance(row, dict) else None) or "",
-                "user_id": row.get("reviewer_id") if isinstance(row, dict) else None,
-                "book_id": row.get("book_id") if isinstance(row, dict) else None,
-                "book": {
-                    "id": row.get("book_id") if isinstance(row, dict) else None,
-                    "title": row.get("title") if isinstance(row, dict) else "",
-                    "author": row.get("author") if isinstance(row, dict) else "",
-                    "cover_path": _normalize_cover_path((row.get("cover_path") if isinstance(row, dict) else None) or ""),
-                    "accent_hex": (row.get("accent_hex") if isinstance(row, dict) else None) or "#A1A1A1",
-                    "primary_genre": (row.get("primary_genre") if isinstance(row, dict) else None) or "",
-                    "status_text": (row.get("status_text") if isinstance(row, dict) else None) or "",
-                },
-            }
-            for row in (rows or [])
-        ]
-    }
+    items = []
+    for row in (rows or []):
+        comment = _row_get(row, "comment") or ""
+        rating = int(_row_get(row, "rating") or 0)
+        book_id = _row_get(row, "book_id")
+        items.append({
+            "id": _row_get(row, "id"),
+            "rating": rating,
+            "comment": comment,
+            "body": comment,
+            "created_at": str(_row_get(row, "created_at") or ""),
+            "reviewer_name": _row_get(row, "reviewer_name") or "Reader",
+            "reviewer_photo": _row_get(row, "reviewer_photo") or "",
+            "user_id": _row_get(row, "reviewer_id"),
+            "book_id": book_id,
+            "book_title": _row_get(row, "title") or "Story",
+            "book_author": _row_get(row, "author") or "",
+            "cover_path": _normalize_cover_path(_row_get(row, "cover_path") or ""),
+            "plot": min(5, max(1, rating or 1)),
+            "writing_style": min(5, max(1, rating or 1)),
+            "grammar": min(5, max(1, max(1, (rating or 1) - 1))),
+            "book": {
+                "id": book_id,
+                "title": _row_get(row, "title") or "Story",
+                "author": _row_get(row, "author") or "",
+                "cover_path": _normalize_cover_path(_row_get(row, "cover_path") or ""),
+                "accent_hex": _row_get(row, "accent_hex") or "#A1A1A1",
+                "primary_genre": _row_get(row, "primary_genre") or "",
+                "status_text": _row_get(row, "status_text") or "",
+            },
+        })
+    return {"items": items}
 
 
 @app.get("/api/books/{book_id}/reviews")
@@ -6332,9 +6431,15 @@ def admin_bootstrap(_: dict[str, Any] = Depends(require_admin)):
 
 @app.get("/api/admin/support-requests")
 def admin_get_support_requests(_: dict[str, Any] = Depends(require_admin)):
-    rows = fetch_all(
-        "SELECT id, email, first_name, issue, subject, description, device_type, attachment_path, status, created_at FROM support_requests ORDER BY created_at DESC, id DESC"
-    )
+    _ensure_support_request_columns()
+    try:
+        rows = fetch_all(
+            "SELECT id, email, first_name, issue, subject, description, device_type, attachment_path, status, created_at, admin_reply, user_id, replied_at FROM support_requests ORDER BY created_at DESC, id DESC"
+        )
+    except Exception:
+        rows = fetch_all(
+            "SELECT id, email, first_name, issue, subject, description, device_type, attachment_path, status, created_at FROM support_requests ORDER BY created_at DESC, id DESC"
+        )
     return {"items": rows}
 
 
@@ -6344,14 +6449,107 @@ def admin_update_support_request(
     payload: SupportRequestUpdateRequest,
     _: dict[str, Any] = Depends(require_admin),
 ):
-    _, affected = execute_write(
-        "UPDATE support_requests SET status=%s WHERE id=%s",
-        (payload.status, request_id),
-    )
-    if affected == 0:
+    """Update status and/or store admin reply. Reply becomes a user notification."""
+    _ensure_support_request_columns()
+    rows = fetch_all("SELECT * FROM support_requests WHERE id=%s LIMIT 1", (request_id,))
+    if not rows:
         raise HTTPException(status_code=404, detail="Support request not found")
+    row = rows[0]
+    status = payload.status if payload.status is not None else (_row_get(row, "status") or "open")
+    reply = (payload.admin_reply or "").strip()
+    if reply:
+        try:
+            execute_write(
+                """
+                UPDATE support_requests
+                SET status=%s, admin_reply=%s, replied_at=CURRENT_TIMESTAMP
+                WHERE id=%s
+                """,
+                (status, reply, request_id),
+            )
+        except Exception:
+            execute_write(
+                "UPDATE support_requests SET status=%s WHERE id=%s",
+                (status, request_id),
+            )
+        # Create a durable user notification row if we can resolve the user
+        uid = _row_get(row, "user_id")
+        email = (_row_get(row, "email") or "").strip().lower()
+        if not uid and email:
+            try:
+                urows = fetch_all(
+                    "SELECT id FROM app_users WHERE LOWER(email)=%s LIMIT 1",
+                    (email,),
+                )
+                if urows:
+                    uid = _row_get(urows[0], "id")
+            except Exception:
+                uid = None
+        if uid:
+            try:
+                _ensure_user_support_notifications_table()
+                execute_write(
+                    """
+                    INSERT INTO user_support_notifications
+                        (user_id, support_request_id, title, message, is_read)
+                    VALUES (%s, %s, %s, %s, 0)
+                    """,
+                    (
+                        int(uid),
+                        request_id,
+                        "Support reply",
+                        reply[:2000],
+                    ),
+                )
+            except Exception as exc:
+                LOGGER.warning("support reply notification: %s", exc)
+    else:
+        _, affected = execute_write(
+            "UPDATE support_requests SET status=%s WHERE id=%s",
+            (status, request_id),
+        )
+        if affected == 0:
+            raise HTTPException(status_code=404, detail="Support request not found")
     bump_content_version()
-    return {"ok": True}
+    return {"ok": True, "status": status, "has_reply": bool(reply)}
+
+
+def _ensure_user_support_notifications_table() -> None:
+    try:
+        if _live_use_sqlite():
+            execute_write(
+                """
+                CREATE TABLE IF NOT EXISTS user_support_notifications (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    support_request_id INTEGER,
+                    title TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    is_read INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                )
+                """,
+                (),
+            )
+        else:
+            execute_write(
+                """
+                CREATE TABLE IF NOT EXISTS user_support_notifications (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id INT NOT NULL,
+                    support_request_id INT NULL,
+                    title VARCHAR(255) NOT NULL,
+                    message TEXT NOT NULL,
+                    is_read TINYINT(1) NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX (user_id)
+                )
+                """,
+                (),
+            )
+    except Exception as exc:
+        LOGGER.warning("user_support_notifications table: %s", exc)
+
 
 
 @app.post("/api/admin/categories")

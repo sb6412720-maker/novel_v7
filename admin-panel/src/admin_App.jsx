@@ -1752,6 +1752,22 @@ function NotifModal({ item, onClose, onSave }) {
 
 function SupportRequestsPage({ items = [], onUpdate }) {
   const list = Array.isArray(items) ? items : [];
+  const [replyFor, setReplyFor] = useState(null);
+  const [replyText, setReplyText] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const sendReply = async () => {
+    if (!replyFor || !replyText.trim()) return;
+    setBusy(true);
+    try {
+      await onUpdate?.(replyFor, { status: "resolved", admin_reply: replyText.trim() });
+      setReplyFor(null);
+      setReplyText("");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="page-body">
       <div className="page-header-row">
@@ -1765,9 +1781,9 @@ function SupportRequestsPage({ items = [], onUpdate }) {
               <th>ID</th>
               <th>From</th>
               <th>Subject</th>
-              <th>Issue</th>
+              <th>Message</th>
               <th>Status</th>
-              <th>Created</th>
+              <th>Admin reply</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -1783,8 +1799,8 @@ function SupportRequestsPage({ items = [], onUpdate }) {
                 <td>
                   <div>{r.issue || "—"}</div>
                   <div className="muted" style={{ fontSize: "0.8rem", maxWidth: 280, whiteSpace: "pre-wrap" }}>
-                    {(r.description || "").slice(0, 180)}
-                    {(r.description || "").length > 180 ? "…" : ""}
+                    {(r.description || "").slice(0, 220)}
+                    {(r.description || "").length > 220 ? "…" : ""}
                   </div>
                 </td>
                 <td>
@@ -1792,14 +1808,24 @@ function SupportRequestsPage({ items = [], onUpdate }) {
                     {r.status || "open"}
                   </span>
                 </td>
-                <td>{r.created_at || "—"}</td>
+                <td style={{ maxWidth: 220, whiteSpace: "pre-wrap", fontSize: "0.85rem" }}>
+                  {r.admin_reply || "—"}
+                </td>
                 <td style={{ whiteSpace: "nowrap" }}>
                   <button
                     type="button"
+                    className="btn btn-sm btn-primary"
+                    onClick={() => { setReplyFor(r.id); setReplyText(r.admin_reply || ""); }}
+                  >
+                    Reply
+                  </button>
+                  <button
+                    type="button"
                     className="btn btn-sm"
+                    style={{ marginLeft: 6 }}
                     onClick={() => onUpdate?.(r.id, { status: "resolved" })}
                   >
-                    Mark resolved
+                    Resolve
                   </button>
                   <button
                     type="button"
@@ -1822,6 +1848,32 @@ function SupportRequestsPage({ items = [], onUpdate }) {
           </tbody>
         </table>
       </div>
+
+      {replyFor != null && (
+        <div className="modal-backdrop" onClick={() => !busy && setReplyFor(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Reply to ticket #{replyFor}</h2>
+            <p className="muted" style={{ marginBottom: 8 }}>
+              Your reply is saved and shown to the user as a notification.
+            </p>
+            <div className="field" style={{ marginBottom: 8 }}>
+              <label>Reply message</label>
+              <textarea
+                rows={5}
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+                placeholder="Type your reply to the user…"
+              />
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="btn" disabled={busy} onClick={() => setReplyFor(null)}>Cancel</button>
+              <button type="button" className="btn btn-primary" disabled={busy || !replyText.trim()} onClick={sendReply}>
+                {busy ? "Sending…" : "Send reply"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

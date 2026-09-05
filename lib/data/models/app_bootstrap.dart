@@ -495,6 +495,7 @@ class ProfileModel {
     this.bio = '',
     this.gender = '',
     this.birthDate = '',
+    this.country = '',
   });
 
   final int? id;
@@ -513,6 +514,7 @@ class ProfileModel {
   final String bio;
   final String gender;
   final String birthDate;
+  final String country;
 
   factory ProfileModel.fromMap(Map<String, dynamic> map) {
     return ProfileModel(
@@ -541,6 +543,7 @@ class ProfileModel {
       gender: map['gender']?.toString() ?? '',
       birthDate:
           map['birth_date']?.toString() ?? map['birthDate']?.toString() ?? '',
+      country: map['country']?.toString() ?? '',
     );
   }
 }

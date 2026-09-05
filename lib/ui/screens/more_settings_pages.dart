@@ -4,6 +4,14 @@ import '../../data/services/api_service.dart';
 class MorePageChrome {
   static const Color purple = Color(0xFF8B5CF6);
   static const Color muted = Color(0xFF6B6575);
+  static Color mutedOf(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return dark ? Colors.white70 : muted;
+  }
+  static Color textOf(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return dark ? Colors.white : const Color(0xFF1A1A1A);
+  }
   static BoxDecoration card(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     return BoxDecoration(
@@ -619,7 +627,7 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
           Text(
             'Other ways to reach us',
             style: TextStyle(
-              color: Colors.grey.shade600,
+              color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.grey.shade600,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1260,7 +1268,7 @@ class LegalTextScreen extends StatelessWidget {
         children: [
           Text(
             'Last updated: 1 May 2024',
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+            style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.grey.shade600, fontSize: 13),
           ),
           const SizedBox(height: 16),
           for (final s in sections) ...[
@@ -1344,7 +1352,7 @@ Future<bool> showSignOutConfirmDialog(BuildContext context) async {
           Text(
             'You will need to sign in again to access your account.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+            style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.grey.shade600, fontSize: 13),
           ),
           const SizedBox(height: 22),
           SizedBox(

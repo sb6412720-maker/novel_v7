@@ -91,6 +91,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             'bio': (me['bio'] ?? '').toString(),
             'gender': (me['gender'] ?? '').toString(),
             'birth_date': (me['birth_date'] ?? '').toString(),
+            'country': (me['country'] ?? '').toString(),
             'username': (me['username'] ?? widget.profile.username).toString(),
           };
         } else {
@@ -1074,37 +1075,63 @@ class _ProfileScreenState extends State<ProfileScreen>
     final gender = _s(_userProfile?['gender']);
     final birth = _s(_userProfile?['birth_date']);
     final country = _s(_userProfile?['country']);
-    // shown in details below
-
+    final username = _username;
     final lists = _readingLists;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final labelStyle = TextStyle(
+      fontSize: 12,
+      color: isDark ? Colors.white70 : muted,
+      fontWeight: FontWeight.w600,
+    );
+    final valueStyle = TextStyle(
+      fontSize: 15,
+      color: isDark ? Colors.white : Theme.of(context).colorScheme.onSurface,
+    );
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
       children: [
-        if (gender.isNotEmpty || birth.isNotEmpty || country.isNotEmpty) ...[
-          if (gender.isNotEmpty)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.person_outline, size: 20),
-              title: Text(gender),
-              dense: true,
+        if (username.isNotEmpty)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.alternate_email, size: 20, color: isDark ? Colors.white70 : null),
+            title: Text('Username', style: labelStyle),
+            subtitle: Text('@$username', style: valueStyle),
+            dense: true,
+          ),
+        if (gender.isNotEmpty)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.person_outline, size: 20, color: isDark ? Colors.white70 : null),
+            title: Text('Gender', style: labelStyle),
+            subtitle: Text(gender, style: valueStyle),
+            dense: true,
+          ),
+        if (birth.isNotEmpty)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.cake_outlined, size: 20, color: isDark ? Colors.white70 : null),
+            title: Text('Birthday', style: labelStyle),
+            subtitle: Text(birth, style: valueStyle),
+            dense: true,
+          ),
+        if (country.isNotEmpty)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.public, size: 20, color: isDark ? Colors.white70 : null),
+            title: Text('Country', style: labelStyle),
+            subtitle: Text(country, style: valueStyle),
+            dense: true,
+          ),
+        if (gender.isEmpty && birth.isEmpty && country.isEmpty && username.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 8),
+            child: Text(
+              'No profile details yet. Tap Edit profile to add them.',
+              style: TextStyle(color: isDark ? Colors.white70 : muted),
             ),
-          if (birth.isNotEmpty)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.cake_outlined, size: 20),
-              title: Text(birth),
-              dense: true,
-            ),
-          if (country.isNotEmpty)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.public, size: 20),
-              title: Text(country),
-              dense: true,
-            ),
-          const SizedBox(height: 8),
-        ],
+          ),
+        const SizedBox(height: 8),
         const SizedBox(height: 12),
         // Bio is already shown below profile name in the header.
         if (_aboutLong.isNotEmpty && _aboutLong != _bio) ...[

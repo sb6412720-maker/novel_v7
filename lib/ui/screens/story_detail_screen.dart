@@ -1214,39 +1214,8 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                 ),
               ),
 
-            // You may also like — always show when we have any related pool
-            if (_youMayAlsoLike.isNotEmpty)
-              SliverToBoxAdapter(
-                child: _HorizontalBookRail(
-                  title: 'You may also like',
-                  books: _youMayAlsoLike,
-                  apiService: widget.apiService,
-                ),
-              ),
-
-            // Recommended for you — different order of the related pool
-            if (_youMayAlsoLike.length >= 2)
-              SliverToBoxAdapter(
-                child: _HorizontalBookRail(
-                  title: 'Recommended for you',
-                  books: () {
-                    final copy = List<Map<String, dynamic>>.from(
-                      _youMayAlsoLike,
-                    );
-                    copy.shuffle(Random());
-                    return copy;
-                  }(),
-                  apiService: widget.apiService,
-                ),
-              )
-            else if (_youMayAlsoLike.isNotEmpty)
-              SliverToBoxAdapter(
-                child: _HorizontalBookRail(
-                  title: 'Recommended for you',
-                  books: _youMayAlsoLike,
-                  apiService: widget.apiService,
-                ),
-              ),
+            // Hidden: other authors' recommendation rails (You may also like / Recommended)
+            // Keep only "More stories by author" above.
 
             const SliverToBoxAdapter(child: SizedBox(height: 100)),
           ],

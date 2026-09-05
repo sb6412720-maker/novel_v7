@@ -6,7 +6,7 @@ import '../../data/services/api_service.dart';
 import 'story_detail_screen.dart';
 
 /// Bell icon screen:
-/// - Activity: other users liked / commented / reviewed / followed / saved your work
+/// - Activity: likes / comments / reviews / follows / saves / support replies
 /// - Admin: system announcements
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({
@@ -27,12 +27,13 @@ class NotificationsScreen extends StatefulWidget {
 class _NotificationsScreenState extends State<NotificationsScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabs;
+  late Future<List<Map<String, dynamic>>> _activityFuture;
   late Future<List<Map<String, dynamic>>> _adminFuture;
 
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 1, vsync: this);
+    _tabs = TabController(length: 2, vsync: this);
     _reload();
   }
 
@@ -43,12 +44,13 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   }
 
   void _reload() {
+    _activityFuture = widget.apiService.fetchNotifications();
     _adminFuture = widget.apiService.fetchAdminNotifications();
   }
 
   Future<void> _refresh() async {
     setState(_reload);
-    await _adminFuture;
+    await Future.wait([_activityFuture, _adminFuture]);
   }
 
   IconData _iconFor(String type) {
@@ -65,6 +67,8 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         return Icons.bookmark;
       case 'share':
         return Icons.ios_share;
+      case 'support_reply':
+        return Icons.support_agent;
       case 'admin':
       case 'system':
         return Icons.campaign_outlined;
@@ -98,22 +102,83 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     );
   }
 
+  void _openSupportReply(Map<String, dynamic> n) {
+    final title = (n['title'] ?? 'Support reply').toString();
+    final message = (n['message'] ?? '').toString();
+    final when = (n['created_at'] ?? '').toString();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.support_agent, color: AppTheme.brand),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 17,
+                          color: isDark ? Colors.white : null,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                if (when.isNotEmpty)
+                  Text(
+                    when,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark ? Colors.white70 : Colors.grey.shade600,
+                    ),
+                  ),
+                const SizedBox(height: 12),
+                Text(
+                  message.isEmpty ? 'No message body.' : message,
+                  style: TextStyle(
+                    fontSize: 15,
+                    height: 1.45,
+                    color: isDark ? Colors.white : null,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Close'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _coverOrIcon(Map<String, dynamic> n, String type) {
-    final cover = (n['cover_path'] ?? '').toString();
+    final cover = (n['cover_path'] ?? n['actor_photo'] ?? '').toString();
     if (cover.isNotEmpty) {
       final url = widget.apiService.resolveAssetUrl(cover);
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Image.network(
-          url,
-          width: 48,
-          height: 64,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => CircleAvatar(
-            backgroundColor: AppTheme.brand.withValues(alpha: 0.12),
-            child: Icon(_iconFor(type), color: AppTheme.brand, size: 20),
-          ),
-        ),
+      return CircleAvatar(
+        backgroundImage: NetworkImage(url),
+        onBackgroundImageError: (_, __) {},
+        child: null,
       );
     }
     return CircleAvatar(
@@ -128,42 +193,32 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     required String emptyBody,
   }) {
     return RefreshIndicator(
-      color: AppTheme.brand,
       onRefresh: _refresh,
       child: FutureBuilder<List<Map<String, dynamic>>>(
         future: future,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-          final rows = snapshot.data ?? [];
+          final rows = snap.data ?? const <Map<String, dynamic>>[];
           if (rows.isEmpty) {
             return ListView(
               physics: const AlwaysScrollableScrollPhysics(),
               children: [
-                const SizedBox(height: 100),
-                Icon(
-                  Icons.notifications_none,
-                  size: 48,
-                  color: Colors.grey.shade400,
-                ),
+                const SizedBox(height: 80),
+                Icon(Icons.notifications_none, size: 48, color: AppTheme.muted),
                 const SizedBox(height: 12),
-                Center(
-                  child: Text(
-                    emptyTitle,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                Text(
+                  emptyTitle,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
                 ),
-                const SizedBox(height: 8),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  padding: const EdgeInsets.fromLTRB(32, 8, 32, 0),
                   child: Text(
                     emptyBody,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: AppTheme.muted),
+                    style: TextStyle(color: AppTheme.muted),
                   ),
                 ),
               ],
@@ -181,6 +236,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
               final message = (n['message'] ?? '').toString();
               final when = (n['created_at'] ?? '').toString();
               final bookId = (n['book_id'] as num?)?.toInt() ?? 0;
+              final isSupport = type.toLowerCase() == 'support_reply';
               return ListTile(
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 12,
@@ -202,10 +258,18 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                trailing: bookId > 0
+                trailing: (bookId > 0 || isSupport)
                     ? const Icon(Icons.chevron_right, size: 20)
                     : null,
-                onTap: bookId > 0 ? () => _openBook(n) : null,
+                onTap: () {
+                  if (isSupport) {
+                    _openSupportReply(n);
+                  } else if (bookId > 0) {
+                    _openBook(n);
+                  } else if (message.isNotEmpty) {
+                    _openSupportReply(n);
+                  }
+                },
               );
             },
           );
@@ -216,6 +280,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Notifications'),
@@ -223,14 +288,23 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         bottom: TabBar(
           controller: _tabs,
           labelColor: AppTheme.brand,
-          unselectedLabelColor: Colors.grey,
+          unselectedLabelColor: isDark ? Colors.white70 : Colors.grey,
           indicatorColor: AppTheme.brand,
-          tabs: const [Tab(text: 'Admin')],
+          tabs: const [
+            Tab(text: 'Activity'),
+            Tab(text: 'Admin'),
+          ],
         ),
       ),
       body: TabBarView(
         controller: _tabs,
         children: [
+          _list(
+            future: _activityFuture,
+            emptyTitle: 'No activity yet',
+            emptyBody:
+                'Likes, comments, follows, and support replies will appear here.',
+          ),
           _list(
             future: _adminFuture,
             emptyTitle: 'No admin notices',
