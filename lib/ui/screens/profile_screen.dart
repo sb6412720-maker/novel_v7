@@ -130,7 +130,39 @@ class _ProfileScreenState extends State<ProfileScreen>
           };
         }
       } else {
-        _userProfile = await widget.apiService.fetchProfile(viewId!);
+        final publicProfile = await widget.apiService.fetchProfile(viewId!);
+        _userProfile = {
+          ...publicProfile,
+          'display_name': _firstNonEmpty([
+            publicProfile['display_name'],
+            publicProfile['name'],
+          ]),
+          'username': _firstNonEmpty([
+            publicProfile['username'],
+            publicProfile['user_name'],
+          ]),
+          'photo_url': _firstNonEmpty([
+            publicProfile['photo_url'],
+            publicProfile['avatar_url'],
+            publicProfile['photoUrl'],
+            publicProfile['avatar'],
+          ]),
+          'cover_url': _firstNonEmpty([
+            publicProfile['cover_url'],
+            publicProfile['coverUrl'],
+            publicProfile['banner_url'],
+            publicProfile['bannerUrl'],
+            publicProfile['cover_path'],
+          ]),
+          'bio': _firstNonEmpty([publicProfile['bio'], publicProfile['about']]),
+          'gender': _firstNonEmpty([publicProfile['gender']]),
+          'birth_date': _firstNonEmpty([
+            publicProfile['birth_date'],
+            publicProfile['birthday'],
+            publicProfile['birthDate'],
+          ]),
+          'country': _firstNonEmpty([publicProfile['country']]),
+        };
         try {
           _isFollowing = await widget.apiService.fetchAuthorFollowing(viewId);
         } catch (_) {
@@ -193,7 +225,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                   : widget.apiService.fetchUserReadingLists(targetId))
               .catchError((_) => <Map<String, dynamic>>[]),
         ]);
-        stories = List<Map<String, dynamic>>.from(results[0] as List);
+        stories = List<Map<String, dynamic>>.from(
+          results[0] as List,
+        ).where(_isPublicStory).toList();
         wall = List<Map<String, dynamic>>.from(results[1] as List);
         reviews = List<Map<String, dynamic>>.from(results[2] as List);
         lists = List<Map<String, dynamic>>.from(results[3] as List);
@@ -227,6 +261,14 @@ class _ProfileScreenState extends State<ProfileScreen>
     if (v is int) return v;
     if (v is num) return v.toInt();
     return int.tryParse('$v') ?? 0;
+  }
+
+  bool _isPublicStory(Map<String, dynamic> story) {
+    final status = _s(story['status_text'] ?? story['status']).toLowerCase();
+    return status == 'ongoing' ||
+        status == 'completed' ||
+        status == 'complete' ||
+        status == 'published';
   }
 
   bool get _isAuthor =>
@@ -302,13 +344,13 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   String get _avatarUrl {
-    final p = _s(
-      _userProfile?['avatar_url'] ??
-          _userProfile?['photo_url'] ??
-          _userProfile?['photoUrl'] ??
-          _userProfile?['avatar'] ??
-          widget.profile.photoUrl,
-    );
+    final p = _firstNonEmpty([
+      _userProfile?['avatar_url'],
+      _userProfile?['photo_url'],
+      _userProfile?['photoUrl'],
+      _userProfile?['avatar'],
+      widget.profile.photoUrl,
+    ]);
     if (p.isEmpty) return '';
     return widget.apiService.resolveAssetUrl(p);
   }

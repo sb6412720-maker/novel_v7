@@ -1055,6 +1055,16 @@ class ApiService {
     return payload;
   }
 
+  Future<Map<String, dynamic>> toggleChapterCommentLike(int commentId) async {
+    final response = await _post(
+      '/api/chapter-comments/$commentId/like',
+      const {},
+      timeout: const Duration(seconds: 30),
+    );
+    _ensureSuccessResponse(response);
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
   /// Chapter-end reaction counts + current user's selections.
   Future<Map<String, dynamic>> fetchChapterReactions({
     required int bookId,

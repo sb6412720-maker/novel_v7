@@ -75,6 +75,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
   final Map<String, int> _reactionCounts = {};
   bool _liked = false;
   int _likeCount = 0;
+  int _chapterCommentCount = 0;
   final ScrollController _scrollController = ScrollController();
   Map<int, int> _paragraphCommentCounts = {};
 
@@ -349,6 +350,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     _selectedReactions.clear();
     _reactionCounts.clear();
     _paragraphCommentCounts = {};
+    _chapterCommentCount = 0;
     _paragraphKeys.clear();
     if (!resumeParagraph) {
       // Navigating to a different chapter starts at top
@@ -473,9 +475,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Leave chapter?'),
-        content: const Text(
-          'Do you want to go to the story detail page?',
-        ),
+        content: const Text('Do you want to go to the story detail page?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -802,6 +802,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
       }
       // Also count from items if counts missing
       final items = payload['items'];
+      final totalCommentCount = items is List ? items.length : 0;
       if (map.isEmpty && items is List) {
         for (final it in items) {
           if (it is! Map) continue;
@@ -810,7 +811,10 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
         }
       }
       if (!mounted) return;
-      setState(() => _paragraphCommentCounts = map);
+      setState(() {
+        _paragraphCommentCounts = map;
+        _chapterCommentCount = totalCommentCount;
+      });
     } catch (_) {
       // ignore
     }
@@ -1083,6 +1087,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                                                 (_paragraphCommentCounts[paragraphIndex] ??
                                                     0) +
                                                 1;
+                                            _chapterCommentCount++;
                                           });
                                         }
                                       } catch (e) {
@@ -1403,13 +1408,16 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                 ),
-                                child: const Text(
-                                  'Next Chapter',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 15,
+                                child: const FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    'Next Chapter',
+                                    maxLines: 1,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 15,
+                                    ),
                                   ),
-                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             ),
@@ -1819,9 +1827,37 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
 
     final controller = TextEditingController();
     var comments = <Map<String, dynamic>>[];
+    final likedComments = <int>{};
     var loading = true;
     var posting = false;
     String? error;
+
+    Future<void> toggleCommentLike(
+      Map<String, dynamic> comment,
+      void Function(void Function()) setModal,
+    ) async {
+      final id = (comment['id'] as num?)?.toInt() ?? 0;
+      if (id <= 0) return;
+      try {
+        final result = await widget.apiService.toggleChapterCommentLike(id);
+        final liked = result['liked'] == true;
+        final count = (result['like_count'] as num?)?.toInt() ?? 0;
+        setModal(() {
+          if (liked) {
+            likedComments.add(id);
+          } else {
+            likedComments.remove(id);
+          }
+          comment['like_count'] = count;
+        });
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please sign in to like comments')),
+          );
+        }
+      }
+    }
 
     Future<void> loadComments(void Function(void Function()) setModal) async {
       setModal(() {
@@ -1833,6 +1869,14 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
           bookId: bookId,
           chapterNumber: _chapterNumber,
         );
+        likedComments
+          ..clear()
+          ..addAll(
+            items
+                .where((item) => item['liked'] == true)
+                .map((item) => (item['id'] as num?)?.toInt() ?? 0)
+                .where((id) => id > 0),
+          );
         setModal(() {
           comments = items;
           loading = false;
@@ -2022,6 +2066,46 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                                                 height: 1.4,
                                               ),
                                             ),
+                                            Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                IconButton(
+                                                  visualDensity:
+                                                      VisualDensity.compact,
+                                                  padding: EdgeInsets.zero,
+                                                  icon: Icon(
+                                                    likedComments.contains(
+                                                          (c['id'] as num?)
+                                                                  ?.toInt() ??
+                                                              0,
+                                                        )
+                                                        ? Icons.favorite
+                                                        : Icons.favorite_border,
+                                                    size: 17,
+                                                    color:
+                                                        likedComments.contains(
+                                                          (c['id'] as num?)
+                                                                  ?.toInt() ??
+                                                              0,
+                                                        )
+                                                        ? Colors.red
+                                                        : Colors.grey,
+                                                  ),
+                                                  onPressed: () =>
+                                                      toggleCommentLike(
+                                                        c,
+                                                        setModal,
+                                                      ),
+                                                ),
+                                                Text(
+                                                  '${c['like_count'] ?? 0}',
+                                                  style: TextStyle(
+                                                    color: Colors.grey.shade600,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
                                           ],
                                         ),
                                       ),
@@ -2079,6 +2163,11 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                                           comments = [item, ...comments];
                                           posting = false;
                                         });
+                                        if (mounted) {
+                                          setState(
+                                            () => _chapterCommentCount++,
+                                          );
+                                        }
                                         if (context.mounted) {
                                           ScaffoldMessenger.of(
                                             context,
@@ -2161,7 +2250,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
             ),
             _barItem(
               icon: Icons.chat_bubble_outline,
-              label: 'Comments',
+              label: 'Comments ($_chapterCommentCount)',
               onTap: _openCommentsSheet,
             ),
             _barItem(icon: Icons.ios_share, label: 'Share', onTap: _share),

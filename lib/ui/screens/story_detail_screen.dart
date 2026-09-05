@@ -1004,7 +1004,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                           color: _hasMyReview ? inkittGreen : fg,
                         ),
                         label: Text(
-                          '$_reviewCount',
+                          'Reviews ($_reviewCount)',
                           style: TextStyle(color: fg),
                         ),
                       ),

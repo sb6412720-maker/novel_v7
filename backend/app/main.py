@@ -5804,6 +5804,18 @@ def _ensure_chapter_comments_table() -> None:
                 )
             except Exception:
                 pass
+            execute_write(
+                """
+                CREATE TABLE IF NOT EXISTS chapter_comment_likes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    comment_id INTEGER NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(comment_id, user_id)
+                )
+                """,
+                (),
+            )
         else:
             execute_write(
                 """
@@ -5830,6 +5842,19 @@ def _ensure_chapter_comments_table() -> None:
                 )
             except Exception:
                 pass
+            execute_write(
+                """
+                CREATE TABLE IF NOT EXISTS chapter_comment_likes (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    comment_id INT NOT NULL,
+                    user_id INT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_comment_like (comment_id, user_id),
+                    INDEX (comment_id)
+                )
+                """,
+                (),
+            )
     except Exception as exc:
         LOGGER.warning("chapter_comments ensure failed: %s", exc)
 
@@ -5892,7 +5917,11 @@ def _serialize_comment_row(row: dict[str, Any]) -> dict[str, Any]:
 
 
 @app.get("/api/books/{book_id}/chapters/{chapter_number}/comments")
-def list_chapter_comments(book_id: int, chapter_number: int):
+def list_chapter_comments(
+    book_id: int,
+    chapter_number: int,
+    user: dict[str, Any] | None = Depends(optional_user),
+):
     """Public list of comments for a chapter (by book + chapter number)."""
     try:
         _ensure_chapter_comments_table()
@@ -5912,6 +5941,19 @@ def list_chapter_comments(book_id: int, chapter_number: int):
             (chapter_id,),
         )
         items = [_serialize_comment_row(r) for r in (rows or [])]
+        for item in items:
+            like_rows = fetch_all(
+                "SELECT COUNT(*) AS c FROM chapter_comment_likes WHERE comment_id=%s",
+                (item.get("id"),),
+            )
+            item["like_count"] = int(_row_get(like_rows[0], "c") or 0) if like_rows else 0
+            item["liked"] = bool(
+                user
+                and fetch_all(
+                    "SELECT id FROM chapter_comment_likes WHERE comment_id=%s AND user_id=%s LIMIT 1",
+                    (item.get("id"), user["user_id"]),
+                )
+            )
         counts: dict[str, int] = {}
         for it in items:
             pi = int(it.get("paragraph_index") if it.get("paragraph_index") is not None else -1)
@@ -5990,6 +6032,41 @@ def create_chapter_comment(
     except Exception as exc:
         LOGGER.exception("create_chapter_comment failed: %s", exc)
         raise HTTPException(status_code=500, detail=f"Failed to post comment: {exc}")
+
+
+@app.post("/api/chapter-comments/{comment_id}/like")
+def toggle_chapter_comment_like(
+    comment_id: int,
+    user: dict[str, Any] = Depends(require_user),
+):
+    _ensure_chapter_comments_table()
+    if not fetch_all("SELECT id FROM chapter_comments WHERE id=%s LIMIT 1", (comment_id,)):
+        raise HTTPException(status_code=404, detail="Comment not found")
+    current = fetch_all(
+        "SELECT id FROM chapter_comment_likes WHERE comment_id=%s AND user_id=%s LIMIT 1",
+        (comment_id, user["user_id"]),
+    )
+    if current:
+        execute_write(
+            "DELETE FROM chapter_comment_likes WHERE comment_id=%s AND user_id=%s",
+            (comment_id, user["user_id"]),
+        )
+        liked = False
+    else:
+        execute_write(
+            "INSERT INTO chapter_comment_likes (comment_id, user_id) VALUES (%s, %s)",
+            (comment_id, user["user_id"]),
+        )
+        liked = True
+    counts = fetch_all(
+        "SELECT COUNT(*) AS c FROM chapter_comment_likes WHERE comment_id=%s",
+        (comment_id,),
+    )
+    return {
+        "ok": True,
+        "liked": liked,
+        "like_count": int(_row_get(counts[0], "c") or 0) if counts else 0,
+    }
 
 
 @app.get("/api/chapters/{chapter_id}/comments")
@@ -7202,7 +7279,9 @@ def list_user_stories(user_id: int):
             SELECT id, user_id, title, author, description, genre, cover_path, accent_hex,
                    status_text, rating, primary_genre, secondary_genre, is_completed, view_count
             FROM books
-            WHERE user_id=%s
+                 WHERE user_id=%s
+                AND LOWER(TRIM(COALESCE(status_text, ''))) IN
+                    ('ongoing', 'completed', 'complete', 'published')
             ORDER BY id DESC
             LIMIT 80
             """,
@@ -7219,7 +7298,9 @@ def list_user_stories(user_id: int):
                 SELECT id, user_id, title, author, description, genre, cover_path, accent_hex,
                        status_text, rating, primary_genre, secondary_genre, is_completed, view_count
                 FROM books
-                WHERE author_user_id=%s
+                  WHERE author_user_id=%s
+                    AND LOWER(TRIM(COALESCE(status_text, ''))) IN
+                     ('ongoing', 'completed', 'complete', 'published')
                 ORDER BY id DESC
                 LIMIT 80
                 """,
