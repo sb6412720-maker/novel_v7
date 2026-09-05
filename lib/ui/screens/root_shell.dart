@@ -527,7 +527,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
         elevation: 8,
         shadowColor: Colors.black12,
         height: 72,
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
         selectedIndex: _selectedIndex,
         onDestinationSelected: (value) {
           // Guests and logged-out users: Discover only; other tabs need real account

@@ -116,6 +116,31 @@ class _ProfileScreenState extends State<ProfileScreen>
         }
       }
 
+      // Live follower/following counts (do not rely on bootstrap alone)
+      try {
+        if (_isOwnProfile) {
+          final fwing = await widget.apiService.fetchMyFollowing();
+          final fwers = await widget.apiService.fetchMyFollowers();
+          if (_userProfile != null) {
+            _userProfile = {
+              ..._userProfile!,
+              'following': fwing.length,
+              'followers': fwers.length,
+            };
+          }
+        } else if (targetId > 0) {
+          final fwing = await widget.apiService.fetchUserFollowingList(targetId);
+          final fwers = await widget.apiService.fetchUserFollowers(targetId);
+          if (_userProfile != null) {
+            _userProfile = {
+              ..._userProfile!,
+              'following': fwing.length,
+              'followers': fwers.length,
+            };
+          }
+        }
+      } catch (_) {}
+
       // Show identity and live counts before slower profile tabs finish loading.
       if (!mounted) return;
       setState(() => _loadingProfile = false);

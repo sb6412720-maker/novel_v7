@@ -151,7 +151,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
       final reviews = await widget.apiService.fetchBookReviews(_book.id);
       if (mounted) {
         setState(() {
-          _reviews = reviews;
+          _reviews = _dedupeReviews(reviews);
           _loadingReviews = false;
         });
       }
@@ -335,7 +335,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
           onReviewPosted: () async {
             setState(() => _hasMyReview = true);
             final reviews = await widget.apiService.fetchBookReviews(_book.id);
-            if (mounted) setState(() => _reviews = reviews);
+            if (mounted) setState(() => _reviews = _dedupeReviews(reviews));
           },
         ),
       ),
@@ -345,7 +345,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
       final reviews = await widget.apiService.fetchBookReviews(_book.id);
       if (mounted) {
         setState(() {
-          _reviews = reviews;
+          _reviews = _dedupeReviews(reviews);
           if (result == true) _hasMyReview = true;
         });
       }
@@ -384,7 +384,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
               final reviews = await widget.apiService.fetchBookReviews(
                 _book.id,
               );
-              if (mounted) setState(() => _reviews = reviews);
+              if (mounted) setState(() => _reviews = _dedupeReviews(reviews));
             } catch (_) {}
           }
         });
@@ -426,6 +426,23 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
   bool _asTruthy(dynamic value) {
     if (value == true || value == 1 || value == '1') return true;
     return value?.toString().toLowerCase() == 'true';
+  }
+
+  List<Map<String, dynamic>> _dedupeReviews(List<Map<String, dynamic>> list) {
+    final seen = <String>{};
+    final out = <Map<String, dynamic>>[];
+    for (final r in list) {
+      final id = (r['id'] ?? r['review_id'] ?? '${r['user_id']}_${r['created_at']}').toString();
+      if (seen.contains(id)) continue;
+      seen.add(id);
+      out.add(r);
+    }
+    return out;
+  }
+
+  bool _isDraftStory() {
+    final s = (_book.statusText).toLowerCase().trim();
+    return s == 'draft' || s.contains('draft');
   }
 
   Future<void> _openReadingListPicker() async {
@@ -614,6 +631,15 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
   }
 
   Future<void> _readNow() async {
+    if (_isDraftStory() && !_isOwner) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This story is still a draft and not available to read yet.'),
+        ),
+      );
+      return;
+    }
     if (_chapters.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No chapters available yet')),
@@ -693,7 +719,10 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
               elevation: 0,
               leading: IconButton(
                 icon: const Icon(Icons.arrow_back),
-                onPressed: () => Navigator.of(context).maybePop(),
+                onPressed: () {
+                  // Always return to home (Discover) shell
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                },
               ),
               actions: [
                 IconButton(
@@ -959,11 +988,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                           color: _hasMyReview ? inkittGreen : fg,
                         ),
                         label: Text(
-                          _isOwner
-                              ? 'Reviews (${_reviews.length})'
-                              : (_reviews.isEmpty
-                                    ? 'Review'
-                                    : 'Review (${_reviews.length})'),
+                          '${_reviews.length}',
                           style: TextStyle(color: fg),
                         ),
                       ),
@@ -1241,13 +1266,18 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                 backgroundColor: inkittGreen,
                 foregroundColor: Colors.white,
                 elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
-              child: const Text(
-                'Read Now',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+              child: const FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  'Read Now',
+                  maxLines: 1,
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                ),
               ),
             ),
           ),

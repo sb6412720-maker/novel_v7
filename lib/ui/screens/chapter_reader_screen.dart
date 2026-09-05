@@ -454,6 +454,45 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     });
   }
 
+  Future<void> _goPrev() async {
+    if (_chapterIndex <= 0) return;
+    setState(() {
+      _chapterIndex--;
+      _lastParagraphIndex = 0;
+      _applyChapter(_chapters[_chapterIndex]);
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(0);
+      }
+    });
+  }
+
+  Future<void> _confirmLeaveToStoryDetail() async {
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Leave chapter?'),
+        content: const Text(
+          'Do you want to go to the story detail page?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('No'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Yes'),
+          ),
+        ],
+      ),
+    );
+    if (go == true && mounted) {
+      await _goBackToStoryDetail(completed: false);
+    }
+  }
+
   void _openChapterList() {
     showModalBottomSheet<void>(
       context: context,
@@ -1152,7 +1191,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
-        unawaited(_goBackToStoryDetail(completed: false));
+        unawaited(_confirmLeaveToStoryDetail());
       },
       child: Scaffold(
         backgroundColor: _bg,
@@ -1165,7 +1204,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
           title: Text(pageLabel, style: TextStyle(color: _muted, fontSize: 14)),
           leading: IconButton(
             icon: Icon(Icons.arrow_back, color: _fg),
-            onPressed: () => unawaited(_goBackToStoryDetail(completed: false)),
+            onPressed: () => unawaited(_confirmLeaveToStoryDetail()),
           ),
           actions: [
             IconButton(
@@ -1319,31 +1358,65 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                   // Ad near Next Chapter button
                   if (hasNext)
                     _buildAdBanner(label: 'Continue reading more free stories'),
-                  if (hasNext)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: ElevatedButton(
-                          onPressed: _goNext,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF6C3CE1),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      children: [
+                        if (_chapterIndex > 0 && _chapters.isNotEmpty)
+                          Expanded(
+                            child: SizedBox(
+                              height: 48,
+                              child: OutlinedButton(
+                                onPressed: () => unawaited(_goPrev()),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFF6C3CE1),
+                                  side: const BorderSide(
+                                    color: Color(0xFF6C3CE1),
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Previous',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 15,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
                             ),
                           ),
-                          child: const Text(
-                            'Next Chapter',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 16,
+                        if (_chapterIndex > 0 && hasNext)
+                          const SizedBox(width: 10),
+                        if (hasNext)
+                          Expanded(
+                            child: SizedBox(
+                              height: 48,
+                              child: ElevatedButton(
+                                onPressed: _goNext,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF6C3CE1),
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Next Chapter',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 15,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
+                      ],
                     ),
+                  ),
                   const SizedBox(height: 16),
                   Center(
                     child: Text(
