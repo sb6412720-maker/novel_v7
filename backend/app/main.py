@@ -4336,7 +4336,15 @@ def get_writer_stories(user: dict[str, Any] = Depends(require_user)):
     rows = fetch_all(
         """
         SELECT id, user_id, title, author, description, genre, status_text,
-               cover_path, accent_hex, content_warnings
+                             cover_path, accent_hex, content_warnings,
+                             (SELECT COUNT(*) FROM chapters c
+                                WHERE c.story_id=books.id
+                                    AND LOWER(COALESCE(c.submission_status, 'draft')) IN
+                                            ('published', 'submitted', 'ongoing', 'completed')) AS published_chapter_count,
+                             (SELECT COUNT(*) FROM chapters c
+                                WHERE c.story_id=books.id
+                                    AND LOWER(COALESCE(c.submission_status, 'draft')) NOT IN
+                                            ('published', 'submitted', 'ongoing', 'completed')) AS draft_chapter_count
         FROM books
         WHERE user_id = %s
         ORDER BY id DESC
@@ -4368,6 +4376,8 @@ def get_writer_stories(user: dict[str, Any] = Depends(require_user)):
                 "tags": [],
                 "likes_count": 0,
                 "reviews_count": 0,
+                "published_chapter_count": int(_row_get(row, "published_chapter_count") or 0),
+                "draft_chapter_count": int(_row_get(row, "draft_chapter_count") or 0),
             }
         )
     return {"items": items}
@@ -5733,17 +5743,9 @@ def create_book_review(
     for v in (plot, style, tech):
         if v < 1 or v > 5:
             raise HTTPException(status_code=400, detail="Ratings must be between 1 and 5")
-    # Best-effort extra columns (title / sub-ratings)
-    for sql in (
-        "ALTER TABLE book_reviews ADD COLUMN title VARCHAR(255) NULL",
-        "ALTER TABLE book_reviews ADD COLUMN plot_rating INT NULL",
-        "ALTER TABLE book_reviews ADD COLUMN style_rating INT NULL",
-        "ALTER TABLE book_reviews ADD COLUMN tech_rating INT NULL",
-    ):
-        try:
-            execute_write(sql, ())
-        except Exception:
-            pass
+    # Review columns are provisioned during application startup. Do not run
+    # ALTER TABLE on the request path: MySQL metadata locks can make a review
+    # save successfully while the client times out waiting for the response.
     stored_comment = body if not title else f"{title}\n\n{body}"
     try:
         execute_write(

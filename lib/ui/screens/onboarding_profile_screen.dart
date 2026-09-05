@@ -263,12 +263,11 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
         SnackBar(
           content: Text(
             isTimeout
-                ? 'Server is waking up — continuing. You can edit profile later.'
+                ? 'Server is waking up — profile was not saved. Please try again.'
                 : 'Could not save profile: $e',
           ),
         ),
       );
-      if (isTimeout) widget.onDone();
     } finally {
       if (mounted) setState(() => _saving = false);
     }

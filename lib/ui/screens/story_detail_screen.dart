@@ -981,6 +981,8 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                         label: Text(
                           '$_likesCount',
                           style: TextStyle(color: fg),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ),
@@ -993,7 +995,10 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                               ? Colors.grey
                               : (_saved ? inkittGreen : fg),
                         ),
-                        label: Text('Save', style: TextStyle(color: fg)),
+                        label: const FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text('Save', maxLines: 1),
+                        ),
                       ),
                     ),
                     Expanded(
@@ -1003,9 +1008,13 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                           _hasMyReview ? Icons.star : Icons.star_border,
                           color: _hasMyReview ? inkittGreen : fg,
                         ),
-                        label: Text(
-                          'Reviews ($_reviewCount)',
-                          style: TextStyle(color: fg),
+                        label: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            'Reviews ($_reviewCount)',
+                            maxLines: 1,
+                            style: TextStyle(color: fg),
+                          ),
                         ),
                       ),
                     ),

@@ -283,7 +283,7 @@ class ApiService {
     try {
       final response = await _get(
         '/api/me',
-        timeout: const Duration(seconds: 20),
+        timeout: const Duration(seconds: 60),
       );
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>;
@@ -977,7 +977,10 @@ class ApiService {
 
   Future<List<Map<String, dynamic>>> fetchBookReviews(int bookId) async {
     try {
-      final response = await _get('/api/books/$bookId/reviews');
+      final response = await _get(
+        '/api/books/$bookId/reviews',
+        timeout: const Duration(seconds: 60),
+      );
       if (response.statusCode != 200) return const <Map<String, dynamic>>[];
       final payload = jsonDecode(response.body) as Map<String, dynamic>;
       return List<Map<String, dynamic>>.from(payload['items'] as List<dynamic>);
@@ -993,7 +996,7 @@ class ApiService {
     final response = await _post(
       '/api/books/$bookId/reviews',
       payload,
-      timeout: const Duration(seconds: 45),
+      timeout: const Duration(seconds: 90),
     );
     _ensureSuccessResponse(response);
   }

@@ -28,6 +28,7 @@ class _WriteScreenState extends State<WriteScreen>
   late Future<List<Map<String, dynamic>>> _storiesFuture;
 
   String _query = '';
+
   /// all | ongoing | completed | recent
   String _listFilter = 'all';
 
@@ -210,8 +211,10 @@ class _WriteScreenState extends State<WriteScreen>
     }
   }
 
-  
-  Future<void> _changeStoryStatus(Map<String, dynamic> story, String status) async {
+  Future<void> _changeStoryStatus(
+    Map<String, dynamic> story,
+    String status,
+  ) async {
     final id = (story['id'] as num?)?.toInt() ?? 0;
     if (id <= 0) return;
     try {
@@ -220,8 +223,8 @@ class _WriteScreenState extends State<WriteScreen>
       final msg = status == 'Draft'
           ? 'Unpublished — moved to Drafts'
           : status == 'Completed'
-              ? 'Marked as Completed'
-              : 'Marked as Ongoing';
+          ? 'Marked as Completed'
+          : 'Marked as Ongoing';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
       await _reloadStories();
       // Jump to the right tab for the new status
@@ -232,13 +235,13 @@ class _WriteScreenState extends State<WriteScreen>
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not update status: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not update status: $e')));
     }
   }
 
-Future<void> _deleteStory(Map<String, dynamic> story) async {
+  Future<void> _deleteStory(Map<String, dynamic> story) async {
     final approved = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -290,18 +293,29 @@ Future<void> _deleteStory(Map<String, dynamic> story) async {
               ),
               const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF2A2140) : const Color(0xFFF3EEFF),
+                  color: isDark
+                      ? const Color(0xFF2A2140)
+                      : const Color(0xFFF3EEFF),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: isDark ? const Color(0xFF4C3A7A) : const Color(0xFFD6C7FF),
+                    color: isDark
+                        ? const Color(0xFF4C3A7A)
+                        : const Color(0xFFD6C7FF),
                   ),
                 ),
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.diamond_outlined, size: 14, color: Color(0xFF6C3CE1)),
+                    Icon(
+                      Icons.diamond_outlined,
+                      size: 14,
+                      color: Color(0xFF6C3CE1),
+                    ),
                     SizedBox(width: 4),
                     Text(
                       'Premium',
@@ -316,7 +330,11 @@ Future<void> _deleteStory(Map<String, dynamic> story) async {
               ),
               IconButton(
                 onPressed: () => _openCreateStory(),
-                icon: Icon(Icons.add_circle_rounded, size: 30, color: AppTheme.brand),
+                icon: Icon(
+                  Icons.add_circle_rounded,
+                  size: 30,
+                  color: AppTheme.brand,
+                ),
                 tooltip: 'Create Story',
               ),
             ],
@@ -433,7 +451,9 @@ Future<void> _deleteStory(Map<String, dynamic> story) async {
           decoration: BoxDecoration(
             border: Border(
               bottom: BorderSide(
-                color: isDark ? const Color(0xFF2C2C2C) : const Color(0xFFEDE9FE),
+                color: isDark
+                    ? const Color(0xFF2C2C2C)
+                    : const Color(0xFFEDE9FE),
               ),
             ),
           ),
@@ -443,7 +463,10 @@ Future<void> _deleteStory(Map<String, dynamic> story) async {
             unselectedLabelColor: isDark ? Colors.white60 : AppTheme.muted,
             indicatorColor: AppTheme.brand,
             indicatorWeight: 3,
-            labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+            labelStyle: const TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+            ),
             tabs: const [
               Tab(text: 'Manage Stories'),
               Tab(text: 'Analytics'),
@@ -572,7 +595,10 @@ class _ManageStoriesTab extends StatelessWidget {
             unselectedLabelColor: AppTheme.muted,
             indicatorColor: AppTheme.brand,
             indicatorWeight: 3,
-            labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+            labelStyle: const TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+            ),
             // Fixed labels — do not use bootstrap "Stories/Series"
             tabs: const [
               Tab(text: 'Submitted'),
@@ -587,7 +613,11 @@ class _ManageStoriesTab extends StatelessWidget {
             decoration: InputDecoration(
               hintText: 'Search your stories…',
               hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 14),
-              prefixIcon: Icon(Icons.search_rounded, size: 20, color: Colors.grey.shade500),
+              prefixIcon: Icon(
+                Icons.search_rounded,
+                size: 20,
+                color: Colors.grey.shade500,
+              ),
               contentPadding: const EdgeInsets.symmetric(vertical: 12),
               filled: true,
               fillColor: Theme.of(context).brightness == Brightness.dark
@@ -609,21 +639,28 @@ class _ManageStoriesTab extends StatelessWidget {
                   final picked = await showModalBottomSheet<String>(
                     context: context,
                     shape: const RoundedRectangleBorder(
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(16),
+                      ),
                     ),
                     builder: (ctx) {
                       Widget opt(String id, String label) => ListTile(
-                            title: Text(label),
-                            trailing: listFilter == id
-                                ? const Icon(Icons.check, color: AppTheme.brand)
-                                : null,
-                            onTap: () => Navigator.pop(ctx, id),
-                          );
+                        title: Text(label),
+                        trailing: listFilter == id
+                            ? const Icon(Icons.check, color: AppTheme.brand)
+                            : null,
+                        onTap: () => Navigator.pop(ctx, id),
+                      );
                       return SafeArea(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const ListTile(title: Text('Filter stories', style: TextStyle(fontWeight: FontWeight.w700))),
+                            const ListTile(
+                              title: Text(
+                                'Filter stories',
+                                style: TextStyle(fontWeight: FontWeight.w700),
+                              ),
+                            ),
                             opt('all', 'All'),
                             opt('ongoing', 'Ongoing'),
                             opt('completed', 'Completed'),
@@ -638,17 +675,24 @@ class _ManageStoriesTab extends StatelessWidget {
                 },
                 child: Row(
                   children: [
-                    const Icon(Icons.filter_list_rounded, size: 16, color: AppTheme.muted),
+                    const Icon(
+                      Icons.filter_list_rounded,
+                      size: 16,
+                      color: AppTheme.muted,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       listFilter == 'all'
                           ? 'Filter: All'
                           : listFilter == 'ongoing'
-                              ? 'Filter: Ongoing'
-                              : listFilter == 'completed'
-                                  ? 'Filter: Completed'
-                                  : 'Filter: Recent',
-                      style: const TextStyle(fontSize: 12, color: AppTheme.muted),
+                          ? 'Filter: Ongoing'
+                          : listFilter == 'completed'
+                          ? 'Filter: Completed'
+                          : 'Filter: Recent',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.muted,
+                      ),
                     ),
                   ],
                 ),
@@ -679,13 +723,19 @@ class _ManageStoriesTab extends StatelessWidget {
                 bool isSubmittedStatus(Map<String, dynamic> story) {
                   final statusText =
                       story['status_text']?.toString().toLowerCase().trim() ??
-                          '';
-                  if (statusText.isEmpty) return false;
-                  if (statusText.contains('draft')) return false;
-                  return statusText.contains('ongoing') ||
-                      statusText.contains('complete') ||
-                      statusText.contains('publish') ||
-                      statusText.contains('submitted');
+                      '';
+                  final publishedChapters =
+                      (story['published_chapter_count'] as num?)?.toInt() ?? 0;
+                  // A story belongs to exactly one tab. Once it has at least
+                  // one published/submitted chapter, keep the story card in
+                  // Submitted even if later chapters are still drafts.
+                  return publishedChapters > 0 ||
+                      (statusText.isNotEmpty &&
+                          !statusText.contains('draft') &&
+                          (statusText.contains('ongoing') ||
+                              statusText.contains('complete') ||
+                              statusText.contains('publish') ||
+                              statusText.contains('submitted')));
                 }
 
                 var stories = all.where((story) {
@@ -695,27 +745,26 @@ class _ManageStoriesTab extends StatelessWidget {
                   if (storySubTabs.index == 1 && submitted) return false;
                   if (query.trim().isEmpty) return true;
                   final q = query.trim().toLowerCase();
-                  final title =
-                      story['title']?.toString().toLowerCase() ?? '';
+                  final title = story['title']?.toString().toLowerCase() ?? '';
                   final author =
                       story['author']?.toString().toLowerCase() ?? '';
                   return title.contains(q) || author.contains(q);
                 }).toList();
                 // Extra toolbar filter
                 if (listFilter == 'ongoing') {
-                  stories = stories
-                      .where((s) {
-                        final st = (s['status_text'] ?? '').toString().toLowerCase();
-                        return st.contains('ongoing') || st.contains('publish');
-                      })
-                      .toList();
+                  stories = stories.where((s) {
+                    final st = (s['status_text'] ?? '')
+                        .toString()
+                        .toLowerCase();
+                    return st.contains('ongoing') || st.contains('publish');
+                  }).toList();
                 } else if (listFilter == 'completed') {
-                  stories = stories
-                      .where((s) {
-                        final st = (s['status_text'] ?? '').toString().toLowerCase();
-                        return st.contains('complete');
-                      })
-                      .toList();
+                  stories = stories.where((s) {
+                    final st = (s['status_text'] ?? '')
+                        .toString()
+                        .toLowerCase();
+                    return st.contains('complete');
+                  }).toList();
                 } else if (listFilter == 'recent') {
                   stories = List<Map<String, dynamic>>.from(stories);
                   stories.sort((a, b) {
@@ -724,7 +773,6 @@ class _ManageStoriesTab extends StatelessWidget {
                     return bi.compareTo(ai);
                   });
                 }
-
 
                 // One card per story (never list same book twice after chapter saves)
                 final seenIds = <int>{};
@@ -847,11 +895,14 @@ class _StoryListCard extends StatelessWidget {
     final description = story['description']?.toString() ?? '';
     final genre = story['genre']?.toString() ?? '';
     final statusText = story['status_text']?.toString().trim() ?? 'Draft';
-    final coverPath = (story['cover_path'] ??
-            story['cover'] ??
-            (story['book'] is Map ? (story['book']['cover_path'] ?? '') : '') ??
-            '')
-        .toString();
+    final coverPath =
+        (story['cover_path'] ??
+                story['cover'] ??
+                (story['book'] is Map
+                    ? (story['book']['cover_path'] ?? '')
+                    : '') ??
+                '')
+            .toString();
     final ratingRaw = story['rating'];
     final rating = (ratingRaw is num)
         ? ratingRaw.toDouble()
@@ -907,12 +958,17 @@ class _StoryListCard extends StatelessWidget {
       statusBg = const Color(0xFFFEF3C7);
       statusFg = const Color(0xFFB45309);
     }
-    final coverPath = (story['cover_path'] ??
-            story['cover'] ??
-            (story['book'] is Map ? (story['book']['cover_path'] ?? '') : '') ??
-            '')
-        .toString();
-    final coverUrl = coverPath.isEmpty ? '' : apiService.resolveAssetUrl(coverPath);
+    final coverPath =
+        (story['cover_path'] ??
+                story['cover'] ??
+                (story['book'] is Map
+                    ? (story['book']['cover_path'] ?? '')
+                    : '') ??
+                '')
+            .toString();
+    final coverUrl = coverPath.isEmpty
+        ? ''
+        : apiService.resolveAssetUrl(coverPath);
 
     return Material(
       color: Colors.transparent,
@@ -1067,18 +1123,35 @@ class _StoryListCard extends StatelessWidget {
                   if (value == 'delete') onDelete();
                 },
                 itemBuilder: (_) {
-                  final st = (story['status_text'] ?? '').toString().toLowerCase();
+                  final st = (story['status_text'] ?? '')
+                      .toString()
+                      .toLowerCase();
                   final isDraft = st.contains('draft') || st.isEmpty;
                   final isComplete = st.contains('complete');
                   return [
-                    const PopupMenuItem(value: 'edit', child: Text('Edit details')),
-                    const PopupMenuItem(value: 'chapter', child: Text('Chapters')),
+                    const PopupMenuItem(
+                      value: 'edit',
+                      child: Text('Edit details'),
+                    ),
+                    const PopupMenuItem(
+                      value: 'chapter',
+                      child: Text('Chapters'),
+                    ),
                     if (!isDraft && !isComplete)
-                      const PopupMenuItem(value: 'complete', child: Text('Mark as Completed')),
+                      const PopupMenuItem(
+                        value: 'complete',
+                        child: Text('Mark as Completed'),
+                      ),
                     if (!isDraft && isComplete)
-                      const PopupMenuItem(value: 'ongoing', child: Text('Mark as Ongoing')),
+                      const PopupMenuItem(
+                        value: 'ongoing',
+                        child: Text('Mark as Ongoing'),
+                      ),
                     if (!isDraft)
-                      const PopupMenuItem(value: 'unpublish', child: Text('Unpublish (Draft)')),
+                      const PopupMenuItem(
+                        value: 'unpublish',
+                        child: Text('Unpublish (Draft)'),
+                      ),
                     const PopupMenuItem(value: 'delete', child: Text('Delete')),
                   ];
                 },

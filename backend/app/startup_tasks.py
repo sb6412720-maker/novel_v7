@@ -251,6 +251,10 @@ def _ensure_mysql_extra_tables(connection) -> int:
             ("reading_lists", "user_id", "ALTER TABLE reading_lists ADD COLUMN user_id INT NULL AFTER id"),
             ("library_entries", "user_id", "ALTER TABLE library_entries ADD COLUMN user_id INT NULL AFTER id"),
             ("book_reviews", "comment", "ALTER TABLE book_reviews ADD COLUMN comment TEXT NULL"),
+            ("book_reviews", "title", "ALTER TABLE book_reviews ADD COLUMN title VARCHAR(255) NULL"),
+            ("book_reviews", "plot_rating", "ALTER TABLE book_reviews ADD COLUMN plot_rating INT NULL"),
+            ("book_reviews", "style_rating", "ALTER TABLE book_reviews ADD COLUMN style_rating INT NULL"),
+            ("book_reviews", "tech_rating", "ALTER TABLE book_reviews ADD COLUMN tech_rating INT NULL"),
         ]
         for table, column, alter_sql in column_patches:
             try:

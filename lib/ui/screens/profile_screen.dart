@@ -77,6 +77,13 @@ class _ProfileScreenState extends State<ProfileScreen>
           : (viewId ?? 0);
 
       if (_isOwnProfile) {
+        if (me.isEmpty && targetId > 0) {
+          try {
+            // Hosted MySQL cold starts can make /api/me time out. The public
+            // profile endpoint still contains the saved profile fields.
+            me = await widget.apiService.fetchProfile(targetId);
+          } catch (_) {}
+        }
         if (me.isNotEmpty) {
           _userProfile = {
             ...me,
