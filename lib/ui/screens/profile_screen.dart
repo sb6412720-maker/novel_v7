@@ -1106,23 +1106,27 @@ class _ProfileScreenState extends State<ProfileScreen>
           const SizedBox(height: 8),
         ],
         const SizedBox(height: 12),
-        Text(
-          'About $_displayName',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.3,
+        // Bio is already shown below profile name in the header.
+        if (_aboutLong.isNotEmpty && _aboutLong != _bio) ...[
+          Text(
+            'More about me',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.2,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
           ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          _aboutLong,
-          style: TextStyle(
-            fontSize: 14,
-            height: 1.45,
-            color: Theme.of(context).colorScheme.onSurface,
+          const SizedBox(height: 8),
+          Text(
+            _aboutLong,
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.45,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
           ),
-        ),
+        ],
         if (_facebookUrl.isNotEmpty) ...[
           const SizedBox(height: 14),
           InkWell(

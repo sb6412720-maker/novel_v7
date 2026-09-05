@@ -52,7 +52,6 @@ class MoreScreen extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final name = session.displayName.isNotEmpty ? session.displayName : (data.profile.displayName.isNotEmpty ? data.profile.displayName : 'Reader');
     final email = session.email.isNotEmpty ? session.email : '';
-    final photo = (session.photoUrl != null && session.photoUrl!.isNotEmpty) ? session.photoUrl! : data.profile.photoUrl;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 28),
@@ -61,22 +60,12 @@ class MoreScreen extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           decoration: _card(isDark),
           child: Row(children: [
-            GestureDetector(
-              onTap: () => _openProfile(context),
-              child: CircleAvatar(
-                radius: 26,
-                backgroundColor: _purple.withValues(alpha: 0.15),
-                backgroundImage: photo.isNotEmpty ? NetworkImage(apiService.resolveAssetUrl(photo)) : null,
-                child: photo.isEmpty ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?', style: const TextStyle(color: _purple, fontWeight: FontWeight.w800, fontSize: 20)) : null,
-              ),
-            ),
-            const SizedBox(width: 12),
             Expanded(
               child: GestureDetector(
                 onTap: () => _openProfile(context),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                  if (email.isNotEmpty) Text(email, style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+                  Text(name, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: isDark ? Colors.white : null)),
+                  if (email.isNotEmpty) Text(email, style: TextStyle(color: isDark ? Colors.white70 : Colors.grey.shade600, fontSize: 13)),
                 ]),
               ),
             ),
@@ -117,7 +106,6 @@ class MoreScreen extends StatelessWidget {
         _sectionLabel('Support'),
         _menuCard(isDark, [
           _Item(Icons.help_outline, 'Help Center', () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => HelpCenterScreen(apiService: apiService)))),
-          _Item(Icons.chat_bubble_outline, 'Live Chat', () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => LiveChatScreen(apiService: apiService)))),
           _Item(Icons.mail_outline, 'Contact Us', () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ContactUsScreen(apiService: apiService, email: email)))),
         ]),
         const SizedBox(height: 12),
@@ -144,7 +132,10 @@ class MoreScreen extends StatelessWidget {
 
   BoxDecoration _card(bool isDark) => BoxDecoration(color: isDark ? const Color(0xFF121212) : Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? Colors.white24 : const Color(0xFFE9E4F5)));
   Widget _sectionLabel(String t) => Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text(t, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.grey.shade600, letterSpacing: 0.3)));
-  Widget _themeChip(String label, bool selected, VoidCallback onTap) => Expanded(child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(20), child: Container(padding: const EdgeInsets.symmetric(vertical: 10), alignment: Alignment.center, decoration: BoxDecoration(color: selected ? _purple : Colors.transparent, borderRadius: BorderRadius.circular(20), border: Border.all(color: selected ? _purple : const Color(0xFFE9E4F5))), child: Text(label, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: selected ? Colors.white : AppTheme.ink)))));
+  Widget _themeChip(String label, bool selected, VoidCallback onTap) => Expanded(child: Builder(builder: (context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return InkWell(onTap: onTap, borderRadius: BorderRadius.circular(20), child: Container(padding: const EdgeInsets.symmetric(vertical: 10), alignment: Alignment.center, decoration: BoxDecoration(color: selected ? _purple : Colors.transparent, borderRadius: BorderRadius.circular(20), border: Border.all(color: selected ? _purple : (isDark ? Colors.white24 : const Color(0xFFE9E4F5)))), child: Text(label, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: selected ? Colors.white : (isDark ? Colors.white : AppTheme.ink)))));
+  }));
   Widget _menuCard(bool isDark, List<_Item> items) => Container(decoration: _card(isDark), child: Column(children: [
     for (var i = 0; i < items.length; i++) ...[
       ListTile(leading: Icon(items[i].icon, color: items[i].danger ? const Color(0xFFE53935) : _purple), title: Text(items[i].label, style: TextStyle(fontWeight: FontWeight.w600, color: items[i].danger ? const Color(0xFFE53935) : null)), trailing: items[i].danger ? null : const Icon(Icons.chevron_right, size: 20), onTap: items[i].onTap),

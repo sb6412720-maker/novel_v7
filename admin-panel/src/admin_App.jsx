@@ -59,6 +59,7 @@ const NAV = [
   { id: "moderation", label: "Content Moderation", icon: "◎" },
   { id: "announcements", label: "Announcements", icon: "◎" },
   { id: "chat", label: "Live Chat", icon: "▰" },
+  { id: "support", label: "Contact Us", icon: "✉" },
   { id: "settings", label: "Settings", icon: "⚙" },
 ];
 
@@ -625,6 +626,16 @@ export default function App() {
             />
           )}
           {page === "chat" && <AdminChatPage />}
+          {page === "support" && (
+            <SupportRequestsPage
+              items={supportRequests}
+              onUpdate={async (id, payload) => {
+                await updateSupportRequest(id, payload);
+                toast("Support request updated");
+                loadAll();
+              }}
+            />
+          )}
           {page === "settings" && (
             <SettingsPage
               categories={categories}
@@ -1734,6 +1745,82 @@ function NotifModal({ item, onClose, onSave }) {
           <button type="button" className="btn" onClick={onClose}>Cancel</button>
           <button type="button" className="btn btn-primary" onClick={() => onSave(form)}>Save</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function SupportRequestsPage({ items = [], onUpdate }) {
+  const list = Array.isArray(items) ? items : [];
+  return (
+    <div className="page-body">
+      <div className="page-header-row">
+        <h2>Contact Us messages</h2>
+        <span className="muted">{list.length} total</span>
+      </div>
+      <div className="table-wrap">
+        <table className="data">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>From</th>
+              <th>Subject</th>
+              <th>Issue</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.map((r) => (
+              <tr key={r.id}>
+                <td>{r.id}</td>
+                <td>
+                  <div>{r.first_name || "—"}</div>
+                  <div className="muted" style={{ fontSize: "0.8rem" }}>{r.email || ""}</div>
+                </td>
+                <td>{r.subject || "—"}</td>
+                <td>
+                  <div>{r.issue || "—"}</div>
+                  <div className="muted" style={{ fontSize: "0.8rem", maxWidth: 280, whiteSpace: "pre-wrap" }}>
+                    {(r.description || "").slice(0, 180)}
+                    {(r.description || "").length > 180 ? "…" : ""}
+                  </div>
+                </td>
+                <td>
+                  <span className={`badge ${String(r.status || "").toLowerCase() === "resolved" ? "ok" : "warn"}`}>
+                    {r.status || "open"}
+                  </span>
+                </td>
+                <td>{r.created_at || "—"}</td>
+                <td style={{ whiteSpace: "nowrap" }}>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => onUpdate?.(r.id, { status: "resolved" })}
+                  >
+                    Mark resolved
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    style={{ marginLeft: 6 }}
+                    onClick={() => onUpdate?.(r.id, { status: "open" })}
+                  >
+                    Reopen
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {list.length === 0 && (
+              <tr>
+                <td colSpan={7} className="empty">
+                  No Contact Us messages yet
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );

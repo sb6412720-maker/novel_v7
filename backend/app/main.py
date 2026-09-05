@@ -62,7 +62,7 @@ _DEFAULT_CORS = [
 _extra = [s.strip() for s in os.getenv("CORS_ORIGINS", "").split(",") if s.strip()]
 _CORS_ORIGINS = list(dict.fromkeys(_DEFAULT_CORS + _extra))
 # Allow any Vercel preview/deployment for this project family (admin + web)
-_CORS_ORIGIN_REGEX = r"https://novel-v7[a-z0-9-]*\.vercel\.app"
+_CORS_ORIGIN_REGEX = r"https://.*\.vercel\.app|http://localhost(:\\d+)?|http://127\.0\.0\.1(:\\d+)?"
 
 app.add_middleware(
     CORSMiddleware,
