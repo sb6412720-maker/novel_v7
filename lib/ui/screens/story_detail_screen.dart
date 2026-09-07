@@ -1681,7 +1681,11 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
             const SizedBox(height: 6),
             Text(
               '"$body"',
-              style: TextStyle(color: Colors.grey.shade800, height: 1.4),
+              style: TextStyle(
+                color: Colors.grey.shade800,
+                height: 1.4,
+                fontSize: 13, // match Save / action row text size
+              ),
             ),
           ],
           const SizedBox(height: 10),

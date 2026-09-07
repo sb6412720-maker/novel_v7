@@ -670,21 +670,31 @@ def run_startup_tasks() -> dict[str, Any]:
         LOGGER.warning("quick books count failed: %s", count_exc)
         book_count = 0
 
-    # Always auto-run safe SQL scripts + schema ensures (idempotent).
+    # Auto-run safe SQL scripts. On Vercel this is the primary cause of 60s
+    # timeouts (remote Aiven + many statements). Skip when books already exist
+    # unless FORCE_SQL_SCRIPTS=1. Schema ensures still run on the fast path.
     auto_migrate = _os.getenv("AUTO_RUN_DB_MIGRATIONS", "true").strip().lower() in ("1", "true", "yes")
+    on_vercel = bool(_os.getenv("VERCEL") or _os.getenv("VERCEL_ENV"))
+    force_sql = _os.getenv("FORCE_SQL_SCRIPTS", "").strip().lower() in ("1", "true", "yes")
     if auto_migrate:
-        try:
-            result["sql_scripts"] = _apply_safe_sql_scripts()
-            LOGGER.info("Auto SQL scripts: %s", result["sql_scripts"])
-        except Exception as sql_exc:
-            LOGGER.warning("Auto SQL scripts failed: %s", sql_exc)
-            result["sql_scripts_error"] = str(sql_exc)
+        if on_vercel and book_count > 0 and not force_sql:
+            result["sql_scripts"] = {
+                "skipped": True,
+                "reason": "vercel_cold_start_books_present",
+                "books": book_count,
+            }
+            LOGGER.info("Auto SQL scripts skipped on Vercel (books=%s)", book_count)
+        else:
+            try:
+                result["sql_scripts"] = _apply_safe_sql_scripts()
+                LOGGER.info("Auto SQL scripts: %s", result["sql_scripts"])
+            except Exception as sql_exc:
+                LOGGER.warning("Auto SQL scripts failed: %s", sql_exc)
+                result["sql_scripts_error"] = str(sql_exc)
 
     if book_count > 0:
-        # Keep Vercel cold starts lightweight. The extra-table/column repair below
-        # covers the live API contract; full seed migrations remain on the empty-DB
-        # path or can be explicitly requested for maintenance jobs.
-        if auto_migrate and not _FULL_STARTUP_MIGRATIONS_DONE:
+        # Keep Vercel cold starts lightweight. Skip heavy migrations when already populated.
+        if auto_migrate and not _FULL_STARTUP_MIGRATIONS_DONE and not on_vercel:
             try:
                 result["migrations"] = run_startup_migrations()
                 from .database import force_seed_if_empty
@@ -693,6 +703,9 @@ def run_startup_tasks() -> dict[str, Any]:
                 _FULL_STARTUP_MIGRATIONS_DONE = True
             except Exception as migration_exc:
                 LOGGER.warning("fast_path migrations skipped: %s", migration_exc)
+        elif on_vercel:
+            _FULL_STARTUP_MIGRATIONS_DONE = True
+            result["migrations"] = {"skipped": True, "reason": "vercel_fast_path"}
         try:
             _apply_runtime_patches()
             result["patches_applied"] = True

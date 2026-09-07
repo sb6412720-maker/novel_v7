@@ -30,13 +30,14 @@ class RootShell extends StatefulWidget {
 class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   final ApiService _apiService = ApiService();
   late final AuthService _authService = AuthService(apiService: _apiService);
-  int _selectedIndex = 1; // Discover by default for read-only visitors
+  int _selectedIndex = 1; // Discover after successful login
   AppBootstrap? _bootstrap;
   bool _loading = true;
   String _contentVersion = '';
   Timer? _syncTimer;
   AuthSession? _session;
-  bool _showLoginOverlay = false;
+  // Open app → login first (until a real session is restored from storage).
+  bool _showLoginOverlay = true;
 
   /// Once true, never show complete-profile again this session (home already reached).
   bool _profileGatePassed = false;

@@ -1927,9 +1927,14 @@ def get_connection():
     if mysql_connector is None:
         raise RuntimeError("mysql.connector is not installed; install mysql-connector-python to use MySQL mode")
 
-    timeout_s = int(os.getenv("MYSQL_CONNECT_TIMEOUT", "8"))
-    read_timeout_s = int(os.getenv("MYSQL_READ_TIMEOUT", "25"))
-    write_timeout_s = int(os.getenv("MYSQL_WRITE_TIMEOUT", "25"))
+    # On Vercel serverless, fail fast so the function can return 504/retry
+    # instead of hanging the whole 60s budget on a stuck DB socket.
+    on_vercel = bool(os.getenv("VERCEL") or os.getenv("VERCEL_ENV"))
+    default_connect = "5" if on_vercel else "8"
+    default_rw = "12" if on_vercel else "25"
+    timeout_s = int(os.getenv("MYSQL_CONNECT_TIMEOUT", default_connect))
+    read_timeout_s = int(os.getenv("MYSQL_READ_TIMEOUT", default_rw))
+    write_timeout_s = int(os.getenv("MYSQL_WRITE_TIMEOUT", default_rw))
     kwargs = dict(
         host=os.getenv("MYSQL_HOST", "127.0.0.1"),
         port=int(os.getenv("MYSQL_PORT", "3306")),
@@ -1943,7 +1948,7 @@ def get_connection():
     )
 
     last_exc = None
-    retries = max(1, int(os.getenv("MYSQL_CONNECT_RETRIES", "1")))
+    retries = max(1, int(os.getenv("MYSQL_CONNECT_RETRIES", "1" if on_vercel else "2")))
     for attempt in range(retries):
         try:
             try:
@@ -1959,7 +1964,7 @@ def get_connection():
             last_exc = exc
             if attempt + 1 < retries:
                 import time as _t
-                _t.sleep(0.4 * (attempt + 1))
+                _t.sleep(0.25 * (attempt + 1))
     raise last_exc
 
 def force_seed_if_empty() -> dict[str, int]:
