@@ -1465,10 +1465,7 @@ def _find_user_id_by_email(email: str) -> int | None:
 
 @app.post("/api/auth/google")
 def authenticate_google(payload: GoogleAuthRequest):
-    try:
-        _ensure_profile_extra_columns()
-    except Exception as exc:
-        LOGGER.warning("google auth ensure profile cols: %s", exc)
+    # Schema columns already ensured at deploy/startup — skip on hot path (cold-start 504).
     google_user = _verify_google_payload(payload)
     email = (google_user.get("email") or "").strip().lower()
     if not email:
@@ -1952,10 +1949,8 @@ def authenticate_guest(_: GuestAuthRequest):
 
 @app.get("/api/me")
 def get_me(user: dict[str, Any] = Depends(require_user)):
-    try:
-        _ensure_profile_extra_columns()
-    except Exception:
-        pass
+    """Fast profile for app shell — few queries, no schema ensure on hot path."""
+    uid = user["user_id"]
     try:
         rows = fetch_all(
             """SELECT id, email, username, display_name, photo_url, cover_url, bio, provider,
@@ -1963,50 +1958,50 @@ def get_me(user: dict[str, Any] = Depends(require_user)):
                       COALESCE(profile_complete,0) AS profile_complete,
                       COALESCE(is_author,0) AS is_author
                FROM app_users WHERE id=%s LIMIT 1""",
-            (user["user_id"],),
+            (uid,),
         )
     except Exception:
-        try:
-            rows = fetch_all(
-                """SELECT id, email, username, display_name, photo_url, cover_url, bio, provider,
-                          gender, birth_date, country, facebook_url,
-                          COALESCE(profile_complete,0) AS profile_complete
-                   FROM app_users WHERE id=%s LIMIT 1""",
-                (user["user_id"],),
-            )
-        except Exception:
-            rows = fetch_all(
-                "SELECT id, email, display_name, photo_url, cover_url, bio, provider, gender, birth_date, COALESCE(profile_complete,0) AS profile_complete FROM app_users WHERE id=%s LIMIT 1",
-                (user["user_id"],),
-            )
+        rows = fetch_all(
+            "SELECT id, email, display_name, photo_url, cover_url, bio, provider, "
+            "COALESCE(profile_complete,0) AS profile_complete FROM app_users WHERE id=%s LIMIT 1",
+            (uid,),
+        )
     if not rows:
         raise HTTPException(status_code=404, detail="User not found")
     u = rows[0]
-    story_count_rows = fetch_all(
-        "SELECT COUNT(*) AS c FROM books WHERE user_id=%s",
-        (user["user_id"],),
-    )
-    library_count_rows = fetch_all(
-        "SELECT COUNT(*) AS c FROM library_entries WHERE user_id=%s",
-        (user["user_id"],),
-    )
-    reading_list_count_rows = fetch_all(
-        "SELECT COUNT(*) AS c FROM reading_lists WHERE user_id=%s",
-        (user["user_id"],),
-    )
-    completed_rows = fetch_all(
-        """
-        SELECT COUNT(*) AS c FROM library_entries
-        WHERE user_id=%s AND LOWER(reading_status) IN ('completed', 'complete', 'finished', 'done')
-        """,
-        (user["user_id"],),
-    )
-    story_count = int(story_count_rows[0]["c"]) if story_count_rows else 0
-    library_count = int(library_count_rows[0]["c"]) if library_count_rows else 0
-    reading_list_count = int(reading_list_count_rows[0]["c"]) if reading_list_count_rows else 0
-    completed_count = int(completed_rows[0]["c"]) if completed_rows else 0
-    followers = _count_followers(user["user_id"])
-    following = _count_following(user["user_id"])
+
+    # One round-trip for counts (instead of 4–6 sequential queries)
+    story_count = library_count = reading_list_count = completed_count = 0
+    followers = following = 0
+    try:
+        count_rows = fetch_all(
+            """
+            SELECT
+              (SELECT COUNT(*) FROM books WHERE user_id=%s) AS story_count,
+              (SELECT COUNT(*) FROM library_entries WHERE user_id=%s) AS library_count,
+              (SELECT COUNT(*) FROM reading_lists WHERE user_id=%s) AS reading_list_count,
+              (SELECT COUNT(*) FROM library_entries
+                 WHERE user_id=%s
+                   AND LOWER(COALESCE(reading_status,'')) IN ('completed','complete','finished','done')
+              ) AS completed_count
+            """,
+            (uid, uid, uid, uid),
+        )
+        if count_rows:
+            cr = count_rows[0]
+            story_count = int(_row_get(cr, "story_count") or 0)
+            library_count = int(_row_get(cr, "library_count") or 0)
+            reading_list_count = int(_row_get(cr, "reading_list_count") or 0)
+            completed_count = int(_row_get(cr, "completed_count") or 0)
+    except Exception as exc:
+        LOGGER.warning("get_me counts soft-fail: %s", exc)
+
+    try:
+        followers = _count_followers(uid)
+        following = _count_following(uid)
+    except Exception:
+        pass
+
     display_name = _row_get(u, "display_name") or (_row_get(u, "email") or "Reader").split("@")[0]
     username = "@" + display_name.lower().replace(" ", "")
     return {
@@ -2029,7 +2024,7 @@ def get_me(user: dict[str, Any] = Depends(require_user)):
         "library_count": library_count,
         "reading_list_count": reading_list_count,
         "gender": _row_get(u, "gender") or "",
-        "birth_date": _row_get(u, "birth_date") or "",
+        "birth_date": str(_row_get(u, "birth_date") or ""),
         "country": _row_get(u, "country") or "",
         "facebook_url": _row_get(u, "facebook_url") or "",
         "profile_complete": bool(int(_row_get(u, "profile_complete") or 0)),
@@ -2514,7 +2509,7 @@ def bootstrap(user: dict[str, Any] | None = Depends(optional_user)):
                     AND LOWER(TRIM(COALESCE(b.status_text, ''))) NOT LIKE 'unpublish%'
                     AND LOWER(TRIM(COALESCE(b.status_text, ''))) NOT IN ('private', 'unlisted')
         ORDER BY b.sort_order ASC, b.id DESC
-        LIMIT 80
+        LIMIT 48
         """
     )
 
