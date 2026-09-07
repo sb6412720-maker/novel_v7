@@ -1287,47 +1287,61 @@ def healthcheck():
 
 @app.on_event("startup")
 def startup_initialize_database():
+    """Auto-run migrations, safe SQL scripts, schema ensures, and seeds on every boot.
+
+    Controlled by AUTO_RUN_DB_MIGRATIONS (default true). All ensures are idempotent
+    (CREATE IF NOT EXISTS / ADD COLUMN with ignore-duplicate).
+    """
     try:
         from .startup_tasks import run_startup_tasks
 
-        # password_hash column: only on slow path (empty DB). Fast path skips ALTERs.
         summary = run_startup_tasks()
         LOGGER.info("Startup tasks summary: %s", summary)
 
-        # Extra counts / re-seed only when the DB looked empty
-        if not summary.get("fast_path"):
+        # Always run full set of schema ensures (safe on existing Aiven MySQL).
+        ensure_fns = [
+            _ensure_password_hash_column,
+            _ensure_auth_profile_columns,
+            _ensure_profile_extra_columns,
+            _ensure_user_moderation_columns,
+            _ensure_support_request_columns,
+            _ensure_user_support_notifications_table,
+            _ensure_user_preferences_table,
+            _ensure_media_table,
+            _ensure_library_entries_table,
+            _ensure_book_likes_table,
+            _ensure_chapter_comments_table,
+            _ensure_author_follows_table,
+            _ensure_author_follows_columns,
+            _ensure_tag_follows_table,
+            _ensure_book_meta_columns,
+            _ensure_book_view_count_column,
+            _ensure_wall_posts_table,
+            _ensure_wall_post_likes_table,
+            _ensure_default_write_screen,
+            _ensure_default_profile,
+        ]
+        for fn in ensure_fns:
             try:
-                _ensure_password_hash_column()
+                fn()
             except Exception as col_exc:
-                LOGGER.warning("password_hash column ensure failed: %s", col_exc)
-            try:
-                _ensure_support_request_columns()
-                _ensure_user_support_notifications_table()
-                _ensure_user_preferences_table()
-            except Exception as col_exc:
-                LOGGER.warning("support/prefs column ensure failed: %s", col_exc)
-            try:
-                books = fetch_all("SELECT COUNT(*) AS c FROM books")
-                def _c(rows):
-                    if not rows:
-                        return 0
-                    r = rows[0]
-                    if isinstance(r, dict):
-                        return int(r.get("c") or list(r.values())[0] or 0)
-                    return int(r[0])
-                LOGGER.info("DB ready books=%s", _c(books))
-            except Exception as count_exc:
-                LOGGER.exception("Post-startup count check failed: %s", count_exc)
+                LOGGER.warning("startup ensure %s failed: %s", getattr(fn, "__name__", fn), col_exc)
+
+        try:
+            books = fetch_all("SELECT COUNT(*) AS c FROM books")
+            def _c(rows):
+                if not rows:
+                    return 0
+                r = rows[0]
+                if isinstance(r, dict):
+                    return int(r.get("c") or list(r.values())[0] or 0)
+                return int(r[0])
+            LOGGER.info("DB ready books=%s", _c(books))
+        except Exception as count_exc:
+            LOGGER.exception("Post-startup count check failed: %s", count_exc)
 
         try:
             _content_version_row()
-        except Exception:
-            pass
-        # Lightweight ensures even on fast path
-        try:
-            _ensure_support_request_columns()
-            _ensure_user_support_notifications_table()
-            _ensure_user_preferences_table()
         except Exception:
             pass
     except DB_INIT_EXCEPTIONS as exc:

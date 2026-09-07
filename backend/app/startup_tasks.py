@@ -192,6 +192,82 @@ def _ensure_mysql_extra_tables(connection) -> int:
             """,
         ),
         (
+            "chapter_comment_likes",
+            """
+            CREATE TABLE IF NOT EXISTS chapter_comment_likes (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                comment_id INT NOT NULL,
+                user_id INT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_ccl (comment_id, user_id),
+                INDEX idx_ccl_comment (comment_id)
+            )
+            """,
+        ),
+        (
+            "user_support_notifications",
+            """
+            CREATE TABLE IF NOT EXISTS user_support_notifications (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                support_request_id INT NULL,
+                title VARCHAR(255) NOT NULL DEFAULT '',
+                message TEXT NOT NULL,
+                is_read TINYINT(1) NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_usn_user (user_id)
+            )
+            """,
+        ),
+        (
+            "user_preferences",
+            """
+            CREATE TABLE IF NOT EXISTS user_preferences (
+                user_id INT PRIMARY KEY,
+                prefs_json TEXT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+            """,
+        ),
+        (
+            "media_assets",
+            """
+            CREATE TABLE IF NOT EXISTS media_assets (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NULL,
+                filename VARCHAR(255) NOT NULL,
+                content_type VARCHAR(120) NULL,
+                data LONGBLOB NULL,
+                path VARCHAR(512) NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """,
+        ),
+        (
+            "wall_post_likes",
+            """
+            CREATE TABLE IF NOT EXISTS wall_post_likes (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                post_id INT NOT NULL,
+                user_id INT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_wpl (post_id, user_id)
+            )
+            """,
+        ),
+        (
+            "tag_follows",
+            """
+            CREATE TABLE IF NOT EXISTS tag_follows (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                tag_id INT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_tf (user_id, tag_id)
+            )
+            """,
+        ),
+        (
             "reading_list_items",
             """
             CREATE TABLE IF NOT EXISTS reading_list_items (
@@ -469,6 +545,86 @@ def _apply_runtime_patches() -> None:
         LOGGER.warning("Runtime patches not applied: %s", exc)
 
 
+def _apply_safe_sql_scripts() -> dict[str, Any]:
+    """Auto-run non-destructive .sql files under backend/sql on startup.
+
+    Skips any file that contains DROP DATABASE / DROP TABLE without IF EXISTS
+    combined with destructive full rebuild patterns.
+    """
+    report: dict[str, Any] = {"files": [], "statements_ok": 0, "errors": []}
+    try:
+        sql_dir = Path(__file__).resolve().parent.parent / "sql"
+        if not sql_dir.is_dir():
+            report["skipped"] = "no_sql_dir"
+            return report
+        # Prefer setup.sql style schema; never run setup_v2 (DROP DATABASE)
+        skip_names = {
+            "setup_v2.sql",
+            "unlock_users.sql",  # admin one-off, not schema
+            "fix_stale_cover_paths.sql",  # destructive data fix — opt-in only
+        }
+        files = sorted(sql_dir.glob("*.sql"))
+        conn = get_connection()
+        try:
+            cursor = conn.cursor()
+            for path in files:
+                name = path.name
+                if name in skip_names:
+                    report["files"].append({"file": name, "status": "skipped_destructive"})
+                    continue
+                raw = path.read_text(encoding="utf-8", errors="ignore")
+                upper = raw.upper()
+                if "DROP DATABASE" in upper:
+                    report["files"].append({"file": name, "status": "skipped_drop_database"})
+                    continue
+                # Split on semicolons; keep CREATE/ALTER/INSERT safe statements
+                ok = 0
+                err = 0
+                for stmt in raw.split(";"):
+                    s = stmt.strip()
+                    if not s or s.startswith("--"):
+                        continue
+                    # strip leading comment lines
+                    lines = [ln for ln in s.splitlines() if not ln.strip().startswith("--")]
+                    s = "\n".join(lines).strip()
+                    if not s:
+                        continue
+                    su = s.upper()
+                    if su.startswith("USE ") or su.startswith("DROP DATABASE"):
+                        continue
+                    if su.startswith("DROP TABLE") and "IF EXISTS" not in su:
+                        continue
+                    try:
+                        cursor.execute(s)
+                        ok += 1
+                        report["statements_ok"] += 1
+                    except Exception as stmt_exc:
+                        err += 1
+                        # Idempotent schema: duplicate column/table is fine
+                        msg = str(stmt_exc).lower()
+                        if any(x in msg for x in ("already exists", "duplicate", "exists")):
+                            ok += 1
+                            report["statements_ok"] += 1
+                        else:
+                            report["errors"].append({"file": name, "error": str(stmt_exc)[:200]})
+                try:
+                    conn.commit()
+                except Exception:
+                    pass
+                report["files"].append({"file": name, "status": "applied", "ok": ok, "err": err})
+            cursor.close()
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+    except Exception as exc:
+        report["errors"].append({"file": "*", "error": str(exc)[:300]})
+        LOGGER.warning("apply_safe_sql_scripts failed: %s", exc)
+    return report
+
+
+
 def run_startup_tasks() -> dict[str, Any]:
     """Startup for serverless: finish in seconds when DB already has data.
 
@@ -514,11 +670,20 @@ def run_startup_tasks() -> dict[str, Any]:
         LOGGER.warning("quick books count failed: %s", count_exc)
         book_count = 0
 
+    # Always auto-run safe SQL scripts + schema ensures (idempotent).
+    auto_migrate = _os.getenv("AUTO_RUN_DB_MIGRATIONS", "true").strip().lower() in ("1", "true", "yes")
+    if auto_migrate:
+        try:
+            result["sql_scripts"] = _apply_safe_sql_scripts()
+            LOGGER.info("Auto SQL scripts: %s", result["sql_scripts"])
+        except Exception as sql_exc:
+            LOGGER.warning("Auto SQL scripts failed: %s", sql_exc)
+            result["sql_scripts_error"] = str(sql_exc)
+
     if book_count > 0:
         # Keep Vercel cold starts lightweight. The extra-table/column repair below
         # covers the live API contract; full seed migrations remain on the empty-DB
         # path or can be explicitly requested for maintenance jobs.
-        auto_migrate = _os.getenv("AUTO_RUN_DB_MIGRATIONS", "true").strip().lower() in ("1", "true", "yes")
         if auto_migrate and not _FULL_STARTUP_MIGRATIONS_DONE:
             try:
                 result["migrations"] = run_startup_migrations()
