@@ -5842,7 +5842,7 @@ def create_book_review(
 @app.put("/api/books/{book_id}/reviews/mine")
 def update_my_book_review(
     book_id: int,
-    payload: BookReviewCreateRequest,
+    payload: ReviewCreateRequest,
     user: dict[str, Any] = Depends(require_user),
 ):
     """Edit the current user's review on a book."""

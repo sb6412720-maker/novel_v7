@@ -3,11 +3,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../core/theme/app_theme.dart';
 import '../../data/services/api_service.dart';
 import 'email_verify_screen.dart';
 
-/// Create Account — purple theme matching login / home UI.
+/// Create Account — pixel-matched to product mock (purple theme).
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({
     super.key,
@@ -131,7 +130,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     if (!_agreed) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please agree to Privacy Policy and Terms')),
+        const SnackBar(
+          content: Text('Please agree to Privacy Policy and Terms'),
+        ),
       );
       return;
     }
@@ -159,7 +160,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
         'profile_complete': true,
       });
 
-      // Optional email verify flow
       final needsVerify = result['needs_verification'] == true;
       if (needsVerify && mounted) {
         await Navigator.of(context).push(
@@ -183,9 +183,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$e')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -218,7 +216,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       prefixIcon: Icon(icon, color: _purple, size: 22),
       suffixIcon: suffix,
       filled: true,
-      fillColor: const Color(0xFFF7F5FC),
+      fillColor: const Color(0xFFF5F3FF),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
@@ -226,7 +224,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: Color(0xFFE8E4F5)),
+        borderSide: const BorderSide(color: Color(0xFFEDE9FE)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
@@ -242,8 +240,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
       body: SafeArea(
         child: Column(
           children: [
+            // Top bar: back + avatar (mock layout)
             Padding(
-              padding: const EdgeInsets.fromLTRB(8, 4, 16, 0),
+              padding: const EdgeInsets.fromLTRB(4, 4, 20, 0),
               child: Row(
                 children: [
                   IconButton(
@@ -254,26 +253,36 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   GestureDetector(
                     onTap: _busy ? null : _pickPhoto,
                     child: Stack(
+                      clipBehavior: Clip.none,
                       children: [
                         CircleAvatar(
-                          radius: 28,
+                          radius: 32,
                           backgroundColor: const Color(0xFFEDE9FE),
                           backgroundImage:
                               _photo != null ? FileImage(_photo!) : null,
                           child: _photo == null
-                              ? const Icon(Icons.person, color: _purple, size: 32)
+                              ? const Icon(
+                                  Icons.person_rounded,
+                                  color: _purple,
+                                  size: 36,
+                                )
                               : null,
                         ),
                         Positioned(
-                          right: 0,
-                          bottom: 0,
+                          right: -2,
+                          bottom: -2,
                           child: Container(
-                            padding: const EdgeInsets.all(3),
+                            width: 22,
+                            height: 22,
                             decoration: const BoxDecoration(
                               color: _purple,
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(Icons.add, size: 14, color: Colors.white),
+                            child: const Icon(
+                              Icons.add,
+                              size: 14,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ],
@@ -284,7 +293,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
             ),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(22, 8, 22, 28),
+                padding: const EdgeInsets.fromLTRB(22, 12, 22, 28),
                 child: Form(
                   key: _formKey,
                   child: Column(
@@ -301,7 +310,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       const SizedBox(height: 6),
                       Text(
                         'Sign up and start your journey with us',
-                        style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 14,
+                        ),
                       ),
                       const SizedBox(height: 22),
                       TextFormField(
@@ -310,19 +322,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         decoration: _deco(
                           label: 'Name',
                           hint: 'Enter your full name',
-                          icon: Icons.person_outline,
+                          icon: Icons.person_outline_rounded,
                         ),
                         validator: (v) =>
                             (v ?? '').trim().isEmpty ? 'Enter your name' : null,
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 14),
                       TextFormField(
                         controller: _userCtrl,
                         textInputAction: TextInputAction.next,
                         decoration: _deco(
                           label: 'User ID',
                           hint: 'Choose a user ID',
-                          icon: Icons.alternate_email,
+                          icon: Icons.alternate_email_rounded,
                         ),
                         validator: (v) {
                           final t = (v ?? '').trim().replaceAll('@', '');
@@ -330,7 +342,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           return null;
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 14),
                       TextFormField(
                         controller: _emailCtrl,
                         keyboardType: TextInputType.emailAddress,
@@ -346,7 +358,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           return null;
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 14),
                       InkWell(
                         onTap: _pickBirthday,
                         borderRadius: BorderRadius.circular(14),
@@ -355,7 +367,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             label: 'Birthday',
                             hint: 'Select your birthday',
                             icon: Icons.calendar_today_outlined,
-                            suffix: const Icon(Icons.event, color: _purple),
+                            suffix: const Icon(Icons.event, color: _purple, size: 20),
                           ),
                           child: Text(
                             _birthDate == null
@@ -365,11 +377,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               color: _birthDate == null
                                   ? Colors.grey.shade600
                                   : const Color(0xFF1A1A2E),
+                              fontSize: 15,
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 14),
                       DropdownButtonFormField<String>(
                         value: _gender,
                         isExpanded: true,
@@ -385,7 +398,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         validator: (v) =>
                             v == null || v.isEmpty ? 'Select sex' : null,
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 14),
                       DropdownButtonFormField<String>(
                         value: _country,
                         isExpanded: true,
@@ -399,7 +412,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             .toList(),
                         onChanged: (v) => setState(() => _country = v),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 14),
                       TextFormField(
                         controller: _passCtrl,
                         obscureText: _obscure,
@@ -407,7 +420,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         decoration: _deco(
                           label: 'New Password',
                           hint: 'Create a new password',
-                          icon: Icons.lock_outline,
+                          icon: Icons.lock_outline_rounded,
                           suffix: IconButton(
                             icon: Icon(
                               _obscure
@@ -421,14 +434,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         ),
                         validator: _validatePassword,
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 14),
                       TextFormField(
                         controller: _pass2Ctrl,
                         obscureText: _obscure2,
                         decoration: _deco(
                           label: 'Re-enter Password',
                           hint: 'Re-enter your password',
-                          icon: Icons.lock_outline,
+                          icon: Icons.lock_outline_rounded,
                           suffix: IconButton(
                             icon: Icon(
                               _obscure2
@@ -445,50 +458,54 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           return null;
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 10),
                       Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          Checkbox(
-                            value: _agreed,
-                            activeColor: _purple,
-                            onChanged: (v) =>
-                                setState(() => _agreed = v ?? false),
+                          SizedBox(
+                            width: 28,
+                            height: 28,
+                            child: Checkbox(
+                              value: _agreed,
+                              activeColor: _purple,
+                              materialTapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap,
+                              onChanged: (v) =>
+                                  setState(() => _agreed = v ?? false),
+                            ),
                           ),
+                          const SizedBox(width: 6),
                           Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.only(top: 12),
-                              child: Text.rich(
-                                TextSpan(
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.grey.shade700,
-                                  ),
-                                  children: const [
-                                    TextSpan(text: 'I agree to the '),
-                                    TextSpan(
-                                      text: 'Privacy Policy',
-                                      style: TextStyle(
-                                        color: _purple,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    TextSpan(text: ' and '),
-                                    TextSpan(
-                                      text: 'Terms of Service',
-                                      style: TextStyle(
-                                        color: _purple,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
+                            child: Text.rich(
+                              TextSpan(
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey.shade700,
                                 ),
+                                children: const [
+                                  TextSpan(text: 'I agree to the '),
+                                  TextSpan(
+                                    text: 'Privacy Policy',
+                                    style: TextStyle(
+                                      color: _purple,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  TextSpan(text: ' and '),
+                                  TextSpan(
+                                    text: 'Terms of Service',
+                                    style: TextStyle(
+                                      color: _purple,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 14),
                       SizedBox(
                         height: 52,
                         child: FilledButton(
@@ -498,6 +515,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(28),
                             ),
+                            elevation: 0,
                           ),
                           child: _busy
                               ? const SizedBox(
@@ -515,39 +533,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                     fontSize: 16,
                                   ),
                                 ),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      Row(
-                        children: [
-                          const Expanded(child: Divider()),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            child: Text(
-                              'or continue with',
-                              style: TextStyle(
-                                color: Colors.grey.shade600,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                          const Expanded(child: Divider()),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      SizedBox(
-                        height: 52,
-                        child: OutlinedButton.icon(
-                          onPressed: _busy ? null : _google,
-                          icon: const Icon(Icons.g_mobiledata_rounded, size: 28),
-                          label: const Text('Continue with Google'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: _purple,
-                            side: const BorderSide(color: Color(0xFFE8E4F5)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(28),
-                            ),
-                          ),
                         ),
                       ),
                       const SizedBox(height: 18),
@@ -569,6 +554,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             ),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 12),
+                      Center(
+                        child: TextButton.icon(
+                          onPressed: _busy ? null : _google,
+                          icon: const Icon(Icons.g_mobiledata_rounded, size: 28),
+                          label: const Text('Continue with Google'),
+                          style: TextButton.styleFrom(foregroundColor: _purple),
+                        ),
                       ),
                     ],
                   ),
