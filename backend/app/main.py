@@ -2132,7 +2132,11 @@ def update_me(
     payload: ProfileUpdateRequest,
     user: dict[str, Any] = Depends(require_user),
 ):
-    """Persist profile fields into app_users (database is source of truth)."""
+    """Persist profile fields into app_users (database is source of truth).
+
+    Uses a single multi-column UPDATE to stay fast on Vercel cold starts /
+    free-tier MySQL (Aiven), instead of one round-trip per field.
+    """
     uid = int(user["user_id"])
     try:
         _ensure_profile_extra_columns()
@@ -2144,19 +2148,15 @@ def update_me(
         except Exception as exc:
             LOGGER.warning("ensure username column: %s", exc)
 
-    # Apply fields one-by-one, but never report success after a failed write.
-    def _set(col: str, val: Any) -> None:
-        try:
-            execute_write(f"UPDATE app_users SET {col}=%s WHERE id=%s", (val, uid))
-        except Exception as exc:
-            LOGGER.warning("update_me set %s failed: %s", col, exc)
-            raise HTTPException(
-                status_code=503,
-                detail=f"Could not save profile field: {col}",
-            ) from exc
+    sets: list[str] = []
+    vals: list[Any] = []
+
+    def _queue(col: str, val: Any) -> None:
+        sets.append(f"{col}=%s")
+        vals.append(val)
 
     if payload.display_name is not None:
-        _set("display_name", payload.display_name.strip() or "Reader")
+        _queue("display_name", payload.display_name.strip() or "Reader")
     if payload.username is not None:
         username = payload.username.strip().lstrip("@").lower()
         if username:
@@ -2167,34 +2167,52 @@ def update_me(
                 )
                 if existing:
                     raise HTTPException(status_code=409, detail="Username already taken")
-                _set("username", username)
+                _queue("username", username)
             except HTTPException:
                 raise
             except Exception as exc:
                 LOGGER.warning("update_me username skipped: %s", exc)
     if payload.photo_url is not None:
-        _set("photo_url", payload.photo_url)
+        _queue("photo_url", payload.photo_url)
     if payload.cover_url is not None:
-        _set("cover_url", payload.cover_url)
+        _queue("cover_url", payload.cover_url)
     if payload.bio is not None:
-        _set("bio", payload.bio)
+        _queue("bio", payload.bio)
     if payload.gender is not None:
-        _set("gender", payload.gender)
+        _queue("gender", payload.gender)
     if payload.birth_date is not None:
-        _set("birth_date", payload.birth_date)
+        _queue("birth_date", payload.birth_date)
     if payload.country is not None:
-        _set("country", payload.country)
-    if payload.facebook_url is not None:
-        _set("facebook_url", payload.facebook_url)
+        _queue("country", payload.country)
+    if getattr(payload, "facebook_url", None) is not None:
+        _queue("facebook_url", payload.facebook_url)
 
-    # Always write profile_complete when requested OR when finishing onboarding fields
     want_complete = payload.profile_complete is True or (
-        payload.profile_complete is None and payload.display_name is not None and payload.birth_date is not None
+        payload.profile_complete is None
+        and payload.display_name is not None
+        and payload.birth_date is not None
     )
     if payload.profile_complete is False:
-        _set("profile_complete", 0)
+        _queue("profile_complete", 0)
     elif want_complete or payload.profile_complete is True:
-        _set("profile_complete", 1)
+        _queue("profile_complete", 1)
+
+    if sets:
+        try:
+            sql = f"UPDATE app_users SET {', '.join(sets)} WHERE id=%s"
+            execute_write(sql, (*vals, uid))
+        except Exception as exc:
+            LOGGER.exception("update_me batch failed: %s", exc)
+            # Fallback: try field-by-field so partial cold-start column issues still save
+            for col, val in zip([s.split("=")[0] for s in sets], vals):
+                try:
+                    execute_write(f"UPDATE app_users SET {col}=%s WHERE id=%s", (val, uid))
+                except Exception as one_exc:
+                    LOGGER.warning("update_me set %s failed: %s", col, one_exc)
+                    raise HTTPException(
+                        status_code=503,
+                        detail=f"Could not save profile field: {col}",
+                    ) from one_exc
 
     # Read back from DB (source of truth)
     try:

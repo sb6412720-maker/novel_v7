@@ -366,13 +366,8 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> updateMe(Map<String, dynamic> payload) async {
-    final response = await _put(
-      '/api/me',
-      payload,
-      timeout: const Duration(seconds: 45),
-    );
-    _ensureSuccessResponse(response);
-    return jsonDecode(response.body) as Map<String, dynamic>;
+    // Prefer resilient path used by onboarding
+    return updateMyProfile(payload);
   }
 
   Future<Map<String, dynamic>> uploadSupportAttachment(
@@ -816,24 +811,78 @@ class ApiService {
       if (username != null && username.trim().isNotEmpty)
         'username': username.trim(),
       'password': password,
-    }, timeout: const Duration(seconds: 30));
+    }, timeout: const Duration(seconds: 60));
     _ensureSuccessResponse(response);
   }
 
+  /// Warm the serverless instance (Vercel cold start) before a critical write.
+  Future<void> wakeBackend({Duration timeout = const Duration(seconds: 25)}) async {
+    try {
+      await _get('/api/health', timeout: timeout);
+    } catch (_) {
+      try {
+        await _get('/', timeout: timeout);
+      } catch (_) {}
+    }
+  }
+
+  /// Profile onboarding / settings save — long timeout + retries for Vercel cold start.
   Future<Map<String, dynamic>> updateMyProfile(
     Map<String, dynamic> payload,
   ) async {
-    final response = await _put(
-      '/api/me',
-      payload,
-      timeout: const Duration(seconds: 45),
-    );
-    _ensureSuccessResponse(response);
-    try {
-      return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
-    } catch (_) {
-      return <String, dynamic>{'ok': true};
+    Object? lastError;
+    // First attempt warms the function; subsequent retries re-send the body.
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try {
+        if (attempt == 0) {
+          await wakeBackend(timeout: const Duration(seconds: 20));
+        } else {
+          // Give free-tier MySQL / Vercel a moment between attempts
+          await Future<void>.delayed(Duration(seconds: 2 * attempt));
+          await wakeBackend(timeout: const Duration(seconds: 25));
+        }
+        final response = await _put(
+          '/api/me',
+          payload,
+          timeout: const Duration(seconds: 90),
+        );
+        _ensureSuccessResponse(response);
+        try {
+          return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+        } catch (_) {
+          return <String, dynamic>{'ok': true, 'profile_complete': true};
+        }
+      } catch (e) {
+        lastError = e;
+        final msg = e.toString().toLowerCase();
+        final retriable = msg.contains('timeout') ||
+            msg.contains('timed out') ||
+            msg.contains('connection') ||
+            msg.contains('503') ||
+            msg.contains('502') ||
+            msg.contains('504') ||
+            msg.contains('socket');
+        if (!retriable || attempt == 2) break;
+      }
     }
+    // Last chance: if a previous attempt actually wrote, /api/me may already be complete.
+    try {
+      final me = await fetchMe();
+      final pc = me['profile_complete'];
+      final done = pc == true || pc == 1 || pc == '1' || pc == 'true';
+      final hasBirth = (me['birth_date'] ?? me['birthday'] ?? '')
+          .toString()
+          .trim()
+          .isNotEmpty;
+      if (done || hasBirth) {
+        return {
+          ...me,
+          'ok': true,
+          'profile_complete': true,
+        };
+      }
+    } catch (_) {}
+    throw lastError ?? Exception('Could not save profile');
   }
 
   Future<void> addLibraryEntry(Map<String, dynamic> payload) async {

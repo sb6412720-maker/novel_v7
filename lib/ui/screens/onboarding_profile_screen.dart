@@ -258,14 +258,27 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
     } catch (e) {
       if (!mounted) return;
       final msg = e.toString().toLowerCase();
-      final isTimeout = msg.contains('timeout') || msg.contains('timed out');
+      final isTimeout = msg.contains('timeout') ||
+          msg.contains('timed out') ||
+          msg.contains('connection') ||
+          msg.contains('503') ||
+          msg.contains('502');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 6),
           content: Text(
             isTimeout
-                ? 'Server is waking up — profile was not saved. Please try again.'
+                ? 'Server was slow to respond. Tap Save again — your data is still on this screen.'
                 : 'Could not save profile: $e',
           ),
+          action: isTimeout
+              ? SnackBarAction(
+                  label: 'Retry',
+                  onPressed: () {
+                    if (!_saving) _save();
+                  },
+                )
+              : null,
         ),
       );
     } finally {
@@ -520,17 +533,39 @@ class _OnboardingProfileScreenState extends State<OnboardingProfileScreen> {
                 child: FilledButton(
                   onPressed: _saving ? null : _save,
                   child: _saving
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
+                      ? const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            ),
+                            SizedBox(width: 12),
+                            Flexible(
+                              child: Text(
+                                'Saving… please wait',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         )
                       : const Text('Save and continue'),
                 ),
               ),
+              if (_saving)
+                const Padding(
+                  padding: EdgeInsets.only(top: 10),
+                  child: Text(
+                    'First save after idle can take up to a minute while the server starts.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12, color: Colors.black54),
+                  ),
+                ),
             ],
           ),
         ),
