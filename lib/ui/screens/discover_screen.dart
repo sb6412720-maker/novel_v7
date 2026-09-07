@@ -450,14 +450,15 @@ class _DiscoverScreenState extends State<DiscoverScreen>
               },
             ),
             const SizedBox(height: 22),
-            // Top Genres
+            // Top Genres — See All opens categories/genres list (not hashtags)
             _HomeSectionHeader(
               title: 'Top Genres',
               onSeeAll: () {
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) => ExploreScreen(
+                    builder: (_) => _AllGenresScreen(
                       topics: widget.data.exploreTopics,
+                      books: allBooks,
                       apiService: widget.apiService,
                     ),
                   ),

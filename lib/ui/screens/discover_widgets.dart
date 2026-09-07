@@ -3266,3 +3266,226 @@ class _HomeTrendingList extends StatelessWidget {
     );
   }
 }
+
+
+/// Full list of genres/categories only (not hashtags).
+/// Tap a genre → books for that genre → tap book → StoryDetailScreen.
+class _AllGenresScreen extends StatefulWidget {
+  const _AllGenresScreen({
+    required this.topics,
+    required this.books,
+    required this.apiService,
+  });
+
+  final List<ExploreTopicModel> topics;
+  final List<BookCardModel> books;
+  final ApiService apiService;
+
+  @override
+  State<_AllGenresScreen> createState() => _AllGenresScreenState();
+}
+
+class _AllGenresScreenState extends State<_AllGenresScreen> {
+  List<String> _genres = const [];
+  bool _loading = true;
+
+  static const _icons = <String, IconData>{
+    'romance': Icons.favorite_border_rounded,
+    'fantasy': Icons.castle_outlined,
+    'werewolf': Icons.pets_outlined,
+    'mystery': Icons.search_rounded,
+    'young adult': Icons.auto_stories_outlined,
+    'sci-fi': Icons.rocket_launch_outlined,
+    'scifi': Icons.rocket_launch_outlined,
+    'horror': Icons.nightlight_round,
+    'thriller': Icons.bolt_outlined,
+    'action': Icons.sports_martial_arts_outlined,
+    'adventure': Icons.explore_outlined,
+    'drama': Icons.theater_comedy_outlined,
+    'poetry': Icons.menu_book_outlined,
+    'humor': Icons.sentiment_satisfied_alt_outlined,
+    'paranormal': Icons.auto_awesome_outlined,
+    'historical': Icons.account_balance_outlined,
+    'lgbtq': Icons.diversity_3_outlined,
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final seen = <String>{};
+    final names = <String>[];
+
+    void add(String raw) {
+      final n = raw.trim();
+      if (n.isEmpty) return;
+      final key = n.toLowerCase();
+      if (seen.add(key)) names.add(n);
+    }
+
+    // 1) Explore categories from bootstrap (admin categories)
+    for (final t in widget.topics) {
+      add(t.name);
+    }
+    // 2) Genres present on books
+    for (final b in widget.books) {
+      add(b.primaryGenre);
+      add(b.secondaryGenre);
+    }
+    // 3) Server genre list if available
+    try {
+      final remote = await widget.apiService.fetchGenres();
+      for (final g in remote) {
+        add(g);
+      }
+    } catch (_) {}
+
+    if (names.isEmpty) {
+      names.addAll([
+        'Romance',
+        'Fantasy',
+        'Mystery',
+        'SciFi',
+        'Horror',
+        'Action',
+        'Adventure',
+        'Drama',
+        'Thriller',
+      ]);
+    }
+
+    names.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    if (!mounted) return;
+    setState(() {
+      _genres = names;
+      _loading = false;
+    });
+  }
+
+  int _countFor(String genre) {
+    final g = genre.toLowerCase();
+    return widget.books.where((b) {
+      final pg = b.primaryGenre.toLowerCase().trim();
+      final sg = b.secondaryGenre.toLowerCase().trim();
+      return pg == g || sg == g || pg.contains(g) || sg.contains(g);
+    }).length;
+  }
+
+  void _openGenre(String genre) {
+    final g = genre.toLowerCase();
+    final filtered = widget.books
+        .where((b) {
+          final pg = b.primaryGenre.toLowerCase().trim();
+          final sg = b.secondaryGenre.toLowerCase().trim();
+          return pg == g || sg == g || pg.contains(g) || sg.contains(g);
+        })
+        .map(
+          (b) => {
+            'id': b.id,
+            'title': b.title,
+            'author': b.author,
+            'description': b.description,
+            'status_text': b.statusText,
+            'rating': b.rating,
+            'genre': b.primaryGenre,
+            'primary_genre': b.primaryGenre,
+            'secondary_genre': b.secondaryGenre,
+            'cover_path': b.coverPath,
+            'is_completed': b.isCompleted,
+          },
+        )
+        .toList();
+
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _GenreBooksScreen(
+          genre: genre,
+          books: filtered,
+          apiService: widget.apiService,
+        ),
+      ),
+    );
+  }
+
+  IconData _iconFor(String name) {
+    final key = name.toLowerCase();
+    for (final e in _icons.entries) {
+      if (key.contains(e.key)) return e.value;
+    }
+    return Icons.menu_book_outlined;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF121212) : Colors.white,
+      appBar: AppBar(
+        title: const Text(
+          'Genres',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+        backgroundColor: isDark ? const Color(0xFF121212) : Colors.white,
+        foregroundColor: isDark ? Colors.white : Colors.black87,
+        elevation: 0,
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView.separated(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+              itemCount: _genres.length,
+              separatorBuilder: (_, __) => Divider(
+                height: 1,
+                color: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFEEEEEE),
+              ),
+              itemBuilder: (context, index) {
+                final name = _genres[index];
+                final count = _countFor(name);
+                return ListTile(
+                  contentPadding: const EdgeInsets.symmetric(vertical: 6),
+                  leading: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFF1E1E1E)
+                          : const Color(0xFFF3EEFF),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      _iconFor(name),
+                      color: const Color(0xFF6C3CE1),
+                      size: 22,
+                    ),
+                  ),
+                  title: Text(
+                    name,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                    ),
+                  ),
+                  subtitle: Text(
+                    count > 0
+                        ? '$count ${count == 1 ? 'story' : 'stories'}'
+                        : 'Browse stories',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: isDark ? Colors.white54 : Colors.grey.shade600,
+                    ),
+                  ),
+                  trailing: Icon(
+                    Icons.chevron_right_rounded,
+                    color: isDark ? Colors.white38 : Colors.black38,
+                  ),
+                  onTap: () => _openGenre(name),
+                );
+              },
+            ),
+    );
+  }
+}
