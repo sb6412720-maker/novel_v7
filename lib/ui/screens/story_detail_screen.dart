@@ -158,6 +158,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
         setState(() {
           _reviews = _dedupeReviews(reviews);
           _reviewCount = _reviews.length;
+          _hasMyReview = _viewerHasReview(reviews, _currentUserId);
           _loadingReviews = false;
         });
       }
@@ -331,32 +332,48 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
   }
 
   Future<void> _openReviewsPage() async {
-    final result = await Navigator.of(context).push<bool>(
-      MaterialPageRoute<bool>(
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
         builder: (_) => _BookReviewsPage(
           book: _book,
           apiService: widget.apiService,
           isOwner: _isOwner,
           hasMyReview: _hasMyReview,
-          onReviewPosted: () async {
-            setState(() => _hasMyReview = true);
-            final reviews = await widget.apiService.fetchBookReviews(_book.id);
-            if (mounted) setState(() => _reviews = _dedupeReviews(reviews));
+          onHasMyReviewChanged: (hasMine) async {
+            if (!mounted) return;
+            setState(() => _hasMyReview = hasMine);
+            try {
+              final reviews = await widget.apiService.fetchBookReviews(_book.id);
+              if (mounted) {
+                setState(() {
+                  _reviews = _dedupeReviews(reviews);
+                  _reviewCount = _reviews.length;
+                });
+              }
+            } catch (_) {}
           },
         ),
       ),
     );
-    // Always refresh counts when returning from reviews page
+    // Refresh when returning from reviews page
     try {
       final reviews = await widget.apiService.fetchBookReviews(_book.id);
-      if (mounted) {
-        setState(() {
-          _reviews = _dedupeReviews(reviews);
-          _reviewCount = _reviews.length;
-          if (result == true) _hasMyReview = true;
-        });
-      }
+      if (!mounted) return;
+      final mine = _viewerHasReview(reviews, _currentUserId);
+      setState(() {
+        _reviews = _dedupeReviews(reviews);
+        _reviewCount = _reviews.length;
+        _hasMyReview = mine;
+      });
     } catch (_) {}
+  }
+
+  bool _viewerHasReview(List<Map<String, dynamic>> reviews, int? viewerId) {
+    return reviews.any(
+      (r) =>
+          _asTruthy(r['is_mine'] ?? r['mine']) ||
+          (viewerId != null && (r['user_id'] as num?)?.toInt() == viewerId),
+    );
   }
 
   void _onWriteReviewPressed() {
@@ -369,7 +386,11 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
       return;
     }
     if (_hasMyReview) {
-      _openReviewsPage();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You already reviewed this story. Delete it to write again.'),
+        ),
+      );
       return;
     }
     Navigator.of(context)
@@ -395,7 +416,6 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                 });
               }
             } catch (_) {}
-            // Go to Reviews page so the user can see the review they just posted
             if (mounted) {
               await _openReviewsPage();
             }
@@ -427,12 +447,14 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
       final reviews = await widget.apiService.fetchBookReviews(_book.id);
       // Support both the new is_mine flag and older deployments that only
       // return the review author's user_id.
-      final mine = reviews.any(
-        (r) =>
-            _asTruthy(r['is_mine'] ?? r['mine']) ||
-            (viewerId != null && (r['user_id'] as num?)?.toInt() == viewerId),
-      );
-      if (mounted && mine) setState(() => _hasMyReview = true);
+      final mine = _viewerHasReview(reviews, viewerId);
+      if (mounted) {
+        setState(() {
+          _reviews = _dedupeReviews(reviews);
+          _reviewCount = _reviews.length;
+          _hasMyReview = mine;
+        });
+      }
     } catch (_) {}
   }
 
@@ -771,7 +793,19 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                     if (action == 'list') {
                       await _openReadingListPicker();
                     } else if (action == 'review') {
-                      _onWriteReviewPressed();
+                      if (_isOwner || _hasMyReview) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              _isOwner
+                                  ? "Author can't make reviews on their own book"
+                                  : 'You already reviewed this story. Delete it to write again.',
+                            ),
+                          ),
+                        );
+                      } else {
+                        _onWriteReviewPressed();
+                      }
                     } else if (action == 'report') {
                       try {
                         await widget.apiService.reportBook(_book.id);
@@ -1368,14 +1402,14 @@ class _BookReviewsPage extends StatefulWidget {
     required this.apiService,
     required this.isOwner,
     required this.hasMyReview,
-    required this.onReviewPosted,
+    required this.onHasMyReviewChanged,
   });
 
   final BookDetailModel book;
   final ApiService apiService;
   final bool isOwner;
   final bool hasMyReview;
-  final Future<void> Function() onReviewPosted;
+  final Future<void> Function(bool hasMine) onHasMyReviewChanged;
 
   @override
   State<_BookReviewsPage> createState() => _BookReviewsPageState();
@@ -1385,10 +1419,25 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
   List<Map<String, dynamic>> _reviews = const [];
   bool _loading = true;
   int? _myUserId;
+  late bool _hasMyReview;
+
+  bool _asTruthyLocal(dynamic value) {
+    if (value == true || value == 1 || value == '1') return true;
+    return value?.toString().toLowerCase() == 'true';
+  }
+
+  bool _computeHasMine(List<Map<String, dynamic>> list, int? viewerId) {
+    return list.any(
+      (r) =>
+          _asTruthyLocal(r['is_mine'] ?? r['mine']) ||
+          (viewerId != null && (r['user_id'] as num?)?.toInt() == viewerId),
+    );
+  }
 
   @override
   void initState() {
     super.initState();
+    _hasMyReview = widget.hasMyReview;
     _load();
   }
 
@@ -1402,10 +1451,13 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
       } catch (_) {}
       final list = await widget.apiService.fetchBookReviews(widget.book.id);
       if (mounted) {
+        final mine = _computeHasMine(list, _myUserId);
         setState(() {
           _reviews = list;
+          _hasMyReview = mine;
           _loading = false;
         });
+        await widget.onHasMyReviewChanged(mine);
       }
     } catch (_) {
       if (mounted) setState(() => _loading = false);
@@ -1417,11 +1469,9 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
       await widget.apiService.deleteMyBookReview(widget.book.id);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Review deleted')),
+        const SnackBar(content: Text('Review deleted. You can write again.')),
       );
-      await _load();
-      await widget.onReviewPosted();
-      if (mounted) Navigator.of(context).pop(true);
+      await _load(); // recomputes _hasMyReview = false and notifies parent
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1443,8 +1493,7 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
     );
     if (ok == true) {
       await _load();
-      await widget.onReviewPosted();
-      if (mounted) Navigator.of(context).pop(true);
+      await widget.onHasMyReviewChanged(true);
     }
   }
 
@@ -1511,7 +1560,7 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
                             vertical: 12,
                           ),
                         ),
-                        onPressed: widget.hasMyReview
+                        onPressed: _hasMyReview
                             ? null
                             : () async {
                                 final posted = await Navigator.of(context).push(
@@ -1523,10 +1572,9 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
                                   ),
                                 );
 
-                                // Stay on Reviews page so the user can see their new review
                                 if (posted == true && mounted) {
                                   await _load();
-                                  await widget.onReviewPosted();
+                                  await widget.onHasMyReviewChanged(true);
                                   if (mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(content: Text('Review added')),
@@ -1535,7 +1583,7 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
                                 }
                               },
                         child: Text(
-                          widget.hasMyReview
+                          _hasMyReview
                               ? 'You already reviewed'
                               : 'Write a Review',
                         ),
