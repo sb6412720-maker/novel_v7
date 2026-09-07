@@ -78,14 +78,16 @@ class MoreScreen extends StatelessWidget {
     return RefreshIndicator(
       color: _purple,
       onRefresh: () async {
-        // Force rebuild so dynamic profile values refresh
-        if (mounted) (context as Element).markNeedsBuild();
+        // StatelessWidget has no State.mounted — use context.mounted.
+        if (context.mounted) {
+          (context as Element).markNeedsBuild();
+        }
         await Future<void>.delayed(const Duration(milliseconds: 400));
       },
       child: ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 28),
-      children: [
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 28),
+        children: [
         Container(
           padding: const EdgeInsets.all(14),
           decoration: _card(isDark),
