@@ -1080,6 +1080,26 @@ class ApiService {
     _ensureSuccessResponse(response);
   }
 
+  Future<void> updateMyBookReview(
+    int bookId,
+    Map<String, dynamic> payload,
+  ) async {
+    final response = await _put(
+      '/api/books/$bookId/reviews/mine',
+      payload,
+      timeout: const Duration(seconds: 90),
+    );
+    _ensureSuccessResponse(response);
+  }
+
+  Future<void> deleteMyBookReview(int bookId) async {
+    final response = await _delete(
+      '/api/books/$bookId/reviews/mine',
+      timeout: const Duration(seconds: 90),
+    );
+    _ensureSuccessResponse(response);
+  }
+
   /// Live chapter comments (Inkitt reader bottom-sheet).
   Future<List<Map<String, dynamic>>> fetchChapterComments({
     required int bookId,

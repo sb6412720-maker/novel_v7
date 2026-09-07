@@ -75,7 +75,15 @@ class MoreScreen extends StatelessWidget {
               : 'Reader');
     final email = session.email.isNotEmpty ? session.email : '';
 
-    return ListView(
+    return RefreshIndicator(
+      color: _purple,
+      onRefresh: () async {
+        // Force rebuild so dynamic profile values refresh
+        if (mounted) (context as Element).markNeedsBuild();
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+      },
+      child: ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 28),
       children: [
         Container(
@@ -305,6 +313,7 @@ class MoreScreen extends StatelessWidget {
           ),
         ]),
       ],
+    ),
     );
   }
 

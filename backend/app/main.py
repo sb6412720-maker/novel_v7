@@ -5839,6 +5839,87 @@ def create_book_review(
     return {"ok": True}
 
 
+@app.put("/api/books/{book_id}/reviews/mine")
+def update_my_book_review(
+    book_id: int,
+    payload: BookReviewCreateRequest,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Edit the current user's review on a book."""
+    uid = int(user["user_id"])
+    existing = fetch_all(
+        "SELECT id FROM book_reviews WHERE book_id=%s AND user_id=%s LIMIT 1",
+        (book_id, uid),
+    )
+    if not existing:
+        raise HTTPException(status_code=404, detail="Review not found")
+    rid = int(_row_get(existing[0], "id") or 0)
+    if payload.rating < 1 or payload.rating > 5:
+        raise HTTPException(status_code=400, detail="Rating must be between 1 and 5")
+    title = (payload.title or "").strip()
+    body = (payload.comment or "").strip()
+    stored_comment = body if not title else f"{title}\n\n{body}"
+    plot = int(payload.plot_rating or payload.rating)
+    style = int(payload.style_rating or payload.rating)
+    tech = int(payload.tech_rating or payload.rating)
+    try:
+        execute_write(
+            """
+            UPDATE book_reviews
+            SET rating=%s, comment=%s, title=%s, plot_rating=%s, style_rating=%s, tech_rating=%s
+            WHERE id=%s AND user_id=%s
+            """,
+            (payload.rating, stored_comment, title or None, plot, style, tech, rid, uid),
+        )
+    except Exception:
+        execute_write(
+            "UPDATE book_reviews SET rating=%s, comment=%s WHERE id=%s AND user_id=%s",
+            (payload.rating, stored_comment, rid, uid),
+        )
+    try:
+        rows = fetch_all(
+            "SELECT AVG(rating) AS avg_r FROM book_reviews WHERE book_id=%s",
+            (book_id,),
+        )
+        avg = float(_row_get(rows[0], "avg_r") or 0) if rows else 0.0
+        execute_write("UPDATE books SET rating=%s WHERE id=%s", (round(avg, 2), book_id))
+    except Exception:
+        pass
+    bump_content_version()
+    return {"ok": True, "id": rid}
+
+
+@app.delete("/api/books/{book_id}/reviews/mine")
+def delete_my_book_review(
+    book_id: int,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Delete the current user's review on a book."""
+    uid = int(user["user_id"])
+    existing = fetch_all(
+        "SELECT id FROM book_reviews WHERE book_id=%s AND user_id=%s LIMIT 1",
+        (book_id, uid),
+    )
+    if not existing:
+        raise HTTPException(status_code=404, detail="Review not found")
+    rid = int(_row_get(existing[0], "id") or 0)
+    execute_write(
+        "DELETE FROM book_reviews WHERE id=%s AND user_id=%s",
+        (rid, uid),
+    )
+    try:
+        rows = fetch_all(
+            "SELECT AVG(rating) AS avg_r FROM book_reviews WHERE book_id=%s",
+            (book_id,),
+        )
+        avg = float(_row_get(rows[0], "avg_r") or 0) if rows else 0.0
+        execute_write("UPDATE books SET rating=%s WHERE id=%s", (round(avg, 2), book_id))
+    except Exception:
+        pass
+    bump_content_version()
+    return {"ok": True}
+
+
 _CHAPTER_COMMENTS_TABLE_READY = False
 
 

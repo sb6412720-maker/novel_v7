@@ -1378,6 +1378,7 @@ class _BookReviewsPage extends StatefulWidget {
 class _BookReviewsPageState extends State<_BookReviewsPage> {
   List<Map<String, dynamic>> _reviews = const [];
   bool _loading = true;
+  int? _myUserId;
 
   @override
   void initState() {
@@ -1388,6 +1389,11 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
+      try {
+        final me = await widget.apiService.fetchMe();
+        _myUserId =
+            (me['id'] as num?)?.toInt() ?? (me['user_id'] as num?)?.toInt();
+      } catch (_) {}
       final list = await widget.apiService.fetchBookReviews(widget.book.id);
       if (mounted) {
         setState(() {
@@ -1397,6 +1403,42 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
       }
     } catch (_) {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _deleteMine() async {
+    try {
+      await widget.apiService.deleteMyBookReview(widget.book.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Review deleted')),
+      );
+      await _load();
+      await widget.onReviewPosted();
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not delete: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _editMine(Map<String, dynamic> review) async {
+    final ok = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => _WriteReviewScreen(
+          apiService: widget.apiService,
+          bookId: widget.book.id,
+          existing: review,
+        ),
+      ),
+    );
+    if (ok == true) {
+      await _load();
+      await widget.onReviewPosted();
+      if (mounted) Navigator.of(context).pop(true);
     }
   }
 
@@ -1558,6 +1600,9 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
         : rating;
     final created = (r['created_at'] ?? '').toString();
     final chaptersRead = r['chapters_read'];
+    final reviewUserId = (r['user_id'] as num?)?.toInt();
+    final isMine =
+        _myUserId != null && reviewUserId != null && _myUserId == reviewUserId;
 
     Widget stars(double v) {
       return Row(
@@ -1679,18 +1724,55 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Was this review helpful to you?',
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
-          ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              TextButton(onPressed: () {}, child: const Text('Yes')),
-              TextButton(onPressed: () {}, child: const Text('No')),
-            ],
-          ),
+          if (isMine) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                TextButton.icon(
+                  onPressed: () => _editMine(r),
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  label: const Text('Edit'),
+                ),
+                TextButton.icon(
+                  onPressed: () async {
+                    final ok = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Delete review?'),
+                        content: const Text('This cannot be undone.'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: const Text('Cancel'),
+                          ),
+                          FilledButton(
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: const Text('Delete'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (ok == true) await _deleteMine();
+                  },
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: const Text('Delete'),
+                ),
+              ],
+            ),
+          ] else ...[
+            const SizedBox(height: 8),
+            Text(
+              'Was this review helpful to you?',
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                TextButton(onPressed: () {}, child: const Text('Yes')),
+                TextButton(onPressed: () {}, child: const Text('No')),
+              ],
+            ),
+          ],
           const Divider(height: 1),
         ],
       ),
@@ -1699,10 +1781,15 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
 }
 
 class _WriteReviewScreen extends StatefulWidget {
-  const _WriteReviewScreen({required this.bookId, required this.apiService});
+  const _WriteReviewScreen({
+    required this.bookId,
+    required this.apiService,
+    this.existing,
+  });
 
   final int bookId;
   final ApiService apiService;
+  final Map<String, dynamic>? existing;
 
   @override
   State<_WriteReviewScreen> createState() => _WriteReviewScreenState();
@@ -1716,6 +1803,26 @@ class _WriteReviewScreenState extends State<_WriteReviewScreen> {
   int _style = 0;
   int _tech = 0;
   bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing;
+    if (e != null) {
+      _overall = (e['rating'] as num?)?.toInt() ?? 0;
+      _plot = (e['plot_rating'] as num?)?.toInt() ?? _overall;
+      _style = (e['style_rating'] as num?)?.toInt() ?? _overall;
+      _tech = (e['tech_rating'] as num?)?.toInt() ?? _overall;
+      final comment = (e['comment'] ?? e['body'] ?? '').toString();
+      final title = (e['title'] ?? '').toString();
+      if (title.isNotEmpty) {
+        _titleCtrl.text = title;
+        _bodyCtrl.text = comment;
+      } else {
+        _bodyCtrl.text = comment;
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -1771,14 +1878,19 @@ class _WriteReviewScreenState extends State<_WriteReviewScreen> {
     // Any length allowed (including short) — rating is the only required field
     setState(() => _saving = true);
     try {
-      await widget.apiService.createBookReview(widget.bookId, {
+      final payload = {
         'rating': _overall,
-        'title': '',
+        'title': _titleCtrl.text.trim(),
         'comment': body,
         'plot_rating': _plot > 0 ? _plot : _overall,
         'style_rating': _style > 0 ? _style : _overall,
         'tech_rating': _tech > 0 ? _tech : _overall,
-      });
+      };
+      if (widget.existing != null) {
+        await widget.apiService.updateMyBookReview(widget.bookId, payload);
+      } else {
+        await widget.apiService.createBookReview(widget.bookId, payload);
+      }
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } catch (e) {
@@ -1814,7 +1926,7 @@ class _WriteReviewScreenState extends State<_WriteReviewScreen> {
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
         foregroundColor: Colors.black87,
-        title: const Text('Write Review'),
+        title: Text(widget.existing != null ? 'Edit Review' : 'Write Review'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => Navigator.pop(context),
