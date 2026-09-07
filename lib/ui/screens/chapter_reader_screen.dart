@@ -2138,7 +2138,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                                                                   ?.toInt() ??
                                                               0,
                                                         )
-                                                        ? Colors.red
+                                                        ? const Color(0xFFFF4757)
                                                         : Colors.grey,
                                                   ),
                                                   onPressed: () =>
@@ -2295,7 +2295,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
             _barItem(
               icon: _liked ? Icons.favorite : Icons.favorite_border,
               label: _likeCount > 0 ? '$_likeCount Likes' : 'Like',
-              color: _liked ? Colors.red : null,
+              color: _liked ? const Color(0xFFFF4757) : null,
               onTap: _toggleLike,
             ),
             _barItem(

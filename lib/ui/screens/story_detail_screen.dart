@@ -976,7 +976,9 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                           _liked ? Icons.favorite : Icons.favorite_border,
                           color: _isOwner
                               ? Colors.grey
-                              : (_liked ? Colors.red : fg),
+                              : (_liked
+                                  ? const Color(0xFFFF4757) // solid red/pink when liked
+                                  : fg),
                         ),
                         label: Text(
                           '$_likesCount',
@@ -997,7 +999,9 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                           _saved ? Icons.bookmark : Icons.bookmark_border,
                           color: _isOwner
                               ? Colors.grey
-                              : (_saved ? inkittGreen : fg),
+                              : (_saved
+                                  ? const Color(0xFF6C3CE1) // primary purple when saved
+                                  : fg),
                         ),
                         label: const FittedBox(
                           fit: BoxFit.scaleDown,
@@ -1021,7 +1025,8 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                         ),
                         icon: Icon(
                           _hasMyReview ? Icons.star : Icons.star_border,
-                          color: _hasMyReview ? inkittGreen : fg,
+                          // Gold/yellow so users instantly recognize Reviews/Rating
+                          color: const Color(0xFFFFC107),
                           size: 20,
                         ),
                         label: FittedBox(
