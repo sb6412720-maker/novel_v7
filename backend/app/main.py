@@ -1287,10 +1287,10 @@ def healthcheck():
 
 @app.on_event("startup")
 def startup_initialize_database():
-    """Auto-run migrations, safe SQL scripts, schema ensures, and seeds on every boot.
+    """Lightweight startup on Vercel; full schema ensures only when DB looks empty.
 
-    Controlled by AUTO_RUN_DB_MIGRATIONS (default true). All ensures are idempotent
-    (CREATE IF NOT EXISTS / ADD COLUMN with ignore-duplicate).
+    Heavy ensure_* loops (20+ MySQL round-trips) were the main cause of 504s when
+    many concurrent cold starts hit media/bootstrap at once.
     """
     try:
         from .startup_tasks import run_startup_tasks
@@ -1298,47 +1298,54 @@ def startup_initialize_database():
         summary = run_startup_tasks()
         LOGGER.info("Startup tasks summary: %s", summary)
 
-        # Always run full set of schema ensures (safe on existing Aiven MySQL).
-        ensure_fns = [
-            _ensure_password_hash_column,
-            _ensure_auth_profile_columns,
-            _ensure_profile_extra_columns,
-            _ensure_user_moderation_columns,
-            _ensure_support_request_columns,
-            _ensure_user_support_notifications_table,
-            _ensure_user_preferences_table,
-            _ensure_media_table,
-            _ensure_library_entries_table,
-            _ensure_book_likes_table,
-            _ensure_chapter_comments_table,
-            _ensure_author_follows_table,
-            _ensure_author_follows_columns,
-            _ensure_tag_follows_table,
-            _ensure_book_meta_columns,
-            _ensure_book_view_count_column,
-            _ensure_wall_posts_table,
-            _ensure_wall_post_likes_table,
-            _ensure_default_write_screen,
-            _ensure_default_profile,
-        ]
-        for fn in ensure_fns:
-            try:
-                fn()
-            except Exception as col_exc:
-                LOGGER.warning("startup ensure %s failed: %s", getattr(fn, "__name__", fn), col_exc)
-
+        on_vercel = bool(os.getenv("VERCEL") or os.getenv("VERCEL_ENV"))
+        book_count = 0
         try:
             books = fetch_all("SELECT COUNT(*) AS c FROM books")
-            def _c(rows):
-                if not rows:
-                    return 0
-                r = rows[0]
+            if books:
+                r = books[0]
                 if isinstance(r, dict):
-                    return int(r.get("c") or list(r.values())[0] or 0)
-                return int(r[0])
-            LOGGER.info("DB ready books=%s", _c(books))
+                    book_count = int(r.get("c") or list(r.values())[0] or 0)
+                else:
+                    book_count = int(r[0])
+            LOGGER.info("DB ready books=%s", book_count)
         except Exception as count_exc:
-            LOGGER.exception("Post-startup count check failed: %s", count_exc)
+            LOGGER.warning("Post-startup count check failed: %s", count_exc)
+
+        # On Vercel with a populated DB: skip the long ensure_* chain (already applied).
+        # Set FORCE_SCHEMA_ENSURES=1 once after a schema change if needed.
+        force_ensures = os.getenv("FORCE_SCHEMA_ENSURES", "").strip().lower() in ("1", "true", "yes")
+        skip_ensures = on_vercel and book_count > 0 and not force_ensures
+        if skip_ensures:
+            LOGGER.info("Skipping schema ensure chain on Vercel (books=%s)", book_count)
+        else:
+            ensure_fns = [
+                _ensure_password_hash_column,
+                _ensure_auth_profile_columns,
+                _ensure_profile_extra_columns,
+                _ensure_user_moderation_columns,
+                _ensure_support_request_columns,
+                _ensure_user_support_notifications_table,
+                _ensure_user_preferences_table,
+                _ensure_media_table,
+                _ensure_library_entries_table,
+                _ensure_book_likes_table,
+                _ensure_chapter_comments_table,
+                _ensure_author_follows_table,
+                _ensure_author_follows_columns,
+                _ensure_tag_follows_table,
+                _ensure_book_meta_columns,
+                _ensure_book_view_count_column,
+                _ensure_wall_posts_table,
+                _ensure_wall_post_likes_table,
+                _ensure_default_write_screen,
+                _ensure_default_profile,
+            ]
+            for fn in ensure_fns:
+                try:
+                    fn()
+                except Exception as col_exc:
+                    LOGGER.warning("startup ensure %s failed: %s", getattr(fn, "__name__", fn), col_exc)
 
         try:
             _content_version_row()
@@ -2337,7 +2344,7 @@ def get_media_file(media_id: int):
     """Serve image bytes stored in MySQL (survives Vercel cold starts)."""
     from fastapi.responses import Response
 
-    _ensure_media_table()
+    # Do not run schema ensure on every image request (cold-start stampede).
     rows = fetch_all(
         "SELECT filename, content_type, data FROM media_files WHERE id=%s LIMIT 1",
         (media_id,),
