@@ -1191,9 +1191,14 @@ class _ContinueReadingSectionState extends State<_ContinueReadingSection> {
     }
   }
 
-  List<LibraryEntryModel> _filterOngoing(List<LibraryEntryModel> list) {
+  List<LibraryEntryModel> _filterOngoing(List<LibraryEntryModel> list, {int? myUserId}) {
     return list.where((e) {
       if (e.book.id <= 0) return false;
+      // Hide books the current user authored (own books never go to Continue Reading).
+      final aid = e.book.authorUserId;
+      if (myUserId != null && myUserId > 0 && aid != null && aid > 0 && aid == myUserId) {
+        return false;
+      }
       final st = e.readingStatus.toLowerCase().trim();
       // Only hide clearly finished books
       if (st == 'completed' || st == 'finished' || st == 'done') return false;
@@ -1241,9 +1246,14 @@ class _ContinueReadingSectionState extends State<_ContinueReadingSection> {
       }
     } catch (_) {}
 
+    int? myId;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      myId = prefs.getInt('auth_id');
+    } catch (_) {}
     if (!mounted) return;
     setState(() {
-      _items = _filterOngoing(merged.values.toList());
+      _items = _filterOngoing(merged.values.toList(), myUserId: myId);
       _loading = false;
     });
   }

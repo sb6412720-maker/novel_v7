@@ -318,7 +318,19 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       }
       return true; // first-time: show complete-profile BEFORE home only
     } catch (_) {
-      // A missing profile response cannot prove onboarding is complete.
+      // Network blip: if this Gmail already completed locally, do not re-show.
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        if (prefs.getBool(_profileDoneKey(session)) == true ||
+            prefs.getBool('profile_complete_local_done') == true) {
+          return false;
+        }
+        final em = session.email.trim().toLowerCase();
+        if (em.isNotEmpty && prefs.getBool('profile_complete_local_$em') == true) {
+          return false;
+        }
+      } catch (_) {}
+      // No prior completion signal — require onboarding once.
       return true;
     }
   }

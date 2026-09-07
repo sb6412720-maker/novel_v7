@@ -372,14 +372,21 @@ class MoreScreen extends StatelessWidget {
       children: [
         for (var i = 0; i < items.length; i++) ...[
           ListTile(
+            dense: true,
+            visualDensity: VisualDensity.compact,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
             leading: Icon(
               items[i].icon,
+              size: 22,
               color: items[i].danger ? const Color(0xFFE53935) : _purple,
             ),
             title: Text(
               items[i].label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontWeight: FontWeight.w600,
+                fontSize: 15,
                 color: items[i].danger ? const Color(0xFFE53935) : null,
               ),
             ),

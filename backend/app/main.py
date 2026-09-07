@@ -3982,6 +3982,16 @@ def create_library_entry(
     """Upsert one library row per (user, book). Never create duplicates."""
     uid = int(user["user_id"])
     bid = int(payload.book_id)
+    # Authors must not get Continue Reading / Completed for their own books.
+    try:
+        own = fetch_all(
+            "SELECT id FROM books WHERE id=%s AND user_id=%s LIMIT 1",
+            (bid, uid),
+        )
+        if own:
+            return {"ok": True, "skipped": True, "reason": "own_book"}
+    except Exception as exc:
+        LOGGER.warning("own-book library check failed: %s", exc)
     new_status = (payload.reading_status or "Reading").strip() or "Reading"
 
     existing = fetch_all(

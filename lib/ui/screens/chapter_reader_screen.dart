@@ -190,6 +190,15 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
   Future<void> _markLibraryProgress({bool completed = false}) async {
     final bookId = widget.bookId;
     if (bookId == null || bookId <= 0) return;
+    // Author reading their own book must NOT enter Continue Reading / Completed.
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final myId = prefs.getInt('auth_id');
+      final authorId = widget.authorUserId;
+      if (myId != null && authorId != null && myId > 0 && authorId > 0 && myId == authorId) {
+        return;
+      }
+    } catch (_) {}
     final total = _chapters.isNotEmpty ? _chapters.length : 1;
     // chapters_read = how many chapters started (at least current)
     final chaptersRead = completed
@@ -1382,13 +1391,16 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                 ),
-                                child: const Text(
-                                  'Previous',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 15,
+                                child: const FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    'Previous',
+                                    maxLines: 1,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 15,
+                                    ),
                                   ),
-                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             ),

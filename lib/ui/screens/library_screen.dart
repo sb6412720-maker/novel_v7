@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/models/app_bootstrap.dart';
 import '../../data/services/api_service.dart';
@@ -30,6 +31,7 @@ class _LibraryScreenState extends State<LibraryScreen>
   List<ReadingListModel> _readingLists = [];
   bool _loading = false;
   bool _listsLoading = false;
+  int? _myUserId;
 
   /// Completed = user finished the book (all chapters read / marked complete).
   bool _isCompleted(LibraryEntryModel e) {
@@ -106,9 +108,22 @@ class _LibraryScreenState extends State<LibraryScreen>
         }
       }
       if (lastErr != null) throw lastErr;
+      int? myId;
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        myId = prefs.getInt('auth_id');
+      } catch (_) {}
       if (!mounted) return;
+      final mapped = rows.map(LibraryEntryModel.fromMap).where((e) {
+        final aid = e.book.authorUserId;
+        if (myId != null && myId > 0 && aid != null && aid > 0 && aid == myId) {
+          return false; // own books never in Continue / Completed
+        }
+        return true;
+      }).toList();
       setState(() {
-        _entries = rows.map(LibraryEntryModel.fromMap).toList();
+        _myUserId = myId;
+        _entries = mapped;
         _loading = false;
       });
     } catch (e) {
