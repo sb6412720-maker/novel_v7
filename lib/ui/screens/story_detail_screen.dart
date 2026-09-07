@@ -384,9 +384,6 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
         .then((ok) async {
           if (ok == true && mounted) {
             setState(() => _hasMyReview = true);
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(const SnackBar(content: Text('Review added')));
             try {
               final reviews = await widget.apiService.fetchBookReviews(
                 _book.id,
@@ -398,6 +395,10 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                 });
               }
             } catch (_) {}
+            // Go to Reviews page so the user can see the review they just posted
+            if (mounted) {
+              await _openReviewsPage();
+            }
           }
         });
   }
@@ -1522,9 +1523,15 @@ class _BookReviewsPageState extends State<_BookReviewsPage> {
                                   ),
                                 );
 
+                                // Stay on Reviews page so the user can see their new review
                                 if (posted == true && mounted) {
-                                  // Leave reviews page immediately; parent refreshes counts
-                                  Navigator.of(context).pop(true);
+                                  await _load();
+                                  await widget.onReviewPosted();
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Review added')),
+                                    );
+                                  }
                                 }
                               },
                         child: Text(
