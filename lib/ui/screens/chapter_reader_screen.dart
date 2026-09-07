@@ -824,7 +824,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
       }
       // Also count from items if counts missing
       final items = payload['items'];
-      final totalCommentCount = items is List ? items.length : 0;
+      // Paragraph counts only from paragraph-linked comments
       if (map.isEmpty && items is List) {
         for (final it in items) {
           if (it is! Map) continue;
@@ -832,10 +832,24 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
           if (pi >= 0) map[pi] = (map[pi] ?? 0) + 1;
         }
       }
+      // Chapter sheet count excludes paragraph comments
+      final chapterItems = payload['chapter_items'];
+      int chapterOnly = 0;
+      if (chapterItems is List) {
+        chapterOnly = chapterItems.length;
+      } else if (payload['chapter_count'] is num) {
+        chapterOnly = (payload['chapter_count'] as num).toInt();
+      } else if (items is List) {
+        for (final it in items) {
+          if (it is! Map) continue;
+          final pi = (it['paragraph_index'] as num?)?.toInt() ?? -1;
+          if (pi < 0) chapterOnly++;
+        }
+      }
       if (!mounted) return;
       setState(() {
         _paragraphCommentCounts = map;
-        _chapterCommentCount = totalCommentCount;
+        _chapterCommentCount = chapterOnly;
       });
     } catch (_) {
       // ignore
@@ -1864,6 +1878,71 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     return true;
   }
 
+
+  Future<void> _editOwnComment({
+    required int commentId,
+    required String currentBody,
+    required Future<void> Function() onDone,
+  }) async {
+    final ctrl = TextEditingController(text: currentBody);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit comment'),
+        content: TextField(
+          controller: ctrl,
+          maxLines: 5,
+          decoration: const InputDecoration(hintText: 'Your comment'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final body = ctrl.text.trim();
+    if (body.isEmpty) return;
+    try {
+      await widget.apiService.updateChapterComment(commentId: commentId, body: body);
+      await onDone();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not edit: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteOwnComment({
+    required int commentId,
+    required Future<void> Function() onDone,
+  }) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete comment?'),
+        content: const Text('This cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await widget.apiService.deleteChapterComment(commentId);
+      await onDone();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not delete: $e')),
+        );
+      }
+    }
+  }
+
   Future<void> _openCommentsSheet() async {
     final bookId = widget.bookId;
     if (bookId == null) {
@@ -1877,8 +1956,14 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
 
     final controller = TextEditingController();
     var comments = <Map<String, dynamic>>[];
-    final likedComments = <int>{};
-    var loading = true;
+        final likedComments = <int>{};
+    int? myUserId;
+    try {
+      final me = await widget.apiService.fetchMe();
+      myUserId =
+          (me['id'] as num?)?.toInt() ?? (me['user_id'] as num?)?.toInt();
+    } catch (_) {}
+var loading = true;
     var posting = false;
     String? error;
 
@@ -1915,7 +2000,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
         error = null;
       });
       try {
-        final items = await widget.apiService.fetchChapterComments(
+        final items = await widget.apiService.fetchChapterOnlyComments(
           bookId: bookId,
           chapterNumber: _chapterNumber,
         );
@@ -2095,6 +2180,56 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                                                         TextOverflow.ellipsis,
                                                   ),
                                                 ),
+                                                if (myUserId != null &&
+                                                    (c['user_id'] as num?)
+                                                            ?.toInt() ==
+                                                        myUserId)
+                                                  PopupMenuButton<String>(
+                                                    padding: EdgeInsets.zero,
+                                                    onSelected: (v) async {
+                                                      final id = (c['id'] as num?)
+                                                              ?.toInt() ??
+                                                          0;
+                                                      if (id <= 0) return;
+                                                      if (v == 'edit') {
+                                                        await _editOwnComment(
+                                                          commentId: id,
+                                                          currentBody: body,
+                                                          onDone: () =>
+                                                              loadComments(
+                                                                setModal,
+                                                              ),
+                                                        );
+                                                      } else if (v == 'delete') {
+                                                        await _deleteOwnComment(
+                                                          commentId: id,
+                                                          onDone: () async {
+                                                            await loadComments(
+                                                              setModal,
+                                                            );
+                                                            if (mounted) {
+                                                              setState(() {
+                                                                if (_chapterCommentCount >
+                                                                    0) {
+                                                                  _chapterCommentCount--;
+                                                                }
+                                                              });
+                                                            }
+                                                          },
+                                                        );
+                                                      }
+                                                    },
+                                                    itemBuilder: (_) => const [
+                                                      PopupMenuItem(
+                                                        value: 'edit',
+                                                        child: Text('Edit'),
+                                                      ),
+                                                      PopupMenuItem(
+                                                        value: 'delete',
+                                                        child: Text('Delete'),
+                                                      ),
+                                                    ],
+                                                  ),
                                                 if (when.isNotEmpty) ...[
                                                   const SizedBox(width: 8),
                                                   Text(

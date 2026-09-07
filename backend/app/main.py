@@ -6118,12 +6118,21 @@ def list_chapter_comments(
                 )
             )
         counts: dict[str, int] = {}
+        chapter_items: list[dict[str, Any]] = []
         for it in items:
             pi = int(it.get("paragraph_index") if it.get("paragraph_index") is not None else -1)
             if pi >= 0:
                 key = str(pi)
                 counts[key] = counts.get(key, 0) + 1
-        return {"items": items, "paragraph_counts": counts}
+            else:
+                # Chapter-level only (not tied to a paragraph)
+                chapter_items.append(it)
+        return {
+            "items": items,  # full list (paragraph UI filters by index)
+            "chapter_items": chapter_items,  # chapter comments sheet only
+            "paragraph_counts": counts,
+            "chapter_count": len(chapter_items),
+        }
     except Exception as exc:
         LOGGER.exception("list_chapter_comments failed: %s", exc)
         return {"items": [], "error": "Failed to load comments"}
@@ -6197,6 +6206,105 @@ def create_chapter_comment(
         raise HTTPException(status_code=500, detail=f"Failed to post comment: {exc}")
 
 
+
+
+@app.get("/api/books/{book_id}/comments")
+def list_book_comments(
+    book_id: int,
+    user: dict[str, Any] | None = Depends(optional_user),
+):
+    """Whole-story comments only (not chapter / paragraph comments)."""
+    try:
+        _ensure_chapter_comments_table()
+        rows = fetch_all(
+            """
+            SELECT c.id, c.chapter_id, c.book_id, c.user_id, c.body,
+                   COALESCE(c.paragraph_index, -1) AS paragraph_index,
+                   c.created_at, u.display_name, u.photo_url
+            FROM chapter_comments c
+            LEFT JOIN app_users u ON u.id = c.user_id
+            WHERE c.book_id = %s
+              AND (c.chapter_id IS NULL OR c.chapter_id = 0)
+              AND COALESCE(c.paragraph_index, -1) < 0
+            ORDER BY c.created_at DESC, c.id DESC
+            """,
+            (book_id,),
+        )
+        items = [_serialize_comment_row(r) for r in (rows or [])]
+        for item in items:
+            like_rows = fetch_all(
+                "SELECT COUNT(*) AS c FROM chapter_comment_likes WHERE comment_id=%s",
+                (item.get("id"),),
+            )
+            item["like_count"] = int(_row_get(like_rows[0], "c") or 0) if like_rows else 0
+            item["liked"] = bool(
+                user
+                and fetch_all(
+                    "SELECT id FROM chapter_comment_likes WHERE comment_id=%s AND user_id=%s LIMIT 1",
+                    (item.get("id"), user["user_id"]),
+                )
+            )
+        return {"items": items}
+    except Exception as exc:
+        LOGGER.exception("list_book_comments failed: %s", exc)
+        return {"items": [], "error": "Failed to load comments"}
+
+
+@app.post("/api/books/{book_id}/comments")
+def create_book_comment(
+    book_id: int,
+    payload: ChapterCommentCreateRequest,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Post a comment on the whole story (story detail page)."""
+    _ensure_chapter_comments_table()
+    owner_rows = fetch_all("SELECT user_id FROM books WHERE id=%s LIMIT 1", (book_id,))
+    owner_id = int(_row_get(owner_rows[0], "user_id") or 0) if owner_rows else 0
+    if owner_id and owner_id == int(user["user_id"]):
+        raise HTTPException(status_code=400, detail="You cannot comment on your own story")
+    body = (payload.body or "").strip()
+    if not body:
+        raise HTTPException(status_code=400, detail="Comment cannot be empty")
+    if len(body) > 4000:
+        raise HTTPException(status_code=400, detail="Comment is too long")
+    # Ensure chapter_id can be NULL for story-level comments (MySQL).
+    try:
+        from .database import USE_SQLITE as _us
+        if not _us:
+            execute_write(
+                "ALTER TABLE chapter_comments MODIFY chapter_id INT NULL",
+                (),
+            )
+    except Exception:
+        pass
+    execute_write(
+        """
+        INSERT INTO chapter_comments (chapter_id, book_id, user_id, body, paragraph_index)
+        VALUES (NULL, %s, %s, %s, %s)
+        """,
+        (book_id, user["user_id"], body, -1),
+    )
+    bump_content_version()
+    rows = fetch_all(
+        """
+        SELECT c.id, c.chapter_id, c.book_id, c.user_id, c.body, c.created_at,
+               COALESCE(c.paragraph_index, -1) AS paragraph_index,
+               u.display_name, u.photo_url
+        FROM chapter_comments c
+        LEFT JOIN app_users u ON u.id = c.user_id
+        WHERE c.book_id = %s AND c.user_id = %s
+          AND (c.chapter_id IS NULL OR c.chapter_id = 0)
+        ORDER BY c.id DESC
+        LIMIT 1
+        """,
+        (book_id, user["user_id"]),
+    )
+    item = _serialize_comment_row(rows[0]) if rows else {"ok": True, "body": body}
+    item["like_count"] = 0
+    item["liked"] = False
+    return item
+
+
 @app.post("/api/chapter-comments/{comment_id}/like")
 def toggle_chapter_comment_like(
     comment_id: int,
@@ -6230,6 +6338,77 @@ def toggle_chapter_comment_like(
         "liked": liked,
         "like_count": int(_row_get(counts[0], "c") or 0) if counts else 0,
     }
+
+
+
+@app.put("/api/chapter-comments/{comment_id}")
+def update_chapter_comment(
+    comment_id: int,
+    payload: ChapterCommentCreateRequest,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Edit own comment only (story / chapter / paragraph)."""
+    _ensure_chapter_comments_table()
+    rows = fetch_all(
+        "SELECT id, user_id FROM chapter_comments WHERE id=%s LIMIT 1",
+        (comment_id,),
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    owner = int(_row_get(rows[0], "user_id") or 0)
+    if owner != int(user["user_id"]):
+        raise HTTPException(status_code=403, detail="You can only edit your own comment")
+    body = (payload.body or "").strip()
+    if not body:
+        raise HTTPException(status_code=400, detail="Comment cannot be empty")
+    if len(body) > 4000:
+        raise HTTPException(status_code=400, detail="Comment is too long")
+    execute_write(
+        "UPDATE chapter_comments SET body=%s WHERE id=%s AND user_id=%s",
+        (body, comment_id, user["user_id"]),
+    )
+    bump_content_version()
+    out = fetch_all(
+        """
+        SELECT c.id, c.chapter_id, c.book_id, c.user_id, c.body, c.created_at,
+               COALESCE(c.paragraph_index, -1) AS paragraph_index,
+               u.display_name, u.photo_url
+        FROM chapter_comments c
+        LEFT JOIN app_users u ON u.id = c.user_id
+        WHERE c.id = %s LIMIT 1
+        """,
+        (comment_id,),
+    )
+    item = _serialize_comment_row(out[0]) if out else {"ok": True, "id": comment_id, "body": body}
+    return item
+
+
+@app.delete("/api/chapter-comments/{comment_id}")
+def delete_chapter_comment(
+    comment_id: int,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Delete own comment only."""
+    _ensure_chapter_comments_table()
+    rows = fetch_all(
+        "SELECT id, user_id FROM chapter_comments WHERE id=%s LIMIT 1",
+        (comment_id,),
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    owner = int(_row_get(rows[0], "user_id") or 0)
+    if owner != int(user["user_id"]):
+        raise HTTPException(status_code=403, detail="You can only delete your own comment")
+    try:
+        execute_write("DELETE FROM chapter_comment_likes WHERE comment_id=%s", (comment_id,))
+    except Exception:
+        pass
+    execute_write(
+        "DELETE FROM chapter_comments WHERE id=%s AND user_id=%s",
+        (comment_id, user["user_id"]),
+    )
+    bump_content_version()
+    return {"ok": True}
 
 
 @app.get("/api/chapters/{chapter_id}/comments")

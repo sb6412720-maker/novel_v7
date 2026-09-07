@@ -1157,6 +1157,92 @@ class ApiService {
     return payload;
   }
 
+  
+  /// Chapter-level comments only (excludes paragraph comments).
+  Future<List<Map<String, dynamic>>> fetchChapterOnlyComments({
+    required int bookId,
+    required int chapterNumber,
+  }) async {
+    final payload = await fetchChapterCommentsPayload(
+      bookId: bookId,
+      chapterNumber: chapterNumber,
+    );
+    final chapter = payload['chapter_items'];
+    if (chapter is List) {
+      return chapter
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+    final items = payload['items'];
+    if (items is! List) return const <Map<String, dynamic>>[];
+    return items
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .where((c) {
+          final pi = (c['paragraph_index'] as num?)?.toInt() ?? -1;
+          return pi < 0;
+        })
+        .toList();
+  }
+
+  /// Whole-story comments (story detail page). Not chapter/paragraph.
+  Future<List<Map<String, dynamic>>> fetchBookComments(int bookId) async {
+    try {
+      final response = await _get('/api/books/$bookId/comments');
+      if (response.statusCode != 200) return const <Map<String, dynamic>>[];
+      final payload = jsonDecode(response.body);
+      if (payload is Map && payload['items'] is List) {
+        return (payload['items'] as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      return const <Map<String, dynamic>>[];
+    } catch (_) {
+      return const <Map<String, dynamic>>[];
+    }
+  }
+
+  Future<Map<String, dynamic>> postBookComment({
+    required int bookId,
+    required String body,
+  }) async {
+    final response = await _post(
+      '/api/books/$bookId/comments',
+      {'body': body},
+    );
+    if (response.statusCode >= 400) {
+      throw Exception(response.body);
+    }
+    final payload = jsonDecode(response.body);
+    if (payload is Map<String, dynamic>) return payload;
+    return {'ok': true};
+  }
+
+  Future<Map<String, dynamic>> updateChapterComment({
+    required int commentId,
+    required String body,
+  }) async {
+    final response = await _put(
+      '/api/chapter-comments/$commentId',
+      {'body': body},
+    );
+    if (response.statusCode >= 400) {
+      throw Exception(response.body);
+    }
+    final payload = jsonDecode(response.body);
+    if (payload is Map<String, dynamic>) return payload;
+    return {'ok': true};
+  }
+
+  Future<void> deleteChapterComment(int commentId) async {
+    final response = await _delete('/api/chapter-comments/$commentId');
+    if (response.statusCode >= 400) {
+      throw Exception(response.body);
+    }
+  }
+
   Future<Map<String, dynamic>> toggleChapterCommentLike(int commentId) async {
     final response = await _post(
       '/api/chapter-comments/$commentId/like',

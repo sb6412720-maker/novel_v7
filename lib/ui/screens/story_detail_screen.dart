@@ -43,6 +43,10 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
   bool _likeBusy = false;
   bool _saved = false;
   bool _hasMyReview = false;
+  List<Map<String, dynamic>> _storyComments = const [];
+  bool _loadingStoryComments = true;
+  int _storyCommentCount = 0;
+
   int? _currentUserId;
 
   bool get _isOwner {
@@ -161,6 +165,18 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
           _hasMyReview = _viewerHasReview(reviews, _currentUserId);
           _loadingReviews = false;
         });
+      }
+      try {
+        final sc = await widget.apiService.fetchBookComments(_book.id);
+        if (mounted) {
+          setState(() {
+            _storyComments = sc;
+            _storyCommentCount = sc.length;
+            _loadingStoryComments = false;
+          });
+        }
+      } catch (_) {
+        if (mounted) setState(() => _loadingStoryComments = false);
       }
 
       try {
@@ -329,6 +345,250 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
     } finally {
       if (mounted) setState(() => _loadingFollow = false);
     }
+  }
+
+
+  Future<void> _openStoryCommentsSheet() async {
+    var comments = List<Map<String, dynamic>>.from(_storyComments);
+    var loading = false;
+    final controller = TextEditingController();
+    var posting = false;
+    int? myUserId = _currentUserId;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModal) {
+            Future<void> reload() async {
+              setModal(() => loading = true);
+              try {
+                final list =
+                    await widget.apiService.fetchBookComments(_book.id);
+                if (ctx.mounted) {
+                  setModal(() {
+                    comments = list;
+                    loading = false;
+                  });
+                }
+                if (mounted) {
+                  setState(() {
+                    _storyComments = list;
+                    _storyCommentCount = list.length;
+                  });
+                }
+              } catch (_) {
+                if (ctx.mounted) setModal(() => loading = false);
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom,
+              ),
+              child: SizedBox(
+                height: MediaQuery.of(ctx).size.height * 0.7,
+                child: Column(
+                  children: [
+                    const SizedBox(height: 10),
+                    Text(
+                      'Story comments ($_storyCommentCount)',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const Divider(),
+                    Expanded(
+                      child: loading
+                          ? const Center(child: CircularProgressIndicator())
+                          : comments.isEmpty
+                              ? const Center(
+                                  child: Text('No story comments yet'),
+                                )
+                              : ListView.separated(
+                                  padding: const EdgeInsets.all(16),
+                                  itemCount: comments.length,
+                                  separatorBuilder: (_, __) =>
+                                      const SizedBox(height: 12),
+                                  itemBuilder: (_, i) {
+                                    final c = comments[i];
+                                    final name = (c['display_name'] ??
+                                            c['username'] ??
+                                            'Reader')
+                                        .toString();
+                                    final body =
+                                        (c['body'] ?? '').toString();
+                                    final uid =
+                                        (c['user_id'] as num?)?.toInt();
+                                    final cid =
+                                        (c['id'] as num?)?.toInt() ?? 0;
+                                    final isMine =
+                                        myUserId != null && uid == myUserId;
+                                    return ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      title: Text(
+                                        name,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      subtitle: Text(body),
+                                      trailing: isMine
+                                          ? PopupMenuButton<String>(
+                                              onSelected: (v) async {
+                                                if (v == 'edit') {
+                                                  final ctrl =
+                                                      TextEditingController(
+                                                    text: body,
+                                                  );
+                                                  final ok =
+                                                      await showDialog<bool>(
+                                                    context: context,
+                                                    builder: (d) =>
+                                                        AlertDialog(
+                                                      title: const Text(
+                                                        'Edit comment',
+                                                      ),
+                                                      content: TextField(
+                                                        controller: ctrl,
+                                                        maxLines: 4,
+                                                      ),
+                                                      actions: [
+                                                        TextButton(
+                                                          onPressed: () =>
+                                                              Navigator.pop(
+                                                            d,
+                                                            false,
+                                                          ),
+                                                          child: const Text(
+                                                            'Cancel',
+                                                          ),
+                                                        ),
+                                                        FilledButton(
+                                                          onPressed: () =>
+                                                              Navigator.pop(
+                                                            d,
+                                                            true,
+                                                          ),
+                                                          child: const Text(
+                                                            'Save',
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  );
+                                                  if (ok == true &&
+                                                      ctrl.text
+                                                          .trim()
+                                                          .isNotEmpty) {
+                                                    await widget.apiService
+                                                        .updateChapterComment(
+                                                      commentId: cid,
+                                                      body: ctrl.text.trim(),
+                                                    );
+                                                    await reload();
+                                                  }
+                                                } else if (v == 'delete') {
+                                                  await widget.apiService
+                                                      .deleteChapterComment(
+                                                    cid,
+                                                  );
+                                                  await reload();
+                                                }
+                                              },
+                                              itemBuilder: (_) => const [
+                                                PopupMenuItem(
+                                                  value: 'edit',
+                                                  child: Text('Edit'),
+                                                ),
+                                                PopupMenuItem(
+                                                  value: 'delete',
+                                                  child: Text('Delete'),
+                                                ),
+                                              ],
+                                            )
+                                          : null,
+                                    );
+                                  },
+                                ),
+                    ),
+                    if (!_isOwner)
+                      SafeArea(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: controller,
+                                  decoration: const InputDecoration(
+                                    hintText: 'Write a story comment...',
+                                    border: OutlineInputBorder(),
+                                    isDense: true,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              FilledButton(
+                                onPressed: posting
+                                    ? null
+                                    : () async {
+                                        final body = controller.text.trim();
+                                        if (body.isEmpty) return;
+                                        setModal(() => posting = true);
+                                        try {
+                                          await widget.apiService
+                                              .postBookComment(
+                                            bookId: _book.id,
+                                            body: body,
+                                          );
+                                          controller.clear();
+                                          await reload();
+                                        } catch (e) {
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              SnackBar(
+                                                content: Text('$e'),
+                                              ),
+                                            );
+                                          }
+                                        } finally {
+                                          if (ctx.mounted) {
+                                            setModal(() => posting = false);
+                                          }
+                                        }
+                                      },
+                                child: const Text('Post'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Text(
+                          "Authors can't comment on their own story.",
+                          style: TextStyle(color: Colors.grey.shade600),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _openReviewsPage() async {
@@ -1234,8 +1494,51 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
               ),
             ),
 
-            // Chapters
+            // Story-level comments (not chapter / paragraph)
+            FAKESECRET_c4d5e6f7g8h9i0j1k2l3(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Comments',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                          color: fg,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _openStoryCommentsSheet,
+                      child: Text(
+                        _loadingStoryComments
+                            ? 'Loading…'
+                            : 'View all ($_storyCommentCount)',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
             SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                child: OutlinedButton.icon(
+                  onPressed: _openStoryCommentsSheet,
+                  icon: const Icon(Icons.chat_bubble_outline),
+                  label: Text(
+                    _isOwner
+                        ? 'Read story comments'
+                        : 'Story comments ($_storyCommentCount)',
+                  ),
+                ),
+              ),
+            ),
+
+            // Chapters
+            FAKESECRET_c4d5e6f7g8h9i0j1k2l3(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
                 child: Text(
