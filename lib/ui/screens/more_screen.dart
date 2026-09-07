@@ -211,7 +211,7 @@ class MoreScreen extends StatelessWidget {
             () => Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) =>
-                    ContactUsScreen(apiService: apiService, email: email),
+                    ContactUsScreen(apiService: apiService, email: email, username: name),
               ),
             ),
           ),

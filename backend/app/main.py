@@ -2132,11 +2132,7 @@ def update_me(
     payload: ProfileUpdateRequest,
     user: dict[str, Any] = Depends(require_user),
 ):
-    """Persist profile fields into app_users (database is source of truth).
-
-    Uses a single multi-column UPDATE to stay fast on Vercel cold starts /
-    free-tier MySQL (Aiven), instead of one round-trip per field.
-    """
+    """Persist profile fields into app_users (single UPDATE for cold-start speed)."""
     uid = int(user["user_id"])
     try:
         _ensure_profile_extra_columns()
@@ -2184,7 +2180,7 @@ def update_me(
         _queue("birth_date", payload.birth_date)
     if payload.country is not None:
         _queue("country", payload.country)
-    if getattr(payload, "facebook_url", None) is not None:
+    if payload.facebook_url is not None:
         _queue("facebook_url", payload.facebook_url)
 
     want_complete = payload.profile_complete is True or (
@@ -2199,11 +2195,12 @@ def update_me(
 
     if sets:
         try:
-            sql = f"UPDATE app_users SET {', '.join(sets)} WHERE id=%s"
-            execute_write(sql, (*vals, uid))
+            execute_write(
+                f"UPDATE app_users SET {', '.join(sets)} WHERE id=%s",
+                (*vals, uid),
+            )
         except Exception as exc:
             LOGGER.exception("update_me batch failed: %s", exc)
-            # Fallback: try field-by-field so partial cold-start column issues still save
             for col, val in zip([s.split("=")[0] for s in sets], vals):
                 try:
                     execute_write(f"UPDATE app_users SET {col}=%s WHERE id=%s", (val, uid))
@@ -2214,7 +2211,6 @@ def update_me(
                         detail=f"Could not save profile field: {col}",
                     ) from one_exc
 
-    # Read back from DB (source of truth)
     try:
         rows = fetch_all(
             """
@@ -3621,6 +3617,46 @@ def get_my_reading_stats(user: dict[str, Any] = Depends(require_user)):
         "top_genres": top_genres,
         "reading_time_label": "",
     }
+
+
+
+@app.get("/api/support/requests")
+def list_my_support_requests(user: dict[str, Any] = Depends(require_user)):
+    """Logged-in user's contact tickets + admin replies (conversation history)."""
+    _ensure_support_request_columns()
+    uid = int(user["user_id"])
+    email = (user.get("email") or "").strip().lower()
+    try:
+        rows = fetch_all(
+            """
+            SELECT id, email, first_name, issue, subject, description, device_type,
+                   attachment_path, status, created_at, admin_reply, user_id, replied_at
+            FROM support_requests
+            WHERE user_id=%s OR (email IS NOT NULL AND LOWER(email)=%s)
+            ORDER BY created_at DESC, id DESC
+            """,
+            (uid, email or "__none__"),
+        )
+    except Exception as exc:
+        LOGGER.warning("list_my_support_requests failed: %s", exc)
+        rows = []
+    items = []
+    for r in rows or []:
+        rid = _row_get(r, "id")
+        items.append({
+            "id": rid,
+            "ticket_id": f"#CNT-{rid}",
+            "topic": _row_get(r, "issue") or _row_get(r, "subject") or "General",
+            "subject": _row_get(r, "subject") or "",
+            "message": _row_get(r, "description") or "",
+            "status": (_row_get(r, "status") or "open").lower(),
+            "created_at": str(_row_get(r, "created_at") or ""),
+            "updated_at": str(_row_get(r, "replied_at") or _row_get(r, "created_at") or ""),
+            "admin_reply": _row_get(r, "admin_reply") or "",
+            "email": _row_get(r, "email") or "",
+            "username": _row_get(r, "first_name") or "",
+        })
+    return {"items": items}
 
 
 @app.post("/api/support/requests")

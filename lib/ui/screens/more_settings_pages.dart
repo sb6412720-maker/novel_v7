@@ -486,166 +486,482 @@ class _LiveChatScreenState extends State<LiveChatScreen> {
   }
 }
 
+
 class ContactUsScreen extends StatefulWidget {
-  const ContactUsScreen({super.key, required this.apiService, this.email = ''});
+  const ContactUsScreen({super.key, required this.apiService, this.email = '', this.username = ''});
+
   final ApiService apiService;
   final String email;
+  final String username;
+
   @override
   State<ContactUsScreen> createState() => _ContactUsScreenState();
 }
 
 class _ContactUsScreenState extends State<ContactUsScreen> {
-  final _subject = TextEditingController();
-  final _message = TextEditingController();
+  static const _purple = Color(0xFF6C3CE1);
+  static const _paper = Color(0xFFF7F5FC);
+  static const _ink = Color(0xFF1A1A2E);
+
+  final _messageCtrl = TextEditingController();
+  final _otherCtrl = TextEditingController();
+  String? _topic;
   bool _sending = false;
+  bool _historyLoading = true;
+  String? _ticketId;
+  int _tab = 0; // 0 contact, 1 history
+  List<Map<String, dynamic>> _history = const [];
+
+  static const _topics = [
+    'General Question',
+    'Technical Problem',
+    'Account & Login',
+    'Story / Chapter Issue',
+    'Writing & Publishing',
+    'Report a Story',
+    'Report a User',
+    'Copyright / Content Issue',
+    'Payment / Subscription',
+    'Feedback & Suggestions',
+    'Partnership / Business',
+    'Other',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHistory();
+  }
+
   @override
   void dispose() {
-    _subject.dispose();
-    _message.dispose();
+    _messageCtrl.dispose();
+    _otherCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _send() async {
-    final s = _subject.text.trim();
-    final m = _message.text.trim();
-    if (s.isEmpty || m.isEmpty) {
+  Future<void> _loadHistory() async {
+    setState(() => _historyLoading = true);
+    try {
+      final items = await widget.apiService.fetchMySupportRequests();
+      if (!mounted) return;
+      setState(() {
+        _history = items;
+        _historyLoading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _historyLoading = false);
+    }
+  }
+
+  Future<void> _submit() async {
+    final topic = _topic;
+    final msg = _messageCtrl.text.trim();
+    if (topic == null || topic.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter subject and message')),
+        const SnackBar(content: Text('Please choose a topic')),
+      );
+      return;
+    }
+    if (topic == 'Other' && _otherCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please specify your reason')),
+      );
+      return;
+    }
+    if (msg.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Your message can\'t be empty')),
       );
       return;
     }
     setState(() => _sending = true);
     try {
-      await widget.apiService.submitSupportRequest({
-        'email': widget.email.isNotEmpty ? widget.email : 'user@novel.app',
-        'first_name': 'User',
-        'issue': 'Contact Us',
-        'subject': s,
-        'description': m,
-        'device_type': 'Mobile',
+      final displayTopic = topic == 'Other' ? 'Other: ${_otherCtrl.text.trim()}' : topic;
+      final res = await widget.apiService.submitSupportRequest({
+        'email': widget.email,
+        'first_name': widget.username.isNotEmpty ? widget.username : 'Reader',
+        'issue': displayTopic,
+        'subject': displayTopic,
+        'description': msg,
+        'device_type': 'mobile',
       });
+      final id = res is Map ? (res['id'] ?? res['ticket_id'] ?? res['request_id']) : null;
+      final ticket = id != null ? '#CNT-$id' : '#CNT-${DateTime.now().millisecondsSinceEpoch % 100000}';
       if (!mounted) return;
-      _subject.clear();
-      _message.clear();
+      setState(() {
+        _ticketId = ticket;
+        _messageCtrl.clear();
+        _otherCtrl.clear();
+        _topic = null;
+      });
+      await _loadHistory();
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Message sent. We will reply soon.')),
+        SnackBar(content: Text('Message sent · Ticket $ticket')),
       );
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not send: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not send: $e')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _sending = false);
     }
   }
 
+  String _statusLabel(String s) {
+    switch (s.toLowerCase()) {
+      case 'progress':
+      case 'in_progress':
+      case 'in progress':
+        return 'In Progress';
+      case 'resolved':
+        return 'Resolved';
+      case 'closed':
+        return 'Closed';
+      default:
+        return 'Open';
+    }
+  }
+
+  Color _statusColor(String s) {
+    switch (s.toLowerCase()) {
+      case 'resolved':
+        return const Color(0xFF4C7359);
+      case 'progress':
+      case 'in_progress':
+      case 'in progress':
+        return const Color(0xFF3B5486);
+      case 'closed':
+        return Colors.grey;
+      default:
+        return const Color(0xFF8F6521);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? const Color(0xFF121212) : _paper;
+    final card = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final fg = isDark ? Colors.white : _ink;
+    final muted = isDark ? Colors.white70 : const Color(0xFF5B5F66);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Contact Us'), centerTitle: true),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        children: [
-          const Text('Subject', style: TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _subject,
-            decoration: InputDecoration(
-              hintText: 'Enter subject',
-              filled: true,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Text('Message', style: TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _message,
-            maxLines: 6,
-            decoration: InputDecoration(
-              hintText: 'Type your message here...',
-              filled: true,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: ElevatedButton(
-              onPressed: _sending ? null : _send,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: MorePageChrome.purple,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              child: _sending
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Text(
-                      'Send Message',
-                      style: TextStyle(fontWeight: FontWeight.w700),
+      backgroundColor: bg,
+      appBar: AppBar(
+        title: const Text('Contact Us'),
+        centerTitle: true,
+        backgroundColor: isDark ? const Color(0xFF1A1A1A) : Colors.white,
+        foregroundColor: fg,
+        elevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: () => setState(() => _tab = 0),
+                  child: Text(
+                    'Contact Us',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: _tab == 0 ? _purple : muted,
                     ),
-            ),
-          ),
-          const SizedBox(height: 28),
-          Text(
-            'Other ways to reach us',
-            style: TextStyle(
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? Colors.white70
-                  : Colors.grey.shade600,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 12),
-          _tile(Icons.email_outlined, 'Email', 'support@example.com'),
-          _tile(
-            Icons.help_outline,
-            'FAQ',
-            'Find answers quickly',
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) =>
-                      HelpCenterScreen(apiService: widget.apiService),
+                  ),
                 ),
-              );
-            },
+              ),
+              Expanded(
+                child: TextButton(
+                  onPressed: () {
+                    setState(() => _tab = 1);
+                    _loadHistory();
+                  },
+                  child: Text(
+                    'My Requests',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: _tab == 1 ? _purple : muted,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
+        ),
+      ),
+      body: RefreshIndicator(
+        color: _purple,
+        onRefresh: _loadHistory,
+        child: _tab == 0 ? _buildContactForm(card, fg, muted) : _buildHistory(card, fg, muted),
+      ),
+    );
+  }
+
+  Widget _buildContactForm(Color card, Color fg, Color muted) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+      children: [
+        Text(
+          'Contact us',
+          style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: fg),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Have a question, suggestion, or problem? Let us know — our team reads every message.',
+          style: TextStyle(color: muted, height: 1.45),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: card,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE8E4F5)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: _readonlyBox('Username', widget.username.isEmpty ? 'Reader' : widget.username, muted, fg),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _readonlyBox('Email', widget.email.isEmpty ? '—' : widget.email, muted, fg),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Text('What can we help you with?', style: TextStyle(fontWeight: FontWeight.w700, color: fg)),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                value: _topic,
+                isExpanded: true,
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: isLight(card) ? Colors.white : const Color(0xFF2A2A2A),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                hint: const Text('Select a topic'),
+                items: _topics
+                    .map((t) => DropdownMenuItem(value: t, child: Text(t, overflow: TextOverflow.ellipsis)))
+                    .toList(),
+                onChanged: (v) => setState(() => _topic = v),
+              ),
+              if (_topic == 'Other') ...[
+                const SizedBox(height: 14),
+                Text('Please specify your reason', style: TextStyle(fontWeight: FontWeight.w700, color: fg)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _otherCtrl,
+                  decoration: InputDecoration(
+                    hintText: 'Tell us what you would like to contact us about...',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 14),
+              Text('Your message', style: TextStyle(fontWeight: FontWeight.w700, color: fg)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _messageCtrl,
+                maxLines: 6,
+                maxLength: 1000,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  hintText: 'Tell us how we can help you...',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 50,
+                child: FilledButton(
+                  onPressed: _sending ? null : _submit,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _purple,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: _sending
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Send message', style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+              if (_ticketId != null) ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF3EDFF),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: _purple.withValues(alpha: 0.35)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('✓ Your message has been sent', style: TextStyle(fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 4),
+                      Text('Thank you. Our team will review it and reply if needed.', style: TextStyle(color: muted, fontSize: 13)),
+                      const SizedBox(height: 8),
+                      Text('Ticket ID: $_ticketId', style: const TextStyle(fontWeight: FontWeight.w700, color: _purple)),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  bool isLight(Color c) => c.computeLuminance() > 0.5;
+
+  Widget _readonlyBox(String label, String value, Color muted, Color fg) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0ECFA),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: TextStyle(fontSize: 12, color: muted)),
+          const SizedBox(height: 2),
+          Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w600, color: fg)),
         ],
       ),
     );
   }
 
-  Widget _tile(IconData icon, String title, String sub, {VoidCallback? onTap}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: MorePageChrome.card(context),
-      child: ListTile(
-        leading: Icon(icon, color: MorePageChrome.purple),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text(sub),
-        onTap: onTap,
-      ),
+  Widget _buildHistory(Color card, Color fg, Color muted) {
+    if (_historyLoading) {
+      return const Center(child: CircularProgressIndicator(color: _purple));
+    }
+    if (_history.isEmpty) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          const SizedBox(height: 80),
+          Icon(Icons.inbox_outlined, size: 48, color: muted),
+          const SizedBox(height: 12),
+          Center(child: Text('No contact requests yet.', style: TextStyle(color: muted))),
+        ],
+      );
+    }
+    return ListView.separated(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+      itemCount: _history.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (context, i) {
+        final h = _history[i];
+        final status = '${h['status'] ?? 'open'}';
+        final reply = '${h['admin_reply'] ?? ''}'.trim();
+        return Material(
+          color: card,
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: reply.isEmpty
+                ? null
+                : () {
+                    showModalBottomSheet<void>(
+                      context: context,
+                      isScrollControlled: true,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                      ),
+                      builder: (ctx) => Padding(
+                        padding: EdgeInsets.fromLTRB(20, 16, 20, 20 + MediaQuery.of(ctx).viewInsets.bottom),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('${h['ticket_id'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                            const SizedBox(height: 8),
+                            Text('Your message', style: TextStyle(color: muted, fontSize: 12)),
+                            Text('${h['message'] ?? ''}', style: TextStyle(color: fg)),
+                            if (reply.isNotEmpty) ...[
+                              const SizedBox(height: 14),
+                              const Text('Support reply', style: TextStyle(fontWeight: FontWeight.w700, color: _purple)),
+                              const SizedBox(height: 6),
+                              Text(reply, style: TextStyle(color: fg, height: 1.4)),
+                            ],
+                            const SizedBox(height: 12),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE8E4F5)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${h['topic'] ?? 'Request'}',
+                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: fg),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _statusColor(status).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          _statusLabel(status),
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: _statusColor(status),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text('${h['ticket_id'] ?? ''}', style: TextStyle(fontSize: 12, color: muted)),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Sent ${h['created_at'] ?? ''}',
+                    style: TextStyle(fontSize: 12.5, color: muted),
+                  ),
+                  if (reply.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        'Tap to view support reply',
+                        style: TextStyle(color: _purple, fontWeight: FontWeight.w600, fontSize: 13),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
+
 
 class NotificationSettingsScreen extends StatefulWidget {
   const NotificationSettingsScreen({super.key, required this.apiService});

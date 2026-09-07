@@ -79,6 +79,19 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
   final ScrollController _scrollController = ScrollController();
   Map<int, int> _paragraphCommentCounts = {};
 
+  Future<bool> _isAuthorReadingOwnBook() async {
+    final authorId = widget.authorUserId;
+    if (authorId == null || authorId <= 0) return false;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final myId = prefs.getInt('auth_id');
+      return myId != null && myId > 0 && myId == authorId;
+    } catch (_) {
+      return false;
+    }
+  }
+
+
   static const _reactionOptions = <List<String>>[
     ['❤️', 'Love this'],
     ['😂', 'Funny'],
@@ -1824,6 +1837,31 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
         context,
       ).showSnackBar(SnackBar(content: Text('Could not save reaction: $e')));
     }
+  }
+
+  Future<bool> _postCommentGuarded({
+    required String body,
+    int? paragraphIndex,
+  }) async {
+    final bookId = widget.bookId;
+    if (bookId == null) return false;
+    if (await _isAuthorReadingOwnBook() && paragraphIndex == null) {
+      // Chapter-level new comment by author blocked; paragraph/reply style still allowed via paragraphIndex
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Authors cannot post new chapter comments on their own book. You can reply under reader comments.'),
+        ),
+      );
+      return false;
+    }
+    await widget.apiService.postChapterComment(
+      bookId: bookId,
+      chapterNumber: _chapterNumber,
+      body: body,
+      paragraphIndex: paragraphIndex,
+    );
+    return true;
   }
 
   Future<void> _openCommentsSheet() async {

@@ -9,6 +9,7 @@ import '../../data/services/auth_service.dart';
 import 'discover_screen.dart';
 import 'library_screen.dart';
 import 'login_screen.dart';
+import 'signup_screen.dart';
 import 'onboarding_profile_screen.dart';
 import 'more_screen.dart';
 import 'notifications_screen.dart';
@@ -288,8 +289,18 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
     // CRITICAL: once user has reached home this session, NEVER show complete-profile
     // again (not from More, Profile, or tab switches).
     if (_profileGatePassed) return false;
-    // Database is the source of truth. A local flag may be stale after a
-    // reinstall/account switch, so it must never bypass this check.
+
+    // Local-first: after a successful Complete Profile for this Gmail, never block home
+    // with a long network wait (Vercel cold start).
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(_profileDoneKey(session)) == true) return false;
+      final em = session.email.trim().toLowerCase();
+      if (em.isNotEmpty && prefs.getBool('profile_complete_local_$em') == true) {
+        return false;
+      }
+    } catch (_) {}
+
     try {
       final me = await _apiService.fetchMe();
       final done = _isProfileCompleteFlag(me['profile_complete']);
@@ -297,14 +308,12 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
           .toString()
           .trim()
           .isNotEmpty;
+      final hasGender = (me['gender'] ?? '').toString().trim().isNotEmpty;
+      final name = (me['display_name'] ?? '').toString().trim();
+      final hasRealName = name.isNotEmpty && name.toLowerCase() != 'reader';
 
-      if (done || hasBirth) {
-        // Heal DB flag if birth exists but flag missing
-        if (!done && hasBirth) {
-          try {
-            await _apiService.updateMe({'profile_complete': true});
-          } catch (_) {}
-        }
+      // Treat profile as complete if flag is set OR birthday was collected (onboarding).
+      if (done || hasBirth || (hasGender && hasRealName)) {
         try {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setBool(_profileDoneKey(session), true);
@@ -314,11 +323,20 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
             await prefs.setBool('profile_complete_local_$em', true);
           }
         } catch (_) {}
+        // Heal DB flag in background — never await heavy retries on login path.
+        if (!done) {
+          // ignore: unawaited_futures
+          Future(() async {
+            try {
+              await _apiService.updateMyProfile({'profile_complete': true});
+            } catch (_) {}
+          });
+        }
         return false;
       }
-      return true; // first-time: show complete-profile BEFORE home only
+      return true; // first-time only
     } catch (_) {
-      // Network blip: if this Gmail already completed locally, do not re-show.
+      // Network failure: prefer home over blocking onboarding forever.
       try {
         final prefs = await SharedPreferences.getInstance();
         if (prefs.getBool(_profileDoneKey(session)) == true ||
@@ -330,8 +348,9 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
           return false;
         }
       } catch (_) {}
-      // No prior completion signal — require onboarding once.
-      return true;
+      // If we cannot reach the server, still allow home (guest-like) rather than
+      // trapping the user on a long-buffering complete-profile screen.
+      return false;
     }
   }
 
@@ -439,6 +458,16 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
         onContinue: _continueLogin,
         onSkipAsReader: () {
           _continueLogin('guest');
+        },
+        onOpenSignUp: () {
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => SignUpScreen(
+                apiService: _apiService,
+                onContinue: _continueLogin,
+              ),
+            ),
+          );
         },
       );
     }

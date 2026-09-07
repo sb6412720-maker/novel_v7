@@ -477,15 +477,45 @@ class ApiService {
     return fallback;
   }
 
-  Future<void> submitSupportRequest(Map<String, dynamic> payload) async {
+  
+  Future<List<Map<String, dynamic>>> fetchMySupportRequests() async {
+    try {
+      final response = await _get(
+        '/api/support/requests',
+        timeout: const Duration(seconds: 45),
+      );
+      if (response.statusCode != 200) return const [];
+      final payload = jsonDecode(response.body);
+      if (payload is Map && payload['items'] is List) {
+        return (payload['items'] as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      if (payload is List) {
+        return payload
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+    } catch (_) {}
+    return const [];
+  }
+
+  Future<Map<String, dynamic>> submitSupportRequest(Map<String, dynamic> payload) async {
     final response = await _post(
       '/api/support/requests',
       payload,
-      timeout: const Duration(seconds: 30),
+      timeout: const Duration(seconds: 60),
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('Unable to submit support request');
     }
+    try {
+      final body = jsonDecode(response.body);
+      if (body is Map) return Map<String, dynamic>.from(body);
+    } catch (_) {}
+    return const {'ok': true};
   }
 
   Future<Map<String, dynamic>> fetchUserPreferences() async {
