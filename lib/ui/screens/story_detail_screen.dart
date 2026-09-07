@@ -1495,7 +1495,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
             ),
 
             // Story-level comments (not chapter / paragraph)
-            FAKESECRET_c4d5e6f7g8h9i0j1k2l3(
+            SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
                 child: Row(
@@ -1538,7 +1538,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
             ),
 
             // Chapters
-            FAKESECRET_c4d5e6f7g8h9i0j1k2l3(
+            SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
                 child: Text(
